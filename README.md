@@ -1,6 +1,6 @@
 # evidence-led-security-audit
 
-[![tests](https://github.com/shivanathd/evidence-led-security-audit/actions/workflows/test.yml/badge.svg)](https://github.com/shivanathd/evidence-led-security-audit/actions/workflows/test.yml)
+[![tests](https://github.com/shivanathd/evidence-led-security-audit/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/shivanathd/evidence-led-security-audit/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 An [Agent Skill](https://agentskills.io) that turns "are we affected?" into an answer backed by evidence. It guides an AI agent (Claude Code, Codex, Cursor and others that read `SKILL.md`) through a read-only security audit of systems you are allowed to assess, and makes it report what it could not check instead of calling it clean.
