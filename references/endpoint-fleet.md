@@ -102,12 +102,28 @@ SDKMAN, Gradle, asdf and mise install JDKs under each user's home directory. Inc
 
 ## Testing a chain with the client that matters
 
-When an advisory provides test hosts that serve the affected chain, check each client type separately, because each uses its own store:
+When an advisory provides test hosts that serve the affected chain, test each client type separately. Each client has its own trust store, its own revocation data and its own way of building a chain.
 
-- Run the probe with the client itself (built-in curl, Homebrew curl, Python, Java, Node.js, the browser), not only `openssl`.
-- Count only a certificate-verification error as "rejected". With curl that is exit code 60. On Windows, record the exception message; a trust or revocation error is a rejection, anything else is inconclusive.
+**Only a live connection counts.** A client passes only when that client, making a real connection to the test host through its own networking stack, gets a certificate error. Verifying saved chain files offline (`openssl verify`, `security verify-cert` on PEM files, a script that parses the chain) is not enough. A live connection builds its own path: it may fetch or reuse intermediates and cross-signs that the saved chain does not contain, and it checks revocation online, often accepting the chain when a revocation server does not answer. Offline results can say "revoked" while the live connection succeeds. Use offline verification to explain a live result, never to replace one.
+
+| Client | Live probe |
+| --- | --- |
+| Safari and apps on Apple's URL loading system (macOS) | `nscurl https://test-host.example/` uses the same networking and trust stack as Safari. Also run the advisory's in-browser checker in Safari when it has one. |
+| Built-in `curl`, `git`, `python3` (macOS and Linux) | `/usr/bin/curl -s -o /dev/null https://test-host.example/; echo $?` |
+| Homebrew or other OpenSSL builds | That build's own `openssl s_client -connect test-host.example:443 -servername test-host.example` (read `Verify return code`) and its own `curl` |
+| Python and pip | The interpreter's `urllib.request.urlopen("https://test-host.example/")`; for pip, `pip download --no-deps --index-url https://test-host.example/simple/ zzz-nonexistent` (a certificate error rejects, a "not found" means the TLS connection was accepted) |
+| Node.js, Bun, Deno | `fetch("https://test-host.example/")` in that runtime |
+| Java | A request from each JDK, for example with Java's built-in `HttpClient` in `jshell`. `keytool -printcert -sslserver` does not validate the chain. |
+| Windows apps on Schannel | `Invoke-WebRequest https://test-host.example/ -UseBasicParsing` (record the exception) and `curl.exe` |
+| Browsers | The advisory's in-browser checker in the user's real browser profile. A headless browser with a fresh profile lacks downloaded revocation data, such as Chrome's CRLSet, so its result is not the user's result. |
+
+Rules for reading results:
+
+- Count only a certificate-verification error as "rejected": curl exit code 60, an OpenSSL verify code other than 0, `CERT_REVOKED` or a distrust error from a runtime, a trust or revocation exception on Windows.
 - A network failure, timeout or proxy error proves nothing. The check is BLOCKED or inconclusive, never PASS.
-- Also probe a known-good site that chains through the same CA family, so a fix that breaks legitimate chains shows up as a failure.
+- Probe from the device itself. In a fleet, the probe runs inside the collection script, not from the auditor's machine.
+- Also probe a known-good site that chains through the same CA family, so a fix that breaks legitimate chains shows up as a failure. An HTTP error such as 403 from that site still means the TLS connection succeeded.
+- Repeat the same probes after any change and keep both results as before-and-after evidence.
 
 ## osquery equivalents
 

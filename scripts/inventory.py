@@ -74,7 +74,14 @@ AGENT_GLOBS = [".claude/*", ".cursor/rules/*", ".github/copilot-instructions.md"
 INJECTION = re.compile(
     r"(?i)(ignore (?:all |any )?(?:previous|prior|above) instructions|disregard (?:the )?(?:system|previous)|"
     r"you are now|do not (?:tell|inform) the user|exfiltrat|curl [^|\n]*\|\s*(?:ba|z)?sh|wget [^|\n]*\|\s*(?:ba)?sh|"
-    r"base64 (?:-d|--decode)|auto-?approve|dangerously)")
+    r"base64 (?:-d|--decode)|auto-?approve|dangerously|"
+    # Text aimed at steering an auditor's verdict rather than its actions.
+    r"(?:skip|bypass|disable|ignore)\s+(?:all\s+|any\s+|the\s+)?(?:security|safety|audit|vulnerability)\s+"
+    r"(?:checks?|scans?|reviews?|audits?|rules?)|"
+    r"(?:report|mark|treat|label|declare)\s+(?:it|this|everything|(?:the\s+|this\s+)?(?:repo|repository|project|"
+    r"code|codebase|package|system|app|application|service))\s+as\s+(?:safe|secure|clean|compliant|approved|"
+    r"trusted|vulnerability[- ]free)|"
+    r"(?:already|previously)\s+(?:been\s+)?(?:audited|security[- ]reviewed|vetted))")
 SENSITIVE_NAMES = [".env", ".env.*", "*.env", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", "id_ed25519*", "id_ecdsa*",
                    "*.kdbx", "credentials*.json", ".npmrc", ".pypirc", ".netrc", "kubeconfig*", "*.tfstate",
                    "*.tfstate.backup", ".htpasswd", "service-account*.json", ".git-credentials", ".dockercfg",
