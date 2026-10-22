@@ -1,6 +1,6 @@
 # Release-candidate validation
 
-Version 0.1.0, checked on 22 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
+Version 0.2.0, checked on 22 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
 ## Executed checks
 
