@@ -79,6 +79,7 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "trivy.dev", "agentskills.io", "opensource.org", "json-schema.org", "nvd.nist.gov", "www.first.org",
     "blog.railway.com", "status.railway.com",  # cited by profiles/railway-2026-10-21.md
     "skills.sh", "img.shields.io",  # README badges
+    "blog.mozilla.org", "bugzilla.mozilla.org", "emudhra.com", "emudhra.we-have-a-problem.com",  # emudhra profile
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

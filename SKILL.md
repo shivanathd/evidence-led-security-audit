@@ -1,6 +1,6 @@
 ---
 name: evidence-led-security-audit
-description: "Read-only, evidence-backed security audit of systems you are authorized to assess. Use when asked whether a system is affected by a new CVE or breach (PHP RCEs, leaked platform secrets), to audit a repo, image, server or SaaS tenant, or to write a fix-and-retest report with honest coverage gaps."
+description: "Read-only, evidence-backed security audit of systems you may assess. Use when asked whether a system is affected by a CVE or breach (PHP RCEs, leaked platform secrets), to audit a repo, image, server, device fleet or SaaS tenant, or to write a fix-and-retest report with honest coverage gaps."
 license: MIT
 compatibility: "Any agent that reads SKILL.md; no connector, model provider, hook or scheduler needed. Helpers use the Python 3.9+ stdlib with no network; file helpers need Linux or macOS, else they stop with BLOCKED."
 metadata:
@@ -28,9 +28,9 @@ Do the phases in order. A phase whose gate fails stops or reports BLOCKED. See [
 
 0. **Preflight**: authorization, scope, mode, tools, required checks, sources to refresh.
 1. **Inventory**: `python3 scripts/inventory.py <repo> --target ID --out inv.json --strict`
-2. **Advisories**: refresh primary sources this run and date them. Optional dated [profiles/](profiles/) (PHP RCEs, Railway secrets).
-3. **Checks**: source, dependency, image, runtime, identity, config. See [scoped-checks](references/scoped-checks.md) and [saas-identity](references/saas-identity.md).
-4. **Credential exposure**: prepare containment and notification. Execute only approved actions.
+2. **Advisories**: refresh primary sources this run and date them. Optional dated [profiles/](profiles/) (PHP, Railway, eMudhra).
+3. **Checks**: source, dependency, image, runtime, identity, config. See [scoped-checks](references/scoped-checks.md), [saas-identity](references/saas-identity.md), [endpoint-fleet](references/endpoint-fleet.md).
+4. **Credential exposure**: prepare containment and notification; run only approved actions.
 5. **Refutation and review**: [references/orchestration.md](references/orchestration.md).
 6. **Baseline report and fix plan**: validate, then render.
 7. **After-fix retest**: a separate report, validated with `--baseline`.
@@ -48,7 +48,7 @@ Never say "secure", "certified" or "fully covered".
 
 ```bash
 python3 scripts/validate_report.py assets/examples/baseline-report.json
-OUT="$(cd "$(mktemp -d)" && pwd -P)"  # no symlinks in the path
+OUT="$(cd "$(mktemp -d)" && pwd -P)"
 python3 scripts/render_report.py assets/examples/baseline-report.json --out "$OUT/baseline.md"
 python3 scripts/check_public_package.py . --denylist /path/private-terms.txt
 ```

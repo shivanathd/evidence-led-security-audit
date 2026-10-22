@@ -9,6 +9,7 @@ Version 0.1.0, checked on 22 October 2026. This record concerns the skill's help
 - **Package inspection:** The public-package checker reported no rule match and no unreviewed binary content for this text-only candidate.
 - **Secret check:** Gitleaks 8.30.1 found no leaks in the candidate tree. Pattern checks do not prove that every confidential fact has been detected.
 - **Examples:** The baseline and after-fix examples validate structurally; the after-fix example intentionally remains INCOMPLETE because a required check is blocked.
+- **Endpoint guide commands:** the macOS commands in `references/endpoint-fleet.md` were run read-only on macOS 27.0. The Linux and Windows commands follow each vendor's documented tools and were not executed for this release. The osquery table and column names were checked against the osquery table specs.
 - **Manual privacy review:** Audit examples are synthetic. Public-source citations are intentional; no real audit inventory, credentials or incident evidence is bundled.
 
 ## Adversarial development checks

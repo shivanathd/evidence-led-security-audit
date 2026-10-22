@@ -41,6 +41,7 @@ Ask your agent in plain language and name what you own:
 
 - *"Audit our api repo and its production image for the October 21 PHP RCEs. I own both. Read-only."*
 - *"Our app ran on Railway. Work out which secrets were exposed and build the rotation and revocation checklist."*
+- *"I manage our Macs, Linux servers and Windows laptops. Which of them still trust the compromised eMudhra intermediates? Read-only, through our MDM."*
 - *"Here's the patched build. Retest it against last week's baseline report."*
 
 The agent then:
@@ -94,7 +95,7 @@ flowchart TB
 | 0 Preflight | Authorization, scope, approver roles, tools | [phases.md](references/phases.md) |
 | 1 Inventory | `scripts/inventory.py` lists manifests, listeners, hooks, secrets (location only) | [phases.md](references/phases.md) |
 | 2 Advisories | Re-read primary sources this run, with dates | [profiles/](profiles/) |
-| 3 Checks | One target and one layer per check | [scoped-checks.md](references/scoped-checks.md), [saas-identity.md](references/saas-identity.md) |
+| 3 Checks | One target and one layer per check | [scoped-checks.md](references/scoped-checks.md), [saas-identity.md](references/saas-identity.md), [endpoint-fleet.md](references/endpoint-fleet.md) |
 | 4 Credential exposure | Owner, rotation, revocation, misuse review | [scoped-checks.md](references/scoped-checks.md) |
 | 5 Refutation | Try to disprove every finding and every PASS | [orchestration.md](references/orchestration.md) |
 | 6 Baseline report | Validate, then render | [reporting-release.md](references/reporting-release.md) |
@@ -113,6 +114,10 @@ flowchart LR
 
 A tag is not a digest, and `php -v` on the CLI says nothing about the web server's runtime.
 
+## Endpoints and fleets
+
+For laptops and servers, [endpoint-fleet.md](references/endpoint-fleet.md) gives read-only checks for macOS, Linux and Windows (OS build, installed packages, listening services, certificate trust stores, Java runtimes) and explains how to collect them at scale through an MDM, osquery or configuration management in check mode. Devices that don't report count as gaps, not as clean. The bundled Python helpers don't run on Windows, so Windows evidence is collected with PowerShell and checked elsewhere.
+
 ## Incident profiles
 
 Profiles are dated starting points for specific incidents. They are not "latest" lists: the agent still re-reads the primary sources on every run, and a changed source wins.
@@ -121,6 +126,7 @@ Profiles are dated starting points for specific incidents. They are not "latest"
 | --- | --- | --- |
 | [php-2026-10-21.md](profiles/php-2026-10-21.md) | CVE-2026-109618 and CVE-2026-109619 (PHP RCE via OOM corruption and stale global state): fixed builds, exposure per SAPI, interim measures, closure evidence | 2026-10-22 |
 | [railway-2026-10-21.md](profiles/railway-2026-10-21.md) | Possible exposure of environment variables stored on Railway: inventory, rotation, revocation and misuse review | 2026-10-22 |
+| [emudhra-2026-10-17.md](profiles/emudhra-2026-10-17.md) | Compromised eMudhra intermediate CA keys: which clients and trust stores still accept the chains, per OS and runtime, and how to prove they no longer do | 2026-10-22 |
 
 To add one, copy an existing profile, cite primary sources only, and name it `<topic>-<yyyy-mm-dd>.md`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -189,7 +195,7 @@ Host policy format (the same file works for `validate_report.py --public --host-
 | Path | Purpose |
 | --- | --- |
 | `SKILL.md` | Hub the agent loads first |
-| `references/` | Phases and gates, layered checks, SaaS and identity, orchestration, tooling, reporting |
+| `references/` | Phases and gates, layered checks, SaaS and identity, endpoints and fleets (macOS, Linux, Windows), orchestration, tooling, reporting |
 | `profiles/` | Dated incident profiles |
 | `assets/report.schema.json` | Report structure |
 | `assets/examples/` | Synthetic baseline and after-fix reports (`service-a`, `example.invalid`) |
