@@ -101,5 +101,5 @@ def run_script(name, *args, cwd=None):
 
 
 def clean_copy(dest):
-    shutil.copytree(ROOT, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    shutil.copytree(ROOT, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".git"))
     return Path(dest)

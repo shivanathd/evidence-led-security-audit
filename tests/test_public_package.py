@@ -30,6 +30,23 @@ class PackageSelfCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 0, "%s\n%s%s" % (cmd, res.stdout, res.stderr))
 
 
+class GitMetadata(unittest.TestCase):
+    def setUp(self):
+        self.pkg = support.clean_copy(Path(support.tmpdir()) / support.ROOT.name)
+
+    def test_root_git_dir_is_a_warning_not_a_pass_or_block(self):
+        (self.pkg / ".git").mkdir()
+        (self.pkg / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+        rep = cpp.scan(self.pkg, [], cpp.DEFAULT_ALLOWED_HOSTS)
+        self.assertEqual(rep.errors, [], rep.errors)
+        self.assertIn("GIT_HISTORY", {i["code"] for i in rep.items})
+
+    def test_nested_git_dir_is_still_forbidden(self):
+        (self.pkg / "assets" / "vendored" / ".git").mkdir(parents=True)
+        rep = cpp.scan(self.pkg, [], cpp.DEFAULT_ALLOWED_HOSTS)
+        self.assertIn("FORBIDDEN_ARTIFACT", {i["code"] for i in rep.errors})
+
+
 class BadPackage(unittest.TestCase):
     def setUp(self):
         self.d = Path(support.tmpdir()) / "bad-skill"

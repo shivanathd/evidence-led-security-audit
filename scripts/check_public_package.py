@@ -111,7 +111,13 @@ def scan(root, denylist, allowed_hosts, max_bytes=2 * 1024 * 1024, host_records=
         if kind == "dir":
             continue
         if kind == "excluded_dir":
-            rep.add("ERROR", "FORBIDDEN_ARTIFACT", rel + "/", "remove before packaging")
+            if rel == ".git":
+                # The package's own repository: history ships with it but is not scanned here.
+                rep.add("WARNING", "GIT_HISTORY", ".git/",
+                        "history is not scanned by this check; scan it with a history-aware secret scanner "
+                        "(for example gitleaks git) before publishing")
+            else:
+                rep.add("ERROR", "FORBIDDEN_ARTIFACT", rel + "/", "remove before packaging")
             continue
         if kind == "symlink":
             rep.add("ERROR", "SYMLINK", rel, "symlinks are not allowed in a public package")
