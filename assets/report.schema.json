@@ -1,0 +1,988 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence-led security audit report",
+  "description": "Structural contract for baseline and after-fix reports. scripts/validate_report.py interprets the subset used here (type, required, properties, additionalProperties, enum, items, $ref, minItems, minLength, pattern) and then applies semantic rules. Passing validation means the structure is consistent, not that the evidence is authentic.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_kind",
+    "audit_id",
+    "generated_on",
+    "authorization",
+    "scope",
+    "inventory_coverage",
+    "sources",
+    "evidence",
+    "required_checks",
+    "findings",
+    "fix_plan",
+    "reviews",
+    "coverage_notes",
+    "verdict"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "report_kind": {
+      "type": "string",
+      "enum": [
+        "baseline",
+        "after_fix"
+      ]
+    },
+    "audit_id": {
+      "$ref": "#/$defs/id"
+    },
+    "baseline_audit_id": {
+      "$ref": "#/$defs/id"
+    },
+    "generated_on": {
+      "$ref": "#/$defs/date"
+    },
+    "primary_model_family": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmed",
+        "authorized_by_role",
+        "reference",
+        "mode",
+        "approvers"
+      ],
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "authorized_by_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "read_only",
+            "approved_changes"
+          ]
+        },
+        "approved_actions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "approvers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scope",
+            "fix_review",
+            "deploy",
+            "risk_acceptance",
+            "publication"
+          ],
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "fix_review": {
+              "type": "string",
+              "minLength": 1
+            },
+            "deploy": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_acceptance": {
+              "type": "string",
+              "minLength": 1
+            },
+            "publication": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targets",
+        "out_of_scope",
+        "scope_requests"
+      ],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/target"
+          }
+        },
+        "out_of_scope": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope_requests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/scope_request"
+          }
+        }
+      }
+    },
+    "inventory_manifests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/manifest"
+      },
+      "description": "Manifests and lockfiles found by inventory. Dependency checks that PASS must cover every listed manifest for their target."
+    },
+    "inventory_coverage": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/inventory_record"},
+      "description": "Structured inventory reconciliation. Required for each repository target; omitted or unaccepted gaps prevent clearance."
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "required_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "fix_plan": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fix_step"
+      }
+    },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/review"
+      }
+    },
+    "coverage_notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall",
+        "statement"
+      ],
+      "properties": {
+        "overall": {
+          "type": "string",
+          "enum": [
+            "CLEAR_WITHIN_COVERED_SCOPE",
+            "ISSUES_OPEN",
+            "INCOMPLETE"
+          ]
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "inventory_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "status", "evidence_ids", "gaps"],
+      "properties": {
+        "target": {"$ref": "#/$defs/id"},
+        "status": {"type": "string", "enum": ["COMPLETE", "PARTIAL", "BLOCKED", "NOT_RUN"]},
+        "evidence_ids": {"$ref": "#/$defs/ids"},
+        "reason": {"type": "string", "minLength": 1},
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "reason", "disposition"],
+            "properties": {
+              "id": {"$ref": "#/$defs/id"},
+              "reason": {"type": "string", "minLength": 1},
+              "disposition": {"type": "string", "enum": ["UNACCEPTED", "APPROVED_OUT_OF_SCOPE"]},
+              "approved_by_role": {"type": "string", "minLength": 1},
+              "approval_ref": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "ids": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    },
+    "layer": {
+      "type": "string",
+      "enum": [
+        "source",
+        "dependency",
+        "image",
+        "runtime",
+        "identity",
+        "credential",
+        "config",
+        "process"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "locator"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "repository",
+            "image",
+            "runtime",
+            "saas_tenant",
+            "ci",
+            "agent_config",
+            "other"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "related_targets": {
+          "$ref": "#/$defs/ids",
+          "description": "Owner-declared links (built from, deployed as, credential provider). Evidence from a linked target may support findings on this target; required checks always need same-target evidence."
+        },
+        "required_layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layer"
+          },
+          "description": "Layers required beyond the default matrix for this target kind. Adds checks; never removes them."
+        }
+      }
+    },
+    "scope_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "reason",
+        "status",
+        "change"
+      ],
+      "properties": {
+        "target_id": {
+          "$ref": "#/$defs/id"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending_owner_approval",
+            "approved",
+            "rejected"
+          ]
+        },
+        "approved_by_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "change": {
+          "type": "string",
+          "enum": [
+            "expand",
+            "narrow"
+          ]
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "path",
+        "scope_class"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope_class": {
+          "type": "string",
+          "enum": [
+            "runtime",
+            "test_like",
+            "vendored",
+            "example",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "url",
+        "retrieved_on",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "retrieved_on": {
+          "$ref": "#/$defs/date"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "project_advisory",
+            "vendor_advisory",
+            "cve_record",
+            "package_advisory",
+            "distro_advisory",
+            "documentation",
+            "other"
+          ]
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "target",
+        "layer",
+        "summary",
+        "collected_on",
+        "collection_status",
+        "executed",
+        "execution_context",
+        "redaction"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "command_output",
+            "file_excerpt",
+            "config_snapshot",
+            "scanner_output",
+            "package_advisory",
+            "runtime_observation",
+            "image_metadata",
+            "test_run",
+            "human_attestation",
+            "model_review"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/id"
+        },
+        "layer": {
+          "$ref": "#/$defs/layer"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "collected_on": {
+          "$ref": "#/$defs/date"
+        },
+        "collection_status": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "truncated",
+            "unparsed",
+            "access_denied",
+            "tool_missing",
+            "timeout",
+            "error",
+            "not_run"
+          ]
+        },
+        "executed": {
+          "type": "boolean"
+        },
+        "command_ref": {
+          "type": "string"
+        },
+        "source_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,64}$"
+        },
+        "image_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "deployed_source_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,64}$"
+        },
+        "attested_by_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "execution_context": {
+          "type": "string",
+          "enum": [
+            "not_executed",
+            "read_only_local",
+            "isolated_disposable",
+            "owner_approved_environment",
+            "unisolated"
+          ]
+        },
+        "redaction": {
+          "type": "string",
+          "enum": [
+            "redacted",
+            "no_sensitive_content",
+            "raw_local_only"
+          ]
+        },
+        "test_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail",
+            "not_applicable"
+          ]
+        },
+        "package": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Package coordinates, e.g. ecosystem:name."
+        },
+        "build": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact installed or fixed build string."
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "target",
+        "layer",
+        "status",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "$ref": "#/$defs/id"
+        },
+        "layer": {
+          "$ref": "#/$defs/layer"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL",
+            "BLOCKED",
+            "NOT_RUN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "covers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "approved_by_role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human role that approved a NOT_APPLICABLE status."
+        }
+      }
+    },
+    "refutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "result",
+        "evidence_ids"
+      ],
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "survived",
+            "refuted",
+            "inconclusive"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "not_reachable",
+            "not_present_in_artifact",
+            "test_only",
+            "vendor_backport",
+            "version_not_affected",
+            "config_not_enabled",
+            "other"
+          ]
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    },
+    "mitigation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "description",
+        "evidence_ids",
+        "requires_restart"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "requires_restart": {
+          "type": "boolean"
+        },
+        "restart_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    },
+    "fix_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verification_basis",
+        "after_evidence_ids",
+        "positive_test_ids",
+        "deployed_artifact"
+      ],
+      "properties": {
+        "verification_basis": {
+          "type": "string",
+          "enum": [
+            "behavior_test",
+            "vendor_patch",
+            "not_execution_verified"
+          ],
+          "description": "behavior_test: discriminating before/after security test plus valid-use tests. vendor_patch: authoritative fixed-build or backport evidence plus runtime mapping plus application regressions; no exploit reproduction. not_execution_verified: documented reason the baseline could not be run safely; never yields a clear verdict."
+        },
+        "before_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "after_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "positive_test_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "negative_test_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "vendor_fix_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "not_execution_verified_reason": {
+          "type": "string"
+        },
+        "deployed_artifact": {
+          "type": "boolean"
+        },
+        "not_deployed_reason": {
+          "type": "string"
+        },
+        "runtime_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "source_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,64}$"
+        },
+        "deployed_source_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,64}$"
+        },
+        "requires_config": {
+          "type": "boolean"
+        },
+        "config_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "rotation_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "revocation_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "image_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Digest of the deployed image. A source SHA is not an image digest."
+        },
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixed_build": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "risk_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accepted_by_role",
+        "reference",
+        "expires_on"
+      ],
+      "properties": {
+        "accepted_by_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_on": {
+          "$ref": "#/$defs/date"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "target",
+        "layer",
+        "category",
+        "severity",
+        "status",
+        "dependency_scope",
+        "evidence_ids",
+        "source_ids"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "$ref": "#/$defs/id"
+        },
+        "layer": {
+          "$ref": "#/$defs/layer"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "vulnerable_component",
+            "misconfiguration",
+            "credential_exposure",
+            "authorization",
+            "injection_surface",
+            "supply_chain",
+            "other"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "mitigated",
+            "fixed",
+            "refuted",
+            "unknown",
+            "accepted_risk"
+          ]
+        },
+        "dependency_scope": {
+          "type": "string",
+          "enum": [
+            "runtime",
+            "test_only",
+            "dev_only",
+            "nested",
+            "vendored",
+            "not_applicable",
+            "unknown"
+          ]
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "source_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "baseline_finding_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unknown_reason": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "refutation": {
+          "$ref": "#/$defs/refutation"
+        },
+        "mitigation": {
+          "$ref": "#/$defs/mitigation"
+        },
+        "fix_evidence": {
+          "$ref": "#/$defs/fix_evidence"
+        },
+        "risk_acceptance": {
+          "$ref": "#/$defs/risk_acceptance"
+        }
+      }
+    },
+    "fix_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "action",
+        "owner_role",
+        "requires_human_approval",
+        "retest",
+        "rollback"
+      ],
+      "properties": {
+        "finding_id": {
+          "$ref": "#/$defs/id"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requires_human_approval": {
+          "type": "boolean"
+        },
+        "retest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "positive",
+            "negative",
+            "runtime_check"
+          ],
+          "properties": {
+            "positive": {
+              "type": "string",
+              "minLength": 1
+            },
+            "negative": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime_check": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "rollback": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "reviewer_label",
+        "independence",
+        "summary",
+        "finding_ids",
+        "counts_as_execution_proof",
+        "input_evidence_ids"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "reviewer_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "independence": {
+          "type": "string",
+          "enum": [
+            "different_model",
+            "same_model_roleplay",
+            "human",
+            "tool"
+          ]
+        },
+        "model_family": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "finding_ids": {
+          "$ref": "#/$defs/ids"
+        },
+        "counts_as_execution_proof": {
+          "type": "boolean"
+        },
+        "input_evidence_ids": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    }
+  }
+}

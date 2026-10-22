@@ -1,0 +1,908 @@
+{
+  "schema_version": "1.0",
+  "inventory_coverage": [
+    {"target": "service-a-repo", "status": "COMPLETE", "evidence_ids": ["EV-101"], "gaps": []}
+  ],
+  "report_kind": "after_fix",
+  "audit_id": "synthetic-service-a-retest-001",
+  "baseline_audit_id": "synthetic-service-a-baseline-001",
+  "generated_on": "2026-10-29",
+  "primary_model_family": "model-family-a",
+  "authorization": {
+    "confirmed": true,
+    "authorized_by_role": "service-a system owner",
+    "reference": "AUTH-EXAMPLE-0001 (synthetic)",
+    "mode": "read_only",
+    "approvers": {
+      "scope": "service-a system owner",
+      "fix_review": "service-a tech lead",
+      "deploy": "service-a release manager",
+      "risk_acceptance": "security lead",
+      "publication": "security lead"
+    }
+  },
+  "scope": {
+    "targets": [
+      {
+        "id": "service-a-repo",
+        "kind": "repository",
+        "locator": "git.example.invalid/service-a",
+        "required_layers": [
+          "identity"
+        ]
+      },
+      {
+        "id": "service-a-image",
+        "kind": "image",
+        "locator": "registry.example.invalid/service-a",
+        "related_targets": [
+          "service-a-repo"
+        ]
+      },
+      {
+        "id": "service-a-runtime",
+        "kind": "runtime",
+        "locator": "service-a.example.invalid (FPM workers behind a reverse proxy)",
+        "related_targets": [
+          "service-a-image",
+          "service-a-repo"
+        ]
+      },
+      {
+        "id": "service-a-idp",
+        "kind": "saas_tenant",
+        "locator": "idp.example.invalid tenant for service-a",
+        "related_targets": [
+          "service-a-repo"
+        ]
+      }
+    ],
+    "out_of_scope": [
+      "any host not listed in targets",
+      "production write access"
+    ],
+    "scope_requests": []
+  },
+  "inventory_manifests": [
+    {
+      "target": "service-a-repo",
+      "path": "composer.lock",
+      "scope_class": "runtime"
+    },
+    {
+      "target": "service-a-repo",
+      "path": "tools/qa/composer.lock",
+      "scope_class": "test_like"
+    }
+  ],
+  "sources": [
+    {
+      "id": "SRC-PHP-ARCHIVE",
+      "title": "PHP news archive, 2026-10-21 security advisory",
+      "url": "https://www.php.net/archive/2026.php#2026-10-21-5",
+      "retrieved_on": "2026-10-29",
+      "kind": "project_advisory"
+    },
+    {
+      "id": "SRC-GHSA-OOM",
+      "title": "GHSA-w8hw-w9fx-j79w RCE via OOM corruption (CVE-2026-109618)",
+      "url": "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
+      "retrieved_on": "2026-10-29",
+      "kind": "project_advisory"
+    },
+    {
+      "id": "SRC-GHSA-STATE",
+      "title": "GHSA-6wmf-4rv5-p3rp RCE via stale global state (CVE-2026-109619)",
+      "url": "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
+      "retrieved_on": "2026-10-29",
+      "kind": "project_advisory"
+    },
+    {
+      "id": "SRC-VENDOR-PHP",
+      "title": "Synthetic base-image vendor advisory EXAMPLE-PHP-0002 for php8.3-fpm 8.3.36-1~synthetic1",
+      "url": "https://vendor.example.invalid/advisories/EXAMPLE-PHP-0002",
+      "retrieved_on": "2026-10-29",
+      "kind": "vendor_advisory"
+    },
+    {
+      "id": "SRC-EXAMPLE-DEV",
+      "title": "Synthetic advisory EXAMPLE-0001 for a test-only package",
+      "url": "https://advisories.example.invalid/EXAMPLE-0001",
+      "retrieved_on": "2026-10-29",
+      "kind": "package_advisory"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EV-101",
+      "kind": "command_output",
+      "target": "service-a-repo",
+      "layer": "source",
+      "summary": "Inventory rerun at the fixed SHA: secret-pattern hit gone, metrics bound to internal network, CI actions pinned",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "command_ref": "CMD-INVENTORY"
+    },
+    {
+      "id": "EV-102",
+      "kind": "package_advisory",
+      "target": "service-a-image",
+      "layer": "image",
+      "summary": "Base-image vendor advisory for php8.3-fpm 8.3.36-1~synthetic1 lists CVE-2026-109618 and CVE-2026-109619 as fixed",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "source_ids": [
+        "SRC-PHP-ARCHIVE",
+        "SRC-GHSA-OOM",
+        "SRC-GHSA-STATE",
+        "SRC-VENDOR-PHP"
+      ],
+      "package": "php8.3-fpm",
+      "build": "8.3.36-1~synthetic1"
+    },
+    {
+      "id": "EV-103",
+      "kind": "runtime_observation",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "summary": "Owner-run read-only query in a running worker: package php8.3-fpm 8.3.36-1~synthetic1, SAPI fpm-fcgi; image digest and OCI revision match the release",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "owner_approved_environment",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_sha": "2222222bbbb",
+      "deployed_source_sha": "2222222bbbb",
+      "package": "php8.3-fpm",
+      "build": "8.3.36-1~synthetic1"
+    },
+    {
+      "id": "EV-104",
+      "kind": "image_metadata",
+      "target": "service-a-image",
+      "layer": "image",
+      "summary": "Released image digest with OCI revision label equal to the fixed source SHA",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_sha": "2222222bbbb",
+      "deployed_source_sha": "2222222bbbb"
+    },
+    {
+      "id": "EV-105",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "source",
+      "summary": "Application regression suite in a disposable container with no egress and no production credentials: all pass",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "test_ref": "T-REGRESSION",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-106",
+      "kind": "package_advisory",
+      "target": "service-a-repo",
+      "layer": "dependency",
+      "summary": "Synthetic advisory EXAMPLE-0001 names example/qa-helper 2.4.1 as the fixed version",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "source_ids": [
+        "SRC-EXAMPLE-DEV"
+      ],
+      "package": "composer:example/qa-helper",
+      "build": "2.4.1"
+    },
+    {
+      "id": "EV-107",
+      "kind": "scanner_output",
+      "target": "service-a-repo",
+      "layer": "dependency",
+      "summary": "OSV-Scanner rerun on both lockfiles at the fixed SHA: example/qa-helper resolved to 2.4.1; no advisories",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "command_ref": "CMD-OSV-SOURCE",
+      "package": "composer:example/qa-helper",
+      "build": "2.4.1"
+    },
+    {
+      "id": "EV-110",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "config",
+      "summary": "Listener auth test against the old build in a disposable network: unauthenticated scrape succeeds (test fails)",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa",
+      "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "test_ref": "T-LISTENER",
+      "outcome": "fail"
+    },
+    {
+      "id": "EV-111",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "config",
+      "summary": "Same listener auth test against the fixed build: unauthenticated scrape refused (test passes)",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "test_ref": "T-LISTENER",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-112",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "config",
+      "summary": "Negative case: request from outside the internal network refused",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "test_ref": "T-LISTENER-NEG",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-113",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "config",
+      "summary": "Valid use: authenticated internal scraper collects metrics",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "test_ref": "T-LISTENER-OK",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-114",
+      "kind": "runtime_observation",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "summary": "Owner-run listener list on the deployed build: metrics on the internal interface only",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "owner_approved_environment",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_sha": "2222222bbbb",
+      "deployed_source_sha": "2222222bbbb"
+    },
+    {
+      "id": "EV-120",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "summary": "Secret-pattern regression test at the old SHA: plaintext credential present (test fails)",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "redacted",
+      "source_sha": "1111111aaaa",
+      "test_ref": "T-NO-PLAINTEXT",
+      "outcome": "fail"
+    },
+    {
+      "id": "EV-121",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "summary": "Same test at the fixed SHA: no credential-shaped values in tracked files (test passes)",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "test_ref": "T-NO-PLAINTEXT",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-122",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "summary": "Negative case: config loader rejects a plaintext credential and requires a secret-manager reference",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "test_ref": "T-LOADER-NEG",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-123",
+      "kind": "runtime_observation",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "summary": "Owner-run read-only check in a running worker: the credential loads from the secret-manager reference at version 2; no plaintext file present",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "owner_approved_environment",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_sha": "2222222bbbb",
+      "deployed_source_sha": "2222222bbbb"
+    },
+    {
+      "id": "EV-124",
+      "kind": "command_output",
+      "target": "service-a-idp",
+      "layer": "credential",
+      "summary": "Owner-run read-only provider credential listing: the exposed credential's ID shows status revoked; value not recorded",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "owner_approved_environment",
+      "redaction": "redacted"
+    },
+    {
+      "id": "EV-125",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "summary": "Synthetic valid-use fixture: service authenticates with a dummy credential in disposable staging",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "test_ref": "T-CRED-OK",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-130",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "summary": "Export authorization test at the old SHA: SSO user without export permission can export (test fails)",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa",
+      "test_ref": "T-AUTHZ-EXPORT",
+      "outcome": "fail"
+    },
+    {
+      "id": "EV-131",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "summary": "Same test at the fixed SHA: request refused with 403 (test passes)",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "test_ref": "T-AUTHZ-EXPORT",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-132",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "summary": "Negative case: token minted for another audience is rejected",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "test_ref": "T-AUDIENCE-NEG",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-133",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "summary": "Valid use: user with export permission can export",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "test_ref": "T-AUTHZ-OK",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-134",
+      "kind": "config_snapshot",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "summary": "Effective deployed config: token audience restricted to service-a and per-route policy enabled (both non-default)",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "deployed_source_sha": "2222222bbbb"
+    },
+    {
+      "id": "EV-140",
+      "kind": "test_run",
+      "target": "service-a-repo",
+      "layer": "source",
+      "summary": "Isolated allowlist test: webhook fetcher refuses internal, loopback and metadata addresses",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "isolated_disposable",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb",
+      "test_ref": "T-WEBHOOK-ALLOW",
+      "outcome": "pass"
+    },
+    {
+      "id": "EV-141",
+      "kind": "file_excerpt",
+      "target": "service-a-repo",
+      "layer": "source",
+      "summary": "Code trace: the host allowlist and resolved-address check run before any fetch, including redirects",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "source_sha": "2222222bbbb"
+    },
+    {
+      "id": "EV-150",
+      "kind": "scanner_output",
+      "target": "service-a-image",
+      "layer": "image",
+      "summary": "Image scanner (pinned version, signature verified) on the released digest: no advisories for the 2026-10-21 CVEs; QA package absent",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_sha": "2222222bbbb",
+      "command_ref": "CMD-IMAGE-SCAN"
+    },
+    {
+      "id": "EV-151",
+      "kind": "command_output",
+      "target": "service-a-idp",
+      "layer": "identity",
+      "summary": "Tenant audit-log export still returns HTTP 403 for the read-only audit role",
+      "collected_on": "2026-10-29",
+      "collection_status": "access_denied",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content"
+    },
+    {
+      "id": "EV-152",
+      "kind": "config_snapshot",
+      "target": "service-a-idp",
+      "layer": "config",
+      "summary": "Tenant admin export refreshed: MFA still required, token lifetime unchanged, no new third-party grants",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content"
+    }
+  ],
+  "required_checks": [
+    {
+      "id": "CHK-01",
+      "title": "Dependencies in every lockfile against current advisories",
+      "target": "service-a-repo",
+      "layer": "dependency",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-107"
+      ],
+      "covers": [
+        "composer.lock",
+        "tools/qa/composer.lock"
+      ]
+    },
+    {
+      "id": "CHK-02",
+      "title": "Served PHP runtime build against the 2026-10-21 advisories",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-103"
+      ]
+    },
+    {
+      "id": "CHK-03",
+      "title": "Container image packages against current advisories",
+      "target": "service-a-image",
+      "layer": "image",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-150"
+      ]
+    },
+    {
+      "id": "CHK-04",
+      "title": "Primary and secondary listeners and their auth",
+      "target": "service-a-repo",
+      "layer": "config",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-111"
+      ]
+    },
+    {
+      "id": "CHK-05",
+      "title": "Credential-shaped values in tracked files",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-121"
+      ]
+    },
+    {
+      "id": "CHK-06",
+      "title": "Per-user authorization behind SSO on privileged routes",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-131"
+      ]
+    },
+    {
+      "id": "CHK-07",
+      "title": "Tenant audit log reviewed for misuse of exposed credential",
+      "target": "service-a-idp",
+      "layer": "identity",
+      "status": "BLOCKED",
+      "evidence_ids": [
+        "EV-151"
+      ],
+      "reason": "Still HTTP 403; owner has not granted audit-log read access"
+    },
+    {
+      "id": "CHK-08",
+      "title": "CI actions pinned to full commit SHAs",
+      "target": "service-a-repo",
+      "layer": "config",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-101"
+      ]
+    },
+    {
+      "id": "CHK-09",
+      "title": "Deployed listeners and advisory-relevant runtime settings",
+      "target": "service-a-runtime",
+      "layer": "config",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-114",
+        "EV-134"
+      ]
+    },
+    {
+      "id": "CHK-10",
+      "title": "Tenant MFA, token lifetime and third-party grants",
+      "target": "service-a-idp",
+      "layer": "config",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-152"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "title": "Served PHP 8.3.30 FPM build predates the 8.3.36 security release",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "category": "vulnerable_component",
+      "severity": "critical",
+      "status": "fixed",
+      "dependency_scope": "runtime",
+      "evidence_ids": [
+        "EV-103",
+        "EV-104"
+      ],
+      "source_ids": [
+        "SRC-PHP-ARCHIVE",
+        "SRC-GHSA-OOM",
+        "SRC-GHSA-STATE"
+      ],
+      "baseline_finding_id": "F-001",
+      "notes": "Closed on vendor_patch basis. No exploit reproduction was attempted or needed.",
+      "fix_evidence": {
+        "verification_basis": "vendor_patch",
+        "after_evidence_ids": [
+          "EV-103",
+          "EV-104"
+        ],
+        "positive_test_ids": [
+          "EV-105"
+        ],
+        "vendor_fix_evidence_ids": [
+          "EV-102"
+        ],
+        "deployed_artifact": true,
+        "runtime_evidence_ids": [
+          "EV-103",
+          "EV-104"
+        ],
+        "source_sha": "2222222bbbb",
+        "deployed_source_sha": "2222222bbbb",
+        "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "package": "php8.3-fpm",
+        "fixed_build": "8.3.36-1~synthetic1"
+      }
+    },
+    {
+      "id": "F-002",
+      "title": "Vulnerable package in the QA tool lockfile",
+      "target": "service-a-repo",
+      "layer": "dependency",
+      "category": "vulnerable_component",
+      "severity": "low",
+      "status": "fixed",
+      "dependency_scope": "test_only",
+      "evidence_ids": [
+        "EV-107"
+      ],
+      "source_ids": [
+        "SRC-EXAMPLE-DEV"
+      ],
+      "baseline_finding_id": "F-002",
+      "fix_evidence": {
+        "verification_basis": "vendor_patch",
+        "after_evidence_ids": [
+          "EV-107"
+        ],
+        "positive_test_ids": [
+          "EV-105"
+        ],
+        "vendor_fix_evidence_ids": [
+          "EV-106"
+        ],
+        "deployed_artifact": false,
+        "not_deployed_reason": "QA-only lockfile; EV-150 shows the package is absent from the shipped image",
+        "source_sha": "2222222bbbb",
+        "runtime_evidence_ids": [
+          "EV-150"
+        ],
+        "package": "composer:example/qa-helper",
+        "fixed_build": "2.4.1"
+      }
+    },
+    {
+      "id": "F-003",
+      "title": "Unauthenticated metrics listener bound to all interfaces",
+      "target": "service-a-repo",
+      "layer": "config",
+      "category": "misconfiguration",
+      "severity": "medium",
+      "status": "fixed",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-111"
+      ],
+      "source_ids": [],
+      "baseline_finding_id": "F-003",
+      "fix_evidence": {
+        "verification_basis": "behavior_test",
+        "before_evidence_ids": [
+          "EV-110"
+        ],
+        "after_evidence_ids": [
+          "EV-111"
+        ],
+        "positive_test_ids": [
+          "EV-113"
+        ],
+        "negative_test_ids": [
+          "EV-112"
+        ],
+        "deployed_artifact": true,
+        "runtime_evidence_ids": [
+          "EV-114"
+        ],
+        "source_sha": "2222222bbbb",
+        "deployed_source_sha": "2222222bbbb",
+        "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "id": "F-004",
+      "title": "Credential-shaped value committed in config/legacy.env",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "category": "credential_exposure",
+      "severity": "high",
+      "status": "fixed",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-121"
+      ],
+      "source_ids": [],
+      "baseline_finding_id": "F-004",
+      "notes": "Misuse before revocation is still unverified because CHK-07 is BLOCKED.",
+      "fix_evidence": {
+        "verification_basis": "behavior_test",
+        "before_evidence_ids": [
+          "EV-120"
+        ],
+        "after_evidence_ids": [
+          "EV-121"
+        ],
+        "positive_test_ids": [
+          "EV-125"
+        ],
+        "negative_test_ids": [
+          "EV-122"
+        ],
+        "deployed_artifact": true,
+        "runtime_evidence_ids": [
+          "EV-104",
+          "EV-123"
+        ],
+        "source_sha": "2222222bbbb",
+        "deployed_source_sha": "2222222bbbb",
+        "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rotation_evidence_ids": [
+          "EV-123"
+        ],
+        "revocation_evidence_ids": [
+          "EV-124"
+        ]
+      }
+    },
+    {
+      "id": "F-005",
+      "title": "Admin export authorizes any SSO session",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "category": "authorization",
+      "severity": "high",
+      "status": "fixed",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-131"
+      ],
+      "source_ids": [],
+      "baseline_finding_id": "F-005",
+      "fix_evidence": {
+        "verification_basis": "behavior_test",
+        "before_evidence_ids": [
+          "EV-130"
+        ],
+        "after_evidence_ids": [
+          "EV-131"
+        ],
+        "positive_test_ids": [
+          "EV-133"
+        ],
+        "negative_test_ids": [
+          "EV-132"
+        ],
+        "deployed_artifact": true,
+        "runtime_evidence_ids": [
+          "EV-134"
+        ],
+        "source_sha": "2222222bbbb",
+        "deployed_source_sha": "2222222bbbb",
+        "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "requires_config": true,
+        "config_evidence_ids": [
+          "EV-134"
+        ]
+      }
+    },
+    {
+      "id": "F-006",
+      "title": "Possible server-side request reach from webhook fetcher",
+      "target": "service-a-repo",
+      "layer": "source",
+      "category": "injection_surface",
+      "severity": "medium",
+      "status": "refuted",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-140",
+        "EV-141"
+      ],
+      "source_ids": [],
+      "baseline_finding_id": "F-006",
+      "refutation": {
+        "attempted": true,
+        "result": "refuted",
+        "basis": "not_reachable",
+        "evidence_ids": [
+          "EV-140",
+          "EV-141"
+        ]
+      }
+    }
+  ],
+  "fix_plan": [],
+  "reviews": [
+    {
+      "id": "RV-2",
+      "reviewer_label": "Optional reviewer on a different model family",
+      "independence": "different_model",
+      "model_family": "model-family-b",
+      "summary": "Tried to refute each closure; agreed on F-003 and F-005, questioned F-004 misuse window (recorded as a coverage note)",
+      "finding_ids": [
+        "F-003",
+        "F-004",
+        "F-005"
+      ],
+      "input_evidence_ids": [
+        "EV-111",
+        "EV-121",
+        "EV-131"
+      ],
+      "counts_as_execution_proof": false
+    }
+  ],
+  "coverage_notes": [
+    "CHK-07 BLOCKED: tenant audit log still returns 403, so misuse of the exposed credential before revocation is unverified.",
+    "F-001 closed on vendor_patch evidence, not by execution."
+  ],
+  "verdict": {
+    "overall": "INCOMPLETE",
+    "statement": "Every baseline finding has a retest entry: five closed with recorded evidence and one refuted. One required check is still BLOCKED, so coverage is incomplete."
+  }
+}

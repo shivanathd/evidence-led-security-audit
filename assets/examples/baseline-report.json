@@ -1,0 +1,586 @@
+{
+  "schema_version": "1.0",
+  "inventory_coverage": [
+    {"target": "service-a-repo", "status": "COMPLETE", "evidence_ids": ["EV-001"], "gaps": []}
+  ],
+  "report_kind": "baseline",
+  "audit_id": "synthetic-service-a-baseline-001",
+  "generated_on": "2026-10-22",
+  "primary_model_family": "model-family-a",
+  "authorization": {
+    "confirmed": true,
+    "authorized_by_role": "service-a system owner",
+    "reference": "AUTH-EXAMPLE-0001 (synthetic)",
+    "mode": "read_only",
+    "approvers": {
+      "scope": "service-a system owner",
+      "fix_review": "service-a tech lead",
+      "deploy": "service-a release manager",
+      "risk_acceptance": "security lead",
+      "publication": "security lead"
+    }
+  },
+  "scope": {
+    "targets": [
+      {
+        "id": "service-a-repo",
+        "kind": "repository",
+        "locator": "git.example.invalid/service-a",
+        "required_layers": [
+          "identity"
+        ]
+      },
+      {
+        "id": "service-a-image",
+        "kind": "image",
+        "locator": "registry.example.invalid/service-a",
+        "related_targets": [
+          "service-a-repo"
+        ]
+      },
+      {
+        "id": "service-a-runtime",
+        "kind": "runtime",
+        "locator": "service-a.example.invalid (FPM workers behind a reverse proxy)",
+        "related_targets": [
+          "service-a-image",
+          "service-a-repo"
+        ]
+      },
+      {
+        "id": "service-a-idp",
+        "kind": "saas_tenant",
+        "locator": "idp.example.invalid tenant for service-a",
+        "related_targets": [
+          "service-a-repo"
+        ]
+      }
+    ],
+    "out_of_scope": [
+      "any host not listed in targets",
+      "production write access"
+    ],
+    "scope_requests": []
+  },
+  "inventory_manifests": [
+    {
+      "target": "service-a-repo",
+      "path": "composer.lock",
+      "scope_class": "runtime"
+    },
+    {
+      "target": "service-a-repo",
+      "path": "tools/qa/composer.lock",
+      "scope_class": "test_like"
+    }
+  ],
+  "sources": [
+    {
+      "id": "SRC-PHP-ARCHIVE",
+      "title": "PHP news archive, 2026-10-21 security advisory",
+      "url": "https://www.php.net/archive/2026.php#2026-10-21-5",
+      "retrieved_on": "2026-10-22",
+      "kind": "project_advisory"
+    },
+    {
+      "id": "SRC-GHSA-OOM",
+      "title": "GHSA-w8hw-w9fx-j79w RCE via OOM corruption (CVE-2026-109618)",
+      "url": "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
+      "retrieved_on": "2026-10-22",
+      "kind": "project_advisory"
+    },
+    {
+      "id": "SRC-GHSA-STATE",
+      "title": "GHSA-6wmf-4rv5-p3rp RCE via stale global state (CVE-2026-109619)",
+      "url": "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
+      "retrieved_on": "2026-10-22",
+      "kind": "project_advisory"
+    },
+    {
+      "id": "SRC-VENDOR-PHP",
+      "title": "Synthetic base-image vendor advisory EXAMPLE-PHP-0002 for php8.3-fpm 8.3.36-1~synthetic1",
+      "url": "https://vendor.example.invalid/advisories/EXAMPLE-PHP-0002",
+      "retrieved_on": "2026-10-22",
+      "kind": "vendor_advisory"
+    },
+    {
+      "id": "SRC-EXAMPLE-DEV",
+      "title": "Synthetic advisory EXAMPLE-0001 for a test-only package",
+      "url": "https://advisories.example.invalid/EXAMPLE-0001",
+      "retrieved_on": "2026-10-22",
+      "kind": "package_advisory"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EV-001",
+      "kind": "command_output",
+      "target": "service-a-repo",
+      "layer": "source",
+      "summary": "scripts/inventory.py walk: 2 manifests, 1 Dockerfile, 2 listeners, 1 secret-pattern hit, CI actions pinned to SHAs; coverage complete for walked files",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa",
+      "command_ref": "CMD-INVENTORY"
+    },
+    {
+      "id": "EV-002",
+      "kind": "image_metadata",
+      "target": "service-a-image",
+      "layer": "image",
+      "summary": "Image labels: base php 8.3.30 FPM variant; OCI revision label matches source SHA",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_sha": "1111111aaaa",
+      "deployed_source_sha": "1111111aaaa"
+    },
+    {
+      "id": "EV-003",
+      "kind": "runtime_observation",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "summary": "Owner-run read-only query inside a running worker: php-fpm reports 8.3.30, SAPI fpm-fcgi; package metadata shows no vendor backport for the 2026-10-21 CVEs",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "owner_approved_environment",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "deployed_source_sha": "1111111aaaa",
+      "source_ids": [
+        "SRC-PHP-ARCHIVE",
+        "SRC-GHSA-OOM",
+        "SRC-GHSA-STATE"
+      ]
+    },
+    {
+      "id": "EV-004",
+      "kind": "config_snapshot",
+      "target": "service-a-runtime",
+      "layer": "config",
+      "summary": "Effective pool config: session.upload_progress.enabled=1, memory_limit finite, post_max_size 64M",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "id": "EV-005",
+      "kind": "scanner_output",
+      "target": "service-a-repo",
+      "layer": "dependency",
+      "summary": "OSV-Scanner (pinned, checksum verified) on both lockfiles: one advisory for a package present only in tools/qa/composer.lock",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa",
+      "source_ids": [
+        "SRC-EXAMPLE-DEV"
+      ],
+      "command_ref": "CMD-OSV-SOURCE"
+    },
+    {
+      "id": "EV-006",
+      "kind": "file_excerpt",
+      "target": "service-a-repo",
+      "layer": "config",
+      "summary": "Compose file publishes a metrics listener on 0.0.0.0:9253 with no auth, besides FPM on 9000",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa"
+    },
+    {
+      "id": "EV-007",
+      "kind": "file_excerpt",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "summary": "Secret-pattern hit (assigned_secret) at config/legacy.env line 3; value not recorded",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "redacted",
+      "source_sha": "1111111aaaa"
+    },
+    {
+      "id": "EV-008",
+      "kind": "file_excerpt",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "summary": "Gateway enforces SSO, but the admin export route checks only that a session exists, not the caller's export permission",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa"
+    },
+    {
+      "id": "EV-009",
+      "kind": "model_review",
+      "target": "service-a-repo",
+      "layer": "source",
+      "summary": "Same-model adversarial pass suggests the webhook fetcher might allow server-side requests to internal hosts; no trace or test",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "redacted"
+    },
+    {
+      "id": "EV-010",
+      "kind": "scanner_output",
+      "target": "service-a-image",
+      "layer": "image",
+      "summary": "Image scanner not available in this environment",
+      "collected_on": "2026-10-22",
+      "collection_status": "tool_missing",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content"
+    },
+    {
+      "id": "EV-011",
+      "kind": "command_output",
+      "target": "service-a-idp",
+      "layer": "identity",
+      "summary": "Tenant audit-log export returned HTTP 403 for the read-only audit role",
+      "collected_on": "2026-10-22",
+      "collection_status": "access_denied",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content"
+    },
+    {
+      "id": "EV-012",
+      "kind": "config_snapshot",
+      "target": "service-a-idp",
+      "layer": "config",
+      "summary": "Tenant admin export with the read-only audit role: MFA required for all users, access tokens last 60 minutes, third-party app grants listed",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content"
+    }
+  ],
+  "required_checks": [
+    {
+      "id": "CHK-01",
+      "title": "Dependencies in every lockfile against current advisories",
+      "target": "service-a-repo",
+      "layer": "dependency",
+      "status": "FAIL",
+      "evidence_ids": [
+        "EV-005"
+      ],
+      "covers": [
+        "composer.lock",
+        "tools/qa/composer.lock"
+      ]
+    },
+    {
+      "id": "CHK-02",
+      "title": "Served PHP runtime build against the 2026-10-21 advisories",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "status": "FAIL",
+      "evidence_ids": [
+        "EV-003"
+      ]
+    },
+    {
+      "id": "CHK-03",
+      "title": "Container image packages against current advisories",
+      "target": "service-a-image",
+      "layer": "image",
+      "status": "BLOCKED",
+      "evidence_ids": [
+        "EV-010"
+      ],
+      "reason": "Image scanner missing; not treated as zero findings"
+    },
+    {
+      "id": "CHK-04",
+      "title": "Primary and secondary listeners and their auth",
+      "target": "service-a-repo",
+      "layer": "config",
+      "status": "FAIL",
+      "evidence_ids": [
+        "EV-006"
+      ]
+    },
+    {
+      "id": "CHK-05",
+      "title": "Credential-shaped values in tracked files",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "status": "FAIL",
+      "evidence_ids": [
+        "EV-007"
+      ]
+    },
+    {
+      "id": "CHK-06",
+      "title": "Per-user authorization behind SSO on privileged routes",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "status": "FAIL",
+      "evidence_ids": [
+        "EV-008"
+      ]
+    },
+    {
+      "id": "CHK-07",
+      "title": "Tenant audit log reviewed for misuse of exposed credential",
+      "target": "service-a-idp",
+      "layer": "identity",
+      "status": "BLOCKED",
+      "evidence_ids": [
+        "EV-011"
+      ],
+      "reason": "HTTP 403 for the audit role; owner must grant read access or export the log"
+    },
+    {
+      "id": "CHK-08",
+      "title": "CI actions pinned to full commit SHAs",
+      "target": "service-a-repo",
+      "layer": "config",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-001"
+      ]
+    },
+    {
+      "id": "CHK-09",
+      "title": "Deployed listeners and advisory-relevant runtime settings",
+      "target": "service-a-runtime",
+      "layer": "config",
+      "status": "FAIL",
+      "evidence_ids": [
+        "EV-004"
+      ]
+    },
+    {
+      "id": "CHK-10",
+      "title": "Tenant MFA, token lifetime and third-party grants",
+      "target": "service-a-idp",
+      "layer": "config",
+      "status": "PASS",
+      "evidence_ids": [
+        "EV-012"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "title": "Served PHP 8.3.30 FPM build predates the 8.3.36 security release",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "category": "vulnerable_component",
+      "severity": "critical",
+      "status": "open",
+      "dependency_scope": "runtime",
+      "evidence_ids": [
+        "EV-002",
+        "EV-003",
+        "EV-004"
+      ],
+      "source_ids": [
+        "SRC-PHP-ARCHIVE",
+        "SRC-GHSA-OOM",
+        "SRC-GHSA-STATE"
+      ],
+      "notes": "FPM path per the advisories: OOM corruption is supported by source analysis with no complete FPM exploit shown; the stale-state session lifecycle path was validated against FPM. Conditions recorded, no exploit attempted. Session upload progress is enabled (EV-004)."
+    },
+    {
+      "id": "F-002",
+      "title": "Vulnerable package in the QA tool lockfile",
+      "target": "service-a-repo",
+      "layer": "dependency",
+      "category": "vulnerable_component",
+      "severity": "low",
+      "status": "open",
+      "dependency_scope": "test_only",
+      "evidence_ids": [
+        "EV-005"
+      ],
+      "source_ids": [
+        "SRC-EXAMPLE-DEV"
+      ],
+      "notes": "Test-only manifest. Whether the image excludes it stays unproven until CHK-03 runs."
+    },
+    {
+      "id": "F-003",
+      "title": "Unauthenticated metrics listener bound to all interfaces",
+      "target": "service-a-repo",
+      "layer": "config",
+      "category": "misconfiguration",
+      "severity": "medium",
+      "status": "open",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-006"
+      ],
+      "source_ids": []
+    },
+    {
+      "id": "F-004",
+      "title": "Credential-shaped value committed in config/legacy.env",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "category": "credential_exposure",
+      "severity": "high",
+      "status": "open",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-007"
+      ],
+      "source_ids": [],
+      "notes": "Value withheld. Owner notified; rotation and revocation need the credential owner."
+    },
+    {
+      "id": "F-005",
+      "title": "Admin export authorizes any SSO session",
+      "target": "service-a-repo",
+      "layer": "identity",
+      "category": "authorization",
+      "severity": "high",
+      "status": "open",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-008"
+      ],
+      "source_ids": [],
+      "notes": "SSO authenticates; it does not grant per-user permission downstream."
+    },
+    {
+      "id": "F-006",
+      "title": "Possible server-side request reach from webhook fetcher",
+      "target": "service-a-repo",
+      "layer": "source",
+      "category": "injection_surface",
+      "severity": "medium",
+      "status": "unknown",
+      "dependency_scope": "not_applicable",
+      "evidence_ids": [
+        "EV-009"
+      ],
+      "source_ids": [],
+      "unknown_reason": "Only a same-model review raised it; no code trace or isolated test yet."
+    }
+  ],
+  "fix_plan": [
+    {
+      "finding_id": "F-001",
+      "action": "Rebuild the image on a PHP 8.3.36 (or vendor-patched) FPM base; until then consider documented mitigations as risk reduction only, restarting every worker",
+      "owner_role": "service-a tech lead",
+      "requires_human_approval": true,
+      "retest": {
+        "positive": "Application regression suite passes on the new image",
+        "negative": "Not required for vendor_patch closure; no exploit reproduction",
+        "runtime_check": "Owner-run runtime query shows the fixed build and the deployed SHA matches source"
+      },
+      "rollback": "Redeploy previous image digest"
+    },
+    {
+      "finding_id": "F-002",
+      "action": "Update the QA tool lockfile; confirm the package is absent from the shipped image",
+      "owner_role": "service-a tech lead",
+      "requires_human_approval": true,
+      "retest": {
+        "positive": "QA tooling still runs",
+        "negative": "Re-scan both lockfiles shows the advisory resolved",
+        "runtime_check": "Image scan shows the package absent"
+      },
+      "rollback": "Revert lockfile change"
+    },
+    {
+      "finding_id": "F-003",
+      "action": "Bind metrics to localhost or the internal network and require auth",
+      "owner_role": "service-a tech lead",
+      "requires_human_approval": true,
+      "retest": {
+        "positive": "Internal scraper still collects metrics",
+        "negative": "Unauthenticated request from outside the internal network is refused",
+        "runtime_check": "Owner-run listener list on the deployed image"
+      },
+      "rollback": "Restore previous compose file"
+    },
+    {
+      "finding_id": "F-004",
+      "action": "Remove the value, load it from the secret manager, and have the credential owner rotate and revoke the old credential",
+      "owner_role": "credential owner",
+      "requires_human_approval": true,
+      "retest": {
+        "positive": "Service authenticates with the new injected credential",
+        "negative": "Config loader rejects plaintext credentials",
+        "runtime_check": "Owner-run provider listing shows the old credential revoked; tenant log reviewed once CHK-07 unblocks"
+      },
+      "rollback": "Re-issue credential through the secret manager only"
+    },
+    {
+      "finding_id": "F-005",
+      "action": "Add a per-route permission check for export; restrict token audience to service-a",
+      "owner_role": "service-a tech lead",
+      "requires_human_approval": true,
+      "retest": {
+        "positive": "User with export permission can export",
+        "negative": "SSO user without export permission gets 403",
+        "runtime_check": "Effective config shows audience restriction on the deployed build"
+      },
+      "rollback": "Feature flag off for export route"
+    },
+    {
+      "finding_id": "F-006",
+      "action": "Trace the webhook fetcher and add an isolated allowlist test",
+      "owner_role": "service-a tech lead",
+      "requires_human_approval": true,
+      "retest": {
+        "positive": "Allowed webhook hosts still work",
+        "negative": "Internal and metadata addresses are refused",
+        "runtime_check": "Not applicable until reachability is known"
+      },
+      "rollback": "None needed for a test-only change"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "RV-1",
+      "reviewer_label": "Adversarial pass by the primary model (roleplay)",
+      "independence": "same_model_roleplay",
+      "summary": "Raised F-006 as a possibility; produced no execution evidence",
+      "finding_ids": [
+        "F-006"
+      ],
+      "input_evidence_ids": [
+        "EV-008"
+      ],
+      "counts_as_execution_proof": false
+    }
+  ],
+  "coverage_notes": [
+    "CHK-03 BLOCKED: image scanner missing; image contents unverified.",
+    "CHK-07 BLOCKED: HTTP 403 on tenant audit log; misuse of the exposed credential cannot be ruled out.",
+    "F-006 UNKNOWN: model suggestion only."
+  ],
+  "verdict": {
+    "overall": "INCOMPLETE",
+    "statement": "Coverage is incomplete: two required checks are BLOCKED and one finding is UNKNOWN. Within the covered scope, five findings are open."
+  }
+}

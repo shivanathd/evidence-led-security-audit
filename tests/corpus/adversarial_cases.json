@@ -1,0 +1,1416 @@
+{
+ "description": "Synthetic adversarial cases. Each applies ops to a sample report and must produce the listed validator error codes. Placeholders like {{FAKE_AWS_KEY}} are expanded at test time so no secret-shaped string is stored in the package.",
+ "cases": [
+  {
+   "name": "blocked_checks_claimed_clear",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Missing coverage cannot produce a clear verdict.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    }
+   ],
+   "expect_codes": [
+    "VERDICT_UNSUPPORTED"
+   ]
+  },
+  {
+   "name": "after_fix_blocked_claimed_clear",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A BLOCKED tenant check keeps the retest INCOMPLETE.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    }
+   ],
+   "expect_codes": [
+    "VERDICT_UNSUPPORTED"
+   ]
+  },
+  {
+   "name": "http_403_counted_as_pass",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "403 is BLOCKED, not zero findings.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].status",
+     "value": "PASS"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    }
+   ],
+   "expect_codes": [
+    "PASS_ON_INCOMPLETE_EVIDENCE"
+   ]
+  },
+  {
+   "name": "missing_tool_counted_as_pass",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "A missing scanner is not a clean scan.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-03].status",
+     "value": "PASS"
+    }
+   ],
+   "expect_codes": [
+    "PASS_ON_INCOMPLETE_EVIDENCE"
+   ]
+  },
+  {
+   "name": "truncated_scan_counted_as_pass",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Truncated output cannot support PASS.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-150].collection_status",
+     "value": "truncated"
+    }
+   ],
+   "expect_codes": [
+    "PASS_ON_INCOMPLETE_EVIDENCE"
+   ]
+  },
+  {
+   "name": "unrun_security_test",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A test that never ran is not evidence.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-111].executed",
+     "value": false
+    }
+   ],
+   "expect_codes": [
+    "UNRUN_EVIDENCE"
+   ]
+  },
+  {
+   "name": "unrun_regression_suite",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Valid-use tests must have run.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-105].collection_status",
+     "value": "not_run"
+    }
+   ],
+   "expect_codes": [
+    "FIX_EVIDENCE_INCOMPLETE"
+   ]
+  },
+  {
+   "name": "test_outside_isolation",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Active tests need host-enforced disposable isolation or an owner-approved environment.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-131].execution_context",
+     "value": "unisolated"
+    }
+   ],
+   "expect_codes": [
+    "ISOLATION_UNPROVEN"
+   ]
+  },
+  {
+   "name": "root_manifest_only_dependency_pass",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Scanning only the root lockfile misses nested manifests.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-01].covers",
+     "value": [
+      "composer.lock"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "MANIFEST_COVERAGE_GAP"
+   ]
+  },
+  {
+   "name": "sdk_patch_without_effective_config",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A patch that needs non-default audience or input config is not closed without the effective config.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-005].fix_evidence.config_evidence_ids",
+     "value": []
+    }
+   ],
+   "expect_codes": [
+    "CONFIG_EVIDENCE_MISSING"
+   ]
+  },
+  {
+   "name": "test_only_dependency_refuted_from_path",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "A test-like path does not prove the image excludes the package.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-002].status",
+     "value": "refuted"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-002].refutation",
+     "value": {
+      "attempted": true,
+      "result": "refuted",
+      "basis": "test_only",
+      "evidence_ids": [
+       "EV-005"
+      ]
+     }
+    }
+   ],
+   "expect_codes": [
+    "TEST_ONLY_UNPROVEN"
+   ]
+  },
+  {
+   "name": "model_votes_as_pass_evidence",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Model consensus is not execution proof.",
+   "ops": [
+    {
+     "op": "append",
+     "path": "evidence",
+     "value": {
+      "id": "EV-900",
+      "kind": "model_review",
+      "target": "service-a-image",
+      "layer": "image",
+      "summary": "Three model reviewers voted the image clean",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "redacted"
+     }
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-03].evidence_ids",
+     "value": [
+      "EV-900"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "MODEL_ONLY_EVIDENCE"
+   ]
+  },
+  {
+   "name": "review_marked_as_execution_proof",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Reviews never count as execution proof.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "reviews[id=RV-2].counts_as_execution_proof",
+     "value": true
+    }
+   ],
+   "expect_codes": [
+    "MODEL_VOTE_AS_PROOF"
+   ]
+  },
+  {
+   "name": "same_model_labelled_cross_model",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Same-model roleplay is not cross-model review.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "reviews[id=RV-2].model_family",
+     "value": "model-family-a"
+    }
+   ],
+   "expect_codes": [
+    "CROSS_MODEL_MISLABEL"
+   ]
+  },
+  {
+   "name": "model_suggestion_promoted_to_open",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "A model suggestion stays UNKNOWN until traced or tested.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-006].status",
+     "value": "open"
+    }
+   ],
+   "expect_codes": [
+    "MODEL_ONLY_EVIDENCE"
+   ]
+  },
+  {
+   "name": "source_evidence_for_runtime_pass",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Source or CLI versions do not prove the served runtime.",
+   "ops": [
+    {
+     "op": "append",
+     "path": "evidence",
+     "value": {
+      "id": "EV-191",
+      "kind": "command_output",
+      "target": "service-a-runtime",
+      "layer": "source",
+      "summary": "CLI version string read from the image filesystem",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content"
+     }
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-02].evidence_ids",
+     "value": [
+      "EV-191"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "RUNTIME_PROOF_MISSING"
+   ]
+  },
+  {
+   "name": "deployed_sha_mismatch",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Closure needs the fixed source SHA to be the deployed one.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-003].fix_evidence.deployed_source_sha",
+     "value": "3333333cccc"
+    }
+   ],
+   "expect_codes": [
+    "SHA_MISMATCH"
+   ]
+  },
+  {
+   "name": "before_test_did_not_fail",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "The security test must fail on the old artifact and pass on the new one.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-110].outcome",
+     "value": "pass"
+    }
+   ],
+   "expect_codes": [
+    "DISCRIMINATING_TEST_MISSING"
+   ]
+  },
+  {
+   "name": "after_evidence_without_artifact",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Evidence must be tied to a specific artifact.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "evidence[id=EV-131].source_sha"
+    }
+   ],
+   "expect_codes": [
+    "ARTIFACT_ASSOCIATION_MISSING",
+    "DISCRIMINATING_TEST_MISSING"
+   ]
+  },
+  {
+   "name": "valid_use_test_failed",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A fix that breaks legitimate use is not verified.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-133].outcome",
+     "value": "fail"
+    }
+   ],
+   "expect_codes": [
+    "VALID_USE_UNPROVEN"
+   ]
+  },
+  {
+   "name": "vendor_patch_by_version_only",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Vendor fixes need package or advisory evidence, not a version label.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-001].fix_evidence.vendor_fix_evidence_ids",
+     "value": [
+      "EV-104"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "BACKPORT_UNPROVEN"
+   ]
+  },
+  {
+   "name": "credential_fixed_without_rotation",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Deleting a committed secret does not revoke it.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-004].fix_evidence.rotation_evidence_ids",
+     "value": []
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-004].fix_evidence.revocation_evidence_ids",
+     "value": []
+    }
+   ],
+   "expect_codes": [
+    "ROTATION_EVIDENCE_MISSING"
+   ]
+  },
+  {
+   "name": "attestation_used_as_negative_test",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A statement is not a test result.",
+   "ops": [
+    {
+     "op": "append",
+     "path": "evidence",
+     "value": {
+      "id": "EV-190",
+      "kind": "human_attestation",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "summary": "Credential owner states the old credential was revoked",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "attested_by_role": "credential owner"
+     }
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-004].fix_evidence.negative_test_ids",
+     "value": [
+      "EV-190"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "ATTESTATION_NOT_ENOUGH"
+   ]
+  },
+  {
+   "name": "mitigation_reported_as_fix",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Emergency settings reduce exposure; they are not fixes.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "findings[id=F-001].fix_evidence"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-001].mitigation",
+     "value": {
+      "description": "memory_limit=-1 set administratively",
+      "evidence_ids": [
+       "EV-103"
+      ],
+      "requires_restart": true,
+      "restart_evidence_ids": [
+       "EV-103"
+      ]
+     }
+    }
+   ],
+   "expect_codes": [
+    "MITIGATION_NOT_FIX"
+   ]
+  },
+  {
+   "name": "mitigation_without_worker_restart",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Startup settings only apply after every worker restarts.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-001].status",
+     "value": "mitigated"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-001].mitigation",
+     "value": {
+      "description": "session.upload_progress.enabled=0 in the pool config",
+      "evidence_ids": [
+       "EV-004"
+      ],
+      "requires_restart": true
+     }
+    }
+   ],
+   "expect_codes": [
+    "RESTART_UNPROVEN"
+   ]
+  },
+  {
+   "name": "incomplete_trace_refuted",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "An incomplete trace is UNKNOWN, not refuted.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-140].collection_status",
+     "value": "truncated"
+    }
+   ],
+   "expect_codes": [
+    "REFUTATION_INCOMPLETE"
+   ]
+  },
+  {
+   "name": "inconclusive_refutation_marked_refuted",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Inconclusive stays separate from refuted.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-006].refutation.result",
+     "value": "inconclusive"
+    }
+   ],
+   "expect_codes": [
+    "REFUTATION_INCOMPLETE"
+   ]
+  },
+  {
+   "name": "finding_expands_scope",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "New findings do not authorize new targets.",
+   "ops": [
+    {
+     "op": "append",
+     "path": "scope.targets",
+     "value": {
+      "id": "service-b",
+      "kind": "runtime",
+      "locator": "service-b.example.invalid"
+     }
+    },
+    {
+     "op": "append",
+     "path": "scope.scope_requests",
+     "value": {
+      "target_id": "service-b",
+      "reason": "F-004 credential also used there",
+      "status": "pending_owner_approval",
+      "change": "expand"
+     }
+    }
+   ],
+   "expect_codes": [
+    "SCOPE_SELF_EXPANDED"
+   ]
+  },
+  {
+   "name": "evidence_on_unlisted_target",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Evidence must come from approved targets.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-006].target",
+     "value": "service-b"
+    }
+   ],
+   "expect_codes": [
+    "SCOPE_VIOLATION"
+   ]
+  },
+  {
+   "name": "retest_drops_blocked_check",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Required checks cannot be removed to get a clear verdict.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "required_checks[id=CHK-07]"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    }
+   ],
+   "expect_codes": [
+    "CHECK_DROPPED"
+   ]
+  },
+  {
+   "name": "retest_narrows_scope_silently",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Scope cannot be narrowed without owner approval.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "scope.targets[id=service-a-idp]"
+    },
+    {
+     "op": "delete",
+     "path": "required_checks[id=CHK-07]"
+    },
+    {
+     "op": "delete",
+     "path": "evidence[id=EV-151]"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    }
+   ],
+   "expect_codes": [
+    "SCOPE_NARROWED",
+    "CHECK_DROPPED"
+   ]
+  },
+  {
+   "name": "not_applicable_without_evidence",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Required checks are not optional.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].status",
+     "value": "NOT_APPLICABLE"
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].evidence_ids",
+     "value": []
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].reason",
+     "value": "not needed"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    }
+   ],
+   "expect_codes": [
+    "NA_UNPROVEN"
+   ]
+  },
+  {
+   "name": "not_execution_verified_claimed_clear",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "NOT_EXECUTION_VERIFIED closures keep the verdict INCOMPLETE.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].status",
+     "value": "PASS"
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].evidence_ids",
+     "value": [
+      "EV-150"
+     ]
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-003].fix_evidence.verification_basis",
+     "value": "not_execution_verified"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-003].fix_evidence.not_execution_verified_reason",
+     "value": "baseline unsafe to run"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    }
+   ],
+   "expect_codes": [
+    "VERDICT_UNSUPPORTED"
+   ]
+  },
+  {
+   "name": "baseline_contains_fix",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Baseline and after-fix reports stay separate.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-003].status",
+     "value": "fixed"
+    }
+   ],
+   "expect_codes": [
+    "REPORT_KIND_MIXING"
+   ]
+  },
+  {
+   "name": "after_fix_without_baseline_link",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "After-fix reports must name their baseline.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "baseline_audit_id"
+    }
+   ],
+   "expect_codes": [
+    "REPORT_KIND_MIXING"
+   ]
+  },
+  {
+   "name": "model_self_approval",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Models cannot approve scope, fixes, deploys, risk or publication.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "authorization.approvers.risk_acceptance",
+     "value": "audit agent"
+    }
+   ],
+   "expect_codes": [
+    "SELF_APPROVAL"
+   ]
+  },
+  {
+   "name": "fix_step_without_human_approval",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "No automatic changes, deploys or rotations.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "fix_plan[0].requires_human_approval",
+     "value": false
+    }
+   ],
+   "expect_codes": [
+    "HUMAN_APPROVAL_REQUIRED"
+   ]
+  },
+  {
+   "name": "raw_secret_in_evidence",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Record location and type, never the value.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-007].summary",
+     "value": "Found key {{FAKE_AWS_KEY}} in config/legacy.env"
+    }
+   ],
+   "expect_codes": [
+    "RAW_SECRET"
+   ]
+  },
+  {
+   "name": "unredacted_model_handoff",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Redact before any model or tool handoff.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-008].redaction",
+     "value": "raw_local_only"
+    }
+   ],
+   "expect_codes": [
+    "UNREDACTED_HANDOFF"
+   ]
+  },
+  {
+   "name": "absolute_claim_in_verdict",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "No absolute safety claims.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "verdict.statement",
+     "value": "The service is secure."
+    }
+   ],
+   "expect_codes": [
+    "OVERCLAIM"
+   ]
+  },
+  {
+   "name": "expired_risk_acceptance",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Risk acceptance needs a live, human-owned record.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-003].status",
+     "value": "accepted_risk"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-003].risk_acceptance",
+     "value": {
+      "accepted_by_role": "security lead",
+      "reference": "RISK-EXAMPLE-1",
+      "expires_on": "2026-10-01"
+     }
+    }
+   ],
+   "expect_codes": [
+    "RISK_ACCEPTANCE_EXPIRED"
+   ]
+  },
+  {
+   "name": "no_required_checks",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Nothing checked means nothing cleared.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks",
+     "value": []
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "INCOMPLETE"
+    }
+   ],
+   "expect_codes": [
+    "EMPTY_COVERAGE"
+   ]
+  },
+  {
+   "name": "accepted_risk_claimed_clear",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Accepted risk stays an open issue; it never clears.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-151].collection_status",
+     "value": "complete"
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].status",
+     "value": "PASS"
+    },
+    {
+     "op": "delete",
+     "path": "required_checks[id=CHK-07].reason"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-003].status",
+     "value": "accepted_risk"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-003].risk_acceptance",
+     "value": {
+      "accepted_by_role": "security lead",
+      "reference": "RA-EXAMPLE-1",
+      "expires_on": "2027-01-31"
+     }
+    }
+   ],
+   "expect_codes": [
+    "VERDICT_UNSUPPORTED"
+   ]
+  },
+  {
+   "name": "undeployed_fix_claimed_clear",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A merged but unreleased fix is not closed.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-151].collection_status",
+     "value": "complete"
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].status",
+     "value": "PASS"
+    },
+    {
+     "op": "delete",
+     "path": "required_checks[id=CHK-07].reason"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-003].fix_evidence.deployed_artifact",
+     "value": false
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-003].fix_evidence.not_deployed_reason",
+     "value": "Merged; release pending"
+    }
+   ],
+   "expect_codes": [
+    "UNDEPLOYED_FIX",
+    "VERDICT_UNSUPPORTED"
+   ]
+  },
+  {
+   "name": "omitted_image_check",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Every authorized target needs its required layers checked.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "required_checks[id=CHK-03]"
+    }
+   ],
+   "expect_codes": [
+    "CHECK_MATRIX_GAP"
+   ]
+  },
+  {
+   "name": "single_check_claims_clear",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "The author cannot shrink the check matrix to one passing check.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-151].collection_status",
+     "value": "complete"
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-07].status",
+     "value": "PASS"
+    },
+    {
+     "op": "delete",
+     "path": "required_checks[id=CHK-07].reason"
+    },
+    {
+     "op": "set",
+     "path": "verdict.overall",
+     "value": "CLEAR_WITHIN_COVERED_SCOPE"
+    },
+    {
+     "op": "set",
+     "path": "required_checks",
+     "value": [
+      {
+       "id": "CHK-08",
+       "title": "CI actions pinned to full commit SHAs",
+       "target": "service-a-repo",
+       "layer": "config",
+       "status": "PASS",
+       "evidence_ids": [
+        "EV-101"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect_codes": [
+    "CHECK_MATRIX_GAP",
+    "VERDICT_UNSUPPORTED"
+   ]
+  },
+  {
+   "name": "not_applicable_without_approval",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "NOT_APPLICABLE needs a human approver.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-10].status",
+     "value": "NOT_APPLICABLE"
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-10].reason",
+     "value": "Tenant settings managed by another team"
+    }
+   ],
+   "expect_codes": [
+    "NA_UNAPPROVED"
+   ]
+  },
+  {
+   "name": "dependency_pass_without_inventory",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Dependency coverage cannot pass against an empty manifest set.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "inventory_manifests"
+    }
+   ],
+   "expect_codes": [
+    "INVENTORY_NOT_RECONCILED"
+   ]
+  },
+  {
+   "name": "dependency_covers_phantom_manifest",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "covers must match the inventory.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-01].covers",
+     "value": [
+      "composer.lock",
+      "tools/qa/composer.lock",
+      "phantom/composer.lock"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "MANIFEST_COVERAGE_GAP"
+   ]
+  },
+  {
+   "name": "duplicate_target_id",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Duplicate target IDs must not collapse silently.",
+   "ops": [
+    {
+     "op": "append",
+     "path": "scope.targets",
+     "value": {
+      "id": "service-a-repo",
+      "kind": "repository",
+      "locator": "git.example.invalid/other"
+     }
+    }
+   ],
+   "expect_codes": [
+    "DUPLICATE_ID"
+   ]
+  },
+  {
+   "name": "check_cites_other_target_evidence",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A check needs evidence from its own target.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-04].evidence_ids",
+     "value": [
+      "EV-114"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "EVIDENCE_TARGET_MISMATCH"
+   ]
+  },
+  {
+   "name": "fix_cites_unrelated_target",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Fix evidence must come from the finding target or a declared related target.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "findings[id=F-001].fix_evidence.runtime_evidence_ids",
+     "value": [
+      "EV-103",
+      "EV-104",
+      "EV-152"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "EVIDENCE_TARGET_MISMATCH"
+   ]
+  },
+  {
+   "name": "attestation_as_runtime_pass",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "An attestation is not a runtime observation.",
+   "ops": [
+    {
+     "op": "append",
+     "path": "evidence",
+     "value": {
+      "id": "EV-192",
+      "kind": "human_attestation",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "summary": "Release manager states the new build is live",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "attested_by_role": "service-a release manager"
+     }
+    },
+    {
+     "op": "set",
+     "path": "required_checks[id=CHK-02].evidence_ids",
+     "value": [
+      "EV-192"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "ATTESTATION_NOT_ENOUGH"
+   ]
+  },
+  {
+   "name": "attestation_as_rotation",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Rotation needs a captured provider or runtime record.",
+   "ops": [
+    {
+     "op": "append",
+     "path": "evidence",
+     "value": {
+      "id": "EV-190",
+      "kind": "human_attestation",
+      "target": "service-a-repo",
+      "layer": "credential",
+      "summary": "Credential owner states the old credential was revoked",
+      "collected_on": "2026-10-29",
+      "collection_status": "complete",
+      "executed": false,
+      "execution_context": "not_executed",
+      "redaction": "no_sensitive_content",
+      "attested_by_role": "credential owner"
+     }
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-004].fix_evidence.rotation_evidence_ids",
+     "value": [
+      "EV-190"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "ATTESTATION_NOT_ENOUGH",
+    "ROTATION_EVIDENCE_MISSING"
+   ]
+  },
+  {
+   "name": "deployed_fix_without_image_digest",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A source SHA is not an image digest.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "findings[id=F-003].fix_evidence.image_digest"
+    }
+   ],
+   "expect_codes": [
+    "ARTIFACT_BINDING_MISSING"
+   ]
+  },
+  {
+   "name": "runtime_on_other_digest",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Runtime evidence must observe the deployed digest.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-114].image_digest",
+     "value": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+   ],
+   "expect_codes": [
+    "DIGEST_MISMATCH"
+   ]
+  },
+  {
+   "name": "no_source_to_digest_mapping",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "The source SHA must map to the deployed digest.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "evidence[id=EV-103].source_sha"
+    },
+    {
+     "op": "delete",
+     "path": "evidence[id=EV-103].deployed_source_sha"
+    },
+    {
+     "op": "set",
+     "path": "findings[id=F-001].fix_evidence.runtime_evidence_ids",
+     "value": [
+      "EV-103"
+     ]
+    }
+   ],
+   "expect_codes": [
+    "BUILD_MAPPING_MISSING"
+   ]
+  },
+  {
+   "name": "vendor_patch_without_coordinates",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "vendor_patch needs package and fixed build.",
+   "ops": [
+    {
+     "op": "delete",
+     "path": "findings[id=F-001].fix_evidence.package"
+    }
+   ],
+   "expect_codes": [
+    "BACKPORT_UNPROVEN"
+   ]
+  },
+  {
+   "name": "vendor_advisory_for_other_build",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "The advisory must name the fixed build being claimed.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-102].build",
+     "value": "8.3.30-1~synthetic1"
+    }
+   ],
+   "expect_codes": [
+    "BACKPORT_UNPROVEN"
+   ]
+  },
+  {
+   "name": "vendor_advisory_without_primary_source",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Package evidence must link to a primary advisory.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-102].source_ids",
+     "value": []
+    }
+   ],
+   "expect_codes": [
+    "BACKPORT_UNPROVEN"
+   ]
+  },
+  {
+   "name": "fixed_build_not_running",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "The fixed build must be observed on the target.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-103].build",
+     "value": "8.3.30-1~synthetic1"
+    }
+   ],
+   "expect_codes": [
+    "RUNTIME_MAPPING_MISSING"
+   ]
+  },
+  {
+   "name": "stale_source_supports_fix",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Stale primary sources block clearance.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "sources[id=SRC-VENDOR-PHP].retrieved_on",
+     "value": "2026-10-01"
+    }
+   ],
+   "expect_codes": [
+    "STALE_SOURCE"
+   ]
+  },
+  {
+   "name": "historical_evidence_as_current",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Evidence older than the baseline cannot show the current state.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "evidence[id=EV-103].collected_on",
+     "value": "2026-10-20"
+    }
+   ],
+   "expect_codes": [
+    "HISTORICAL_EVIDENCE_AS_CURRENT"
+   ]
+  },
+  {
+   "name": "retest_changes_target_locator",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Changing a target is a scope change.",
+   "ops": [
+    {
+     "op": "set",
+     "path": "scope.targets[id=service-a-runtime].locator",
+     "value": "other.example.invalid"
+    }
+   ],
+   "expect_codes": [
+    "SCOPE_NARROWED"
+   ]
+  },
+  {
+   "name": "owner_approval_is_not_isolation",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Owner approval does not establish host-enforced disposable isolation.",
+   "ops": [
+    {"op": "set", "path": "evidence[id=EV-105].execution_context", "value": "owner_approved_environment"}
+   ],
+   "expect_codes": ["ISOLATION_UNPROVEN"]
+  },
+  {
+   "name": "missing_inventory_ledger",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A repository cannot omit its inventory reconciliation.",
+   "ops": [{"op": "set", "path": "inventory_coverage", "value": []}],
+   "expect_codes": ["INVENTORY_RECORD_MISSING"]
+  },
+  {
+   "name": "unaccepted_inventory_gap",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Unaccepted inventory gaps cannot be labeled complete.",
+   "ops": [
+    {"op": "append", "path": "inventory_coverage[0].gaps",
+     "value": {"id": "GAP-1", "reason": "synthetic binary not scanned", "disposition": "UNACCEPTED"}}
+   ],
+   "expect_codes": ["INVENTORY_GAP_UNRESOLVED"]
+  },
+  {
+   "name": "model_approved_inventory_exclusion",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "A model cannot approve scope exclusions.",
+   "ops": [
+    {"op": "append", "path": "inventory_coverage[0].gaps",
+     "value": {"id": "GAP-1", "reason": "synthetic exclusion", "disposition": "APPROVED_OUT_OF_SCOPE",
+               "approved_by_role": "model", "approval_ref": "APP-SYNTHETIC"}}
+   ],
+   "expect_codes": ["INVENTORY_EXCLUSION_UNAPPROVED"]
+  },
+  {
+   "name": "invalid_risk_expiry",
+   "base": "after_fix",
+   "compare_baseline": true,
+   "why": "Risk acceptance needs a real calendar expiry.",
+   "ops": [
+    {"op": "set", "path": "findings[id=F-003].status", "value": "accepted_risk"},
+    {"op": "set", "path": "findings[id=F-003].risk_acceptance",
+     "value": {"accepted_by_role": "risk owner", "reference": "APP-SYNTHETIC", "expires_on": "2026-99-99"}}
+   ],
+   "expect_codes": ["RISK_ACCEPTANCE_DATE_INVALID"]
+  }
+ ]
+}
