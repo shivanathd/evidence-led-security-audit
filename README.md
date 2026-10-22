@@ -57,9 +57,37 @@ The agent then:
 | `ISSUES_OPEN` | Coverage is complete, but a finding is open, mitigated, accepted as risk, or fixed and not deployed |
 | `CLEAR_WITHIN_COVERED_SCOPE` | Nothing open, for the listed targets and checks only |
 
+How the verdict is decided:
+
+```mermaid
+flowchart LR
+    A[Checks and findings recorded] --> B{Anything unchecked<br/>or unverified?}
+    B -- yes --> I[INCOMPLETE]
+    B -- no --> C{Anything failing<br/>or still open?}
+    C -- yes --> O[ISSUES_OPEN]
+    C -- no --> K[CLEAR_WITHIN_COVERED_SCOPE<br/>listed targets only]
+```
+
 ## How it works
 
-`SKILL.md` is a short hub. The agent loads the detail it needs from `references/`.
+`SKILL.md` is a short hub. The agent loads the detail it needs from `references/`. Every phase ends with a gate; a failed gate stops the run or records the gap as BLOCKED, never as a pass.
+
+```mermaid
+flowchart TB
+    subgraph assess["Assess (read-only)"]
+        direction LR
+        P0[0 Preflight] --> P1[1 Inventory] --> P2[2 Advisories] --> P3[3 Layered checks] --> P4[4 Credential exposure] --> P5[5 Refutation]
+    end
+    subgraph report["Report"]
+        direction LR
+        P6[6 Baseline report<br/>and fix plan] --> H(["People approve<br/>and deploy fixes"])
+    end
+    subgraph retest["Retest"]
+        direction LR
+        P7[7 After-fix retest<br/>against the baseline] --> P8[8 Postflight<br/>and verdict]
+    end
+    assess --> report --> retest
+```
 
 | Phase | What happens | Detail |
 | --- | --- | --- |
@@ -74,6 +102,16 @@ The agent then:
 | 8 Postflight | Sanitize, check the package, state the gaps | [reporting-release.md](references/reporting-release.md) |
 
 A fix only counts as closed when the fixed commit is the one the deployed image was built from, and that image digest is observed on the running service.
+
+```mermaid
+flowchart LR
+    S[Fixed source commit] -->|must equal| D[Commit the deployed<br/>image was built from]
+    D --> I[Image digest]
+    I -->|observed on| R[Running service]
+    R --> F([Finding can close])
+```
+
+A tag is not a digest, and `php -v` on the CLI says nothing about the web server's runtime.
 
 ## Incident profiles
 
