@@ -109,7 +109,17 @@ FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
 PHP_SAPI_PKG = re.compile(r"\b(php\d*(?:\.\d+)?-fpm|php\d*-fpm|libapache2-mod-php\S*|php\d*-cgi|lsphp\d*|frankenphp)\b", re.IGNORECASE)
 RUNTIME_IMAGE = re.compile(
-    r"(?i)^(?:[\w.-]+/)*(node|nodejs|bun|python|envoyproxy|istio|nginx)(?:[:/@]|\s|$)")
+    r"(?i)(?:^|/)(?:"
+    r"node(?:js)?(?:[-:@]|$)|"
+    r"javascript-node|"
+    r"bun(?:[-:@]|$)|"
+    r"python(?:[-:@]|$)|"
+    r"envoy(?:proxy)?(?:[-:@/]|$)|"
+    r"istio(?:[-:@]|$)|"
+    r"nginx(?:inc)?(?:[-:@/]|$)|"
+    r"openresty"
+    r")"
+)
 RUNTIME_PIN_FILES = {
     ".nvmrc": "node", ".node-version": "node", ".python-version": "python",
     ".ruby-version": "ruby", ".bun-version": "bun", ".tool-versions": "asdf",
@@ -119,11 +129,19 @@ SBOM_EXACT = {"bom.json", "sbom.json", "cyclonedx.json"}
 SBOM_SUFFIXES = (".cdx.json", ".spdx.json", ".spdx")
 
 
+def is_runtime_image(ref):
+    """True when a FROM ref looks like a Node, Python, Bun, Envoy or nginx-family image."""
+    return bool(ref) and bool(RUNTIME_IMAGE.search(ref))
+
+
 def _is_sbom(name):
     lower = name.lower()
     if lower in SBOM_EXACT or lower.endswith(SBOM_SUFFIXES):
         return True
-    return "sbom" in lower and lower.endswith((".json", ".xml"))
+    if not lower.endswith((".json", ".xml")):
+        return False
+    stem = lower.rsplit(".", 1)[0]
+    return stem == "sbom" or stem.endswith("-sbom") or stem.endswith("_sbom") or stem.endswith(".sbom")
 
 
 def classify(rel):
@@ -288,7 +306,7 @@ class Inventory:
                     froms.append({"line": i + 1, "image": ref, "pinned_digest": "@sha256:" in ref})
                     if re.match(r"(?:[\w.-]+/)*php:", ref) or "frankenphp" in ref or "litespeed" in ref:
                         self.out["php_runtime_hints"].append({"path": rel, "line": i + 1, "hint": "PHP base image %s (tag is a hint, not runtime proof)" % ref})
-                    elif RUNTIME_IMAGE.match(ref):
+                    elif is_runtime_image(ref):
                         self.out["runtime_hints"].append({
                             "path": rel, "line": i + 1,
                             "hint": "runtime or proxy base image %s (tag is a hint, not runtime proof)" % ref,

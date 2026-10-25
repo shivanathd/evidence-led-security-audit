@@ -48,12 +48,12 @@ Run these as the least-privileged account that can see the data. Each command re
 | OS | Command |
 | --- | --- |
 | macOS | Apps: `defaults read /Applications/NAME.app/Contents/Info.plist CFBundleShortVersionString`. Installer packages: `pkgutil --pkgs` and `pkgutil --pkg-info ID`. Homebrew (run as the owning user, not root): `brew list --versions` |
-| Debian, Ubuntu | `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates 'libbrotli*' brotli 'nodejs*' bun nginx envoy`. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
-| Fedora, RHEL family | `rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}\n' ca-certificates php-fpm brotli libbrotli nodejs bun nginx` or `dnf list --installed 'brotli*' 'nodejs*' bun nginx envoy`. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
-| Alpine | `apk info -v brotli libbrotli nodejs bun nginx envoy ca-certificates` |
-| Arch and derivatives | `pacman -Q brotli nodejs bun nginx envoy ca-certificates` |
-| openSUSE | `rpm -q` as above, or `zypper se -i brotli nodejs bun nginx envoy` |
-| Windows | Read the uninstall registry keys: `Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue \| Where-Object DisplayName \| Select-Object DisplayName, DisplayVersion, Publisher`. Package managers (read-only): `winget list`; if Chocolatey is installed, `choco list --local-only`. Never use `winget upgrade` or `choco upgrade` during an audit. |
+| Debian, Ubuntu | Pattern query: `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates 'libbrotli*' brotli 'nodejs*' 'node-*' bun 'nginx*' 'envoy*'`. An empty result or exit 1 for a pattern is `NOT_APPLICABLE` for that name; keep the command output. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
+| Fedora, RHEL family | Pattern query: `rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*' ca-certificates php-fpm` or `dnf list --installed 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*'`. Prefer `-qa` / glob forms; `rpm -q exact-name` on a missing name is a gap, not a PASS. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
+| Alpine | `apk info -e brotli brotli-libs nodejs bun nginx envoy ca-certificates` prints only installed names. Then `apk policy PKG` for the version. A name `-e` omits is `NOT_APPLICABLE` with that output. There is no `libbrotli` package; the shared libraries are `brotli-libs`. |
+| Arch and derivatives | Local pattern query: `pacman -Qs 'brotli|nodejs|bun|nginx|envoy|ca-certificates'`. A name with no hit is `NOT_APPLICABLE`. |
+| openSUSE | `rpm -qa` patterns as on Fedora, or `zypper se -i brotli nodejs bun nginx envoy` |
+| Windows | Read the uninstall registry keys: `Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue \| Where-Object DisplayName \| Select-Object DisplayName, DisplayVersion, Publisher`. Package managers (read-only): `winget list`. Chocolatey 2+: `choco list` is local-only; do not pass a source. Chocolatey 1.x needs `--local-only`. Never use `winget upgrade` or `choco upgrade` during an audit. |
 
 Never query `Win32_Product` on Windows. It runs an installer consistency check that can repair or reconfigure software, so it is not read-only.
 
@@ -63,22 +63,25 @@ A distribution build often carries a fix under an older upstream version number.
 
 Use this when an advisory is in a library that runtimes **bundle** (compression, image codecs, TLS). A lockfile or scanner miss is common. Record every copy: system package, language wheel, runtime binary, container layer, vendored tree. Commands read state only. Do not feed crafted files to a decoder.
 
+Default: do **not** start Node, Bun, Python, pip, poetry, uv, curl, or a mesh CLI. Those load site customizers, `.pth` files or the binary itself. That is the LiteLLM-class trigger this skill forbids. Read lockfiles, `*.dist-info/METADATA`, the package database, and linked-library metadata on a **named** binary path.
+
 | Where | macOS | Linux | Windows (PowerShell) | Containers |
 | --- | --- | --- | --- | --- |
-| Node.js | `node -p process.versions` (includes `brotli` when present) and `node -v`. Lockfile only: read `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` or `bun.lock` / `bun.lockb` — do not run `npm install`. | Same | `node -p process.versions`; `node -v`. Same lockfile read. | Same **inside** the image or a running worker, not on the auditor's laptop |
-| Bun | `bun --version` | Same | Same | Same inside the image |
-| Python wheels | Prefer reading `*.dist-info/METADATA` and lockfiles (`uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements*.txt`). `python3 -m pip show Brotli brotlicffi Pillow` or `uv pip show` / `poetry show` only when the advisory does not say startup hooks run. Never `pip install`. | Same | `py -m pip show Brotli brotlicffi Pillow` under the same restriction | Read site-packages in the image filesystem; do not start Python in a suspect venv (see the known-bad package class) |
-| System Brotli | Homebrew: `brew list --versions brotli` | `dpkg-query` / `rpm -q` / `dnf list --installed` / `apk info -v` / `pacman -Q` as above | `winget list brotli` if a package is registered | Package database **in the image digest** |
-| curl / libcurl | `otool -L /usr/bin/curl` and `curl --version` (look for brotli). A curl version alone does not prove the linked libbrotli build. | `ldd "$(command -v curl)"` and `curl --version` | `curl.exe --version`; dump loaded modules only with a read-only tool the owner already runs | Same inside the image |
-| Envoy / Istio | Version from the installed binary or `istioctl version` | Same; also the pod image digest | Unusual on Windows; record as a gap if the fleet has none | Image tag **and** digest; effective EnvoyFilter / decompressor config |
+| Node.js | Lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` / `bun.lockb`). Package DB / `brew list --versions node`. Linked libs on a named path: `otool -L /usr/local/bin/node` (path from the package DB). Do not run `node`. | Same; `readelf -d /usr/bin/node` or `objdump -p /usr/bin/node` (look for `NEEDED`). | Same lockfile and package-DB read. `dumpbin /dependents` on a named `node.exe` only if that tool is already installed. | Package DB and the named binary **inside** the image digest |
+| Bun | Lockfiles; `brew list --versions bun`; `otool -L` on the named `bun` binary | `readelf -d` / `objdump -p` on the named `bun` binary | `dumpbin /dependents` on the named `bun.exe` | Same inside the image |
+| Python wheels | Read `*.dist-info/METADATA` and lockfiles (`uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements*.txt`). Do not run `python`, `pip`, `uv` or `poetry`. | Same | Same under `%LOCALAPPDATA%` and project `.venv` | Read site-packages in the image filesystem |
+| System Brotli | Homebrew: `brew list --versions brotli` | Distro pattern queries above (`libbrotli*` / `brotli` / Alpine `brotli-libs`) | `winget list brotli` if a package is registered | Package database **in the image digest** |
+| curl / libcurl | `otool -L /usr/bin/curl` on that named path. A curl version string does not prove the linked libbrotli build. Do not run `curl --version`. | `readelf -d /usr/bin/curl` or `objdump -p /usr/bin/curl`. Do not use `ldd` (it loads the binary). | `dumpbin /dependents` on a named `curl.exe` | Same inside the image |
+| Envoy / Istio | File metadata of the named `envoy` binary. Local CLI only: `istioctl version --remote=false`. Mesh / control-plane version is a **separate** owner-approved cluster read, not this command. | Same | Unusual on Windows; record as a gap if the fleet has none | Image tag **and** digest; effective EnvoyFilter / decompressor config from the spec |
 | Vendored C copies | Search `vendor/`, `third_party/` and similar for a `brotli` tree; record the path and any VERSION / CMake file. Inventory skips `node_modules` and `.venv` by default. | Same | Same under the project tree | Same inside the image |
 | Image parsers | Same lockfile / `METADATA` read for Pillow | Same | Same | Same |
 
 Rules:
 
 - A CLI on the audit laptop is not evidence for a server or an image.
-- `process.versions.brotli` or a wheel version is source for that process only.
-- If the advisory names a config switch (Brotli decompressor on, Vitest `--ui`), record the effective setting as well as the version.
+- A package or wheel version is evidence for that layer only.
+- If a live query is unavoidable, use an **already-running** owner worker. Confirm the on-disk binary (`/proc/<pid>/exe` or the owner's equivalent) is not a path inventory flagged as a suspect install. Do not start a new interpreter to collect the version.
+- If the advisory names a config switch (Brotli decompressor on, a test-runner `--ui` flag), record the effective setting as well as the version.
 - SBOMs (`bom.json`, `*.cdx.json`, `*.spdx.json`) are leads. Confirm each listed component against a lockfile or the image.
 
 ### Known-bad package versions
