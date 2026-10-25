@@ -116,6 +116,31 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(self.raw, again.stdout)
         self.assertNotIn(str(self.root), self.raw)
 
+    def test_runtime_pins_sboms_and_base_image_hints(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / ".nvmrc").write_text("24.22.0\n", encoding="utf-8")
+        (root / "bun.lock").write_text("{}\n", encoding="utf-8")
+        (root / "bom.cdx.json").write_text("{}", encoding="utf-8")
+        (root / "package.json").write_text('{"engines": {"node": ">=24"}}\n', encoding="utf-8")
+        (root / "Dockerfile").write_text("FROM node:24-alpine\n", encoding="utf-8")
+        (root / "docker").mkdir()
+        (root / "docker" / "php.ini").write_text("session.serialize_handler = php_serialize\n", encoding="utf-8")
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        doc = json.loads(res.stdout)
+        pins = {p["path"]: p["runtime"] for p in doc["runtime_pins"]}
+        self.assertEqual(pins[".nvmrc"], "node")
+        manifests = {m["path"]: m["ecosystem"] for m in doc["manifests"]}
+        self.assertEqual(manifests["bun.lock"], "npm")
+        self.assertIn("bom.cdx.json", {s["path"] for s in doc["sboms"]})
+        hints = " ".join(h["hint"] for h in doc["runtime_hints"])
+        self.assertIn("node:24-alpine", hints)
+        self.assertIn("engines.node", hints)
+        self.assertIn("not runtime proof", hints)
+        php_hints = " ".join(h["hint"] for h in doc["php_runtime_hints"])
+        self.assertIn("session.serialize_handler", php_hints)
+
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"
         out.write_text("keep", encoding="utf-8")

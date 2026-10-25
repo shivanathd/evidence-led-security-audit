@@ -4,7 +4,7 @@ Version 0.2.0, checked on 22 October 2026. This record concerns the skill's help
 
 ## Executed checks
 
-- **Unit suite:** 66 test methods passed on Linux with Python 3.14.8 (65 before the macOS fixes below) and on macOS with Python 3.14.6 and the system Python 3.9.6. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
+- **Unit suite:** 67 test methods passed on Linux with Python 3.14.8 (65 before the macOS fixes below) and on macOS with Python 3.14.6 and the system Python 3.9.6. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
 - **Skill format:** The candidate passed `agentskills validate` using its absolute directory.
 - **Package inspection:** The public-package checker reported no rule match and no unreviewed binary content for this text-only candidate.
 - **Secret check:** Gitleaks 8.30.1 found no leaks in the candidate tree. Pattern checks do not prove that every confidential fact has been detected.

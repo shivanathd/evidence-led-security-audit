@@ -48,13 +48,61 @@ Run these as the least-privileged account that can see the data. Each command re
 | OS | Command |
 | --- | --- |
 | macOS | Apps: `defaults read /Applications/NAME.app/Contents/Info.plist CFBundleShortVersionString`. Installer packages: `pkgutil --pkgs` and `pkgutil --pkg-info ID`. Homebrew (run as the owning user, not root): `brew list --versions` |
-| Debian, Ubuntu | `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates`. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
-| Fedora, RHEL family | `rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}\n' ca-certificates php-fpm`. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
-| Windows | Read the uninstall registry keys: `Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue \| Where-Object DisplayName \| Select-Object DisplayName, DisplayVersion, Publisher` |
+| Debian, Ubuntu | `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates 'libbrotli*' brotli 'nodejs*' bun nginx envoy`. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
+| Fedora, RHEL family | `rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}\n' ca-certificates php-fpm brotli libbrotli nodejs bun nginx` or `dnf list --installed 'brotli*' 'nodejs*' bun nginx envoy`. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
+| Alpine | `apk info -v brotli libbrotli nodejs bun nginx envoy ca-certificates` |
+| Arch and derivatives | `pacman -Q brotli nodejs bun nginx envoy ca-certificates` |
+| openSUSE | `rpm -q` as above, or `zypper se -i brotli nodejs bun nginx envoy` |
+| Windows | Read the uninstall registry keys: `Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue \| Where-Object DisplayName \| Select-Object DisplayName, DisplayVersion, Publisher`. Package managers (read-only): `winget list`; if Chocolatey is installed, `choco list --local-only`. Never use `winget upgrade` or `choco upgrade` during an audit. |
 
 Never query `Win32_Product` on Windows. It runs an installer consistency check that can repair or reconfigure software, so it is not read-only.
 
 A distribution build often carries a fix under an older upstream version number. Decide from the vendor's advisory or the package changelog for the exact build, as `scoped-checks.md` describes.
+
+### Bundled native libraries
+
+Use this when an advisory is in a library that runtimes **bundle** (compression, image codecs, TLS). A lockfile or scanner miss is common. Record every copy: system package, language wheel, runtime binary, container layer, vendored tree. Commands read state only. Do not feed crafted files to a decoder.
+
+| Where | macOS | Linux | Windows (PowerShell) | Containers |
+| --- | --- | --- | --- | --- |
+| Node.js | `node -p process.versions` (includes `brotli` when present) and `node -v`. Lockfile only: read `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` or `bun.lock` / `bun.lockb` — do not run `npm install`. | Same | `node -p process.versions`; `node -v`. Same lockfile read. | Same **inside** the image or a running worker, not on the auditor's laptop |
+| Bun | `bun --version` | Same | Same | Same inside the image |
+| Python wheels | Prefer reading `*.dist-info/METADATA` and lockfiles (`uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements*.txt`). `python3 -m pip show Brotli brotlicffi Pillow` or `uv pip show` / `poetry show` only when the advisory does not say startup hooks run. Never `pip install`. | Same | `py -m pip show Brotli brotlicffi Pillow` under the same restriction | Read site-packages in the image filesystem; do not start Python in a suspect venv (see the known-bad package class) |
+| System Brotli | Homebrew: `brew list --versions brotli` | `dpkg-query` / `rpm -q` / `dnf list --installed` / `apk info -v` / `pacman -Q` as above | `winget list brotli` if a package is registered | Package database **in the image digest** |
+| curl / libcurl | `otool -L /usr/bin/curl` and `curl --version` (look for brotli). A curl version alone does not prove the linked libbrotli build. | `ldd "$(command -v curl)"` and `curl --version` | `curl.exe --version`; dump loaded modules only with a read-only tool the owner already runs | Same inside the image |
+| Envoy / Istio | Version from the installed binary or `istioctl version` | Same; also the pod image digest | Unusual on Windows; record as a gap if the fleet has none | Image tag **and** digest; effective EnvoyFilter / decompressor config |
+| Vendored C copies | Search `vendor/`, `third_party/` and similar for a `brotli` tree; record the path and any VERSION / CMake file. Inventory skips `node_modules` and `.venv` by default. | Same | Same under the project tree | Same inside the image |
+| Image parsers | Same lockfile / `METADATA` read for Pillow | Same | Same | Same |
+
+Rules:
+
+- A CLI on the audit laptop is not evidence for a server or an image.
+- `process.versions.brotli` or a wheel version is source for that process only.
+- If the advisory names a config switch (Brotli decompressor on, Vitest `--ui`), record the effective setting as well as the version.
+- SBOMs (`bom.json`, `*.cdx.json`, `*.spdx.json`) are leads. Confirm each listed component against a lockfile or the image.
+
+### Known-bad package versions
+
+Compare inventoried versions with hijack records refreshed this run. Do not install or import the package to test it.
+
+| OS | Read-only commands |
+| --- | --- |
+| Any project tree | Read lockfiles and SBOMs that `scripts/inventory.py` listed: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` / `bun.lockb`, `uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements*.txt`. Compare the exact version or digest with records refreshed this run. Do not run `npm` / `pnpm` / `yarn` / `bun` / `pip` / `uv` / `poetry` install commands. |
+| macOS / Linux | Search package metadata for a directory named after the bad version (for example `PACKAGE-1.2.3.dist-info` or `node_modules/PACKAGE/package.json`). Do not start the language runtime in that tree if the advisory says install or startup hooks run. |
+| Windows | The same metadata search under `%LOCALAPPDATA%\Programs`, `%APPDATA%\npm` and project `.venv` / `node_modules` folders. |
+| Images | `docker image inspect IMAGE@DIGEST` (or the owner's equivalent) for tags and the digest. Match the digest the advisory published. |
+| System packages | Same `dpkg-query` / `rpm` / `dnf` / `apk` / `pacman` / `brew` / `winget` commands as the installed-packages table, then compare the build with the hijack record. |
+
+### Dev and debug servers
+
+| OS | Read-only commands |
+| --- | --- |
+| Any | Lockfile version of the test runner or bundler. Config flags: `--ui`, Browser Mode, `api`, `server.host`. |
+| macOS | `lsof -nP -iTCP -sTCP:LISTEN` |
+| Linux | `ss -ltnp` |
+| Windows | `Get-NetTCPConnection -State Listen` |
+
+Do not request `/.env` or other secret files from the listener. Version plus bind evidence is enough.
 
 ### Listening services
 

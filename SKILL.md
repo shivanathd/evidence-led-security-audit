@@ -28,7 +28,7 @@ Do the phases in order. A phase whose gate fails stops or reports BLOCKED. See [
 
 0. **Preflight**: authorization, scope, mode, tools, required checks, sources to refresh.
 1. **Inventory**: `python3 scripts/inventory.py <repo> --target ID --out inv.json --strict`
-2. **Advisories**: refresh primary sources this run and date them. Optional dated [profiles/](profiles/) (PHP, Railway, eMudhra).
+2. **Advisories**: refresh primary sources this run and date them. Optional dated [profiles/](profiles/).
 3. **Checks**: source, dependency, image, runtime, identity, config. See [scoped-checks](references/scoped-checks.md), [saas-identity](references/saas-identity.md), [endpoint-fleet](references/endpoint-fleet.md).
 4. **Credential exposure**: prepare containment and notification; run only approved actions.
 5. **Refutation and review**: [references/orchestration.md](references/orchestration.md).
