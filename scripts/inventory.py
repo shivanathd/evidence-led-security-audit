@@ -108,17 +108,12 @@ NGINX_LISTEN = re.compile(r"^\s*listen\s+([^;]+);")
 FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
 PHP_SAPI_PKG = re.compile(r"\b(php\d*(?:\.\d+)?-fpm|php\d*-fpm|libapache2-mod-php\S*|php\d*-cgi|lsphp\d*|frankenphp)\b", re.IGNORECASE)
+# Path-segment match: name is a whole image path component. Delimiters are
+# :, / or @ (or end). A trailing hyphen is not a delimiter, so
+# prom/node-exporter, python-builder and myorg/python-app do not match.
 RUNTIME_IMAGE = re.compile(
-    r"(?i)(?:^|/)(?:"
-    r"node(?:js)?(?:[-:@]|$)|"
-    r"javascript-node|"
-    r"bun(?:[-:@]|$)|"
-    r"python(?:[-:@]|$)|"
-    r"envoy(?:proxy)?(?:[-:@/]|$)|"
-    r"istio(?:[-:@]|$)|"
-    r"nginx(?:inc)?(?:[-:@/]|$)|"
-    r"openresty"
-    r")"
+    r"(?i)(?:^|/)(?:node(?:js)?|javascript-node|bun|python|"
+    r"envoy(?:proxy)?|istio|nginx(?:inc)?|openresty)(?:[:/@]|$)"
 )
 RUNTIME_PIN_FILES = {
     ".nvmrc": "node", ".node-version": "node", ".python-version": "python",
@@ -127,10 +122,20 @@ RUNTIME_PIN_FILES = {
 }
 SBOM_EXACT = {"bom.json", "sbom.json", "cyclonedx.json"}
 SBOM_SUFFIXES = (".cdx.json", ".spdx.json", ".spdx")
+DEV_SERVER_PACKAGES = ("@vitest/ui", "vite-plus", "webpack-dev-server", "vitest", "vite")
+DEV_SERVER_LOCK_RE = re.compile(
+    r"(?i)(?:^|[\"'/\s])(?:node_modules/)?"
+    r"(?P<pkg>@vitest/ui|vite-plus|webpack-dev-server|vitest|vite)"
+    r"(?:[\"'@:]|\s|$)"
+)
+DEV_SERVER_BIND_RE = re.compile(
+    r"(?i)(?:--ui\b|--api\b|\bapi\s*:\s*(?:true|\{)|browserMode\b|Browser Mode|server\.host\b)"
+)
+DEV_SERVER_CONFIG_RE = re.compile(r"^(?:vite|vitest|webpack)\.config\.[cm]?[jt]sx?$")
 
 
 def is_runtime_image(ref):
-    """True when a FROM ref looks like a Node, Python, Bun, Envoy or nginx-family image."""
+    """True when a FROM ref looks like a Node, Python, Bun, Envoy, Istio or nginx-family image."""
     return bool(ref) and bool(RUNTIME_IMAGE.search(ref))
 
 
@@ -176,7 +181,7 @@ class Inventory:
         self.files_read = 0
         self.max_reached = False
         self.out = {k: [] for k in ("manifests", "containers", "listeners", "php_runtime_hints", "runtime_hints",
-                                    "runtime_pins", "sboms", "install_hooks",
+                                    "runtime_pins", "sboms", "dev_server_hints", "install_hooks",
                                     "ci_workflows", "agent_instruction_files", "secret_candidates",
                                     "sensitive_filenames", "sidecar_artifacts", "symlinks")}
 
@@ -288,9 +293,14 @@ class Inventory:
         if name == "package.json":
             self._json_hooks(rel, text, "scripts", NPM_HOOKS)
             self._package_engines(rel, text)
+            self._dev_server_package_json(rel, text)
         if name == "composer.json":
             self._json_hooks(rel, text, "scripts", COMPOSER_HOOKS)
             self._composer_php(rel, text)
+        if name in LOCKFILES and LOCKFILES[name] == "npm":
+            self._dev_server_lockfile(rel, text)
+        if DEV_SERVER_CONFIG_RE.match(name):
+            self._dev_server_config(rel, lines)
         if lower.endswith(".php"):
             for i, ln in enumerate(lines):
                 if "phpinfo(" in ln:
@@ -392,6 +402,55 @@ class Inventory:
                 "path": rel, "line": 0,
                 "hint": "package.json engines.node %s (source constraint, not runtime proof)" % engines["node"],
             })
+
+    def _dev_server_package_json(self, rel, text):
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return
+        if not isinstance(doc, dict):
+            return
+        names = set()
+        for key in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+            block = doc.get(key)
+            if isinstance(block, dict):
+                names.update(block)
+        for pkg in DEV_SERVER_PACKAGES:
+            if pkg in names:
+                self.out["dev_server_hints"].append({
+                    "path": rel, "line": 0,
+                    "hint": "test-runner or bundler package %s (manifest entry; not a listen proof)" % pkg,
+                })
+        scripts = doc.get("scripts")
+        if isinstance(scripts, dict):
+            for script, cmd in scripts.items():
+                if isinstance(cmd, str) and DEV_SERVER_BIND_RE.search(cmd):
+                    self.out["dev_server_hints"].append({
+                        "path": rel, "line": 0,
+                        "hint": "package.json script %s has a dev-server bind flag" % script,
+                    })
+
+    def _dev_server_lockfile(self, rel, text):
+        seen = []
+        for match in DEV_SERVER_LOCK_RE.finditer(text):
+            pkg = match.group("pkg")
+            if pkg in seen:
+                continue
+            seen.append(pkg)
+            self.out["dev_server_hints"].append({
+                "path": rel, "line": textscan.line_of(text, match.start()),
+                "hint": "test-runner or bundler package %s (lockfile entry; not a listen proof)" % pkg,
+            })
+            if len(seen) >= 8:
+                break
+
+    def _dev_server_config(self, rel, lines):
+        for i, ln in enumerate(lines):
+            if DEV_SERVER_BIND_RE.search(ln):
+                self.out["dev_server_hints"].append({
+                    "path": rel, "line": i + 1,
+                    "hint": "dev-server bind flag in config (configured listen; confirm on the running host)",
+                })
 
     def _composer_php(self, rel, text):
         try:

@@ -128,7 +128,7 @@ Profiles are dated starting points for specific incidents. They are not "latest"
 | [railway-2026-10-21.md](profiles/railway-2026-10-21.md) | Possible exposure of environment variables stored on Railway: inventory, rotation, revocation and misuse review | 2026-10-25 |
 | [emudhra-2026-10-17.md](profiles/emudhra-2026-10-17.md) | Compromised eMudhra intermediate CA keys: which clients and trust stores still accept the chains, per OS and runtime, and how to prove they no longer do | 2026-10-25 |
 | [brotli-2026-10-21.md](profiles/brotli-2026-10-21.md) | CVE-2026-111497 Brotli decoder write (Node, Bun, Python wheels, Envoy/Istio, system libbrotli): bundled copies that lockfile scanners miss | 2026-10-25 |
-| [litellm-2026-10-21.md](profiles/litellm-2026-10-21.md) | Hijacked `litellm==1.107.0` wheels and images, plus the generic rule that a key committed in public is live until the provider revokes it | 2026-10-25 |
+| [litellm-2026-10-21.md](profiles/litellm-2026-10-21.md) | Hijacked `litellm` wheels and images (`1.107.0`, `1.82.7`, `1.82.8`), plus the generic rule that a key committed in public is live until the provider revokes it | 2026-10-25 |
 
 To add one, copy an existing profile, cite primary sources only, and name it `<topic>-<yyyy-mm-dd>.md`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 

@@ -48,7 +48,7 @@ Run these as the least-privileged account that can see the data. Each command re
 | OS | Command |
 | --- | --- |
 | macOS | Apps: `defaults read /Applications/NAME.app/Contents/Info.plist CFBundleShortVersionString`. Installer packages: `pkgutil --pkgs` and `pkgutil --pkg-info ID`. Homebrew (run as the owning user, not root): `brew list --versions` |
-| Debian, Ubuntu | Pattern query: `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates 'libbrotli*' brotli 'nodejs*' 'node-*' bun 'nginx*' 'envoy*'`. An empty result or exit 1 for a pattern is `NOT_APPLICABLE` for that name; keep the command output. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
+| Debian, Ubuntu | Pattern query: `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates 'libbrotli*' brotli 'nodejs*' 'node-*' bun 'nginx*' 'envoy*'`. `dpkg-query -W` with several patterns exits 1 if any one pattern is missing, even when others hit. Query one pattern at a time, or ignore the exit code and parse stdout. An empty result for a pattern is `NOT_APPLICABLE` for that name; keep the command output. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
 | Fedora, RHEL family | Pattern query: `rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*' ca-certificates php-fpm` or `dnf list --installed 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*'`. Prefer `-qa` / glob forms; `rpm -q exact-name` on a missing name is a gap, not a PASS. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
 | Alpine | `apk info -e brotli brotli-libs nodejs bun nginx envoy ca-certificates` prints only installed names. Then `apk policy PKG` for the version. A name `-e` omits is `NOT_APPLICABLE` with that output. There is no `libbrotli` package; the shared libraries are `brotli-libs`. |
 | Arch and derivatives | Local pattern query: `pacman -Qs 'brotli|nodejs|bun|nginx|envoy|ca-certificates'`. A name with no hit is `NOT_APPLICABLE`. |
@@ -63,7 +63,7 @@ A distribution build often carries a fix under an older upstream version number.
 
 Use this when an advisory is in a library that runtimes **bundle** (compression, image codecs, TLS). A lockfile or scanner miss is common. Record every copy: system package, language wheel, runtime binary, container layer, vendored tree. Commands read state only. Do not feed crafted files to a decoder.
 
-Default: do **not** start Node, Bun, Python, pip, poetry, uv, curl, or a mesh CLI. Those load site customizers, `.pth` files or the binary itself. That is the LiteLLM-class trigger this skill forbids. Read lockfiles, `*.dist-info/METADATA`, the package database, and linked-library metadata on a **named** binary path.
+Default: do **not** start Node, Bun, Python, pip, poetry, uv, curl, or a mesh CLI. Those load site customizers, `.pth` files or the binary itself. That is the LiteLLM-class trigger this skill forbids. Exception: `istioctl version --remote=false` in the Envoy / Istio row is a local-CLI read that does not contact the mesh. Cert-chain live probes in [Testing a chain with the client that matters](#testing-a-chain-with-the-client-that-matters) start a named client; they must not start a path inventory flagged as a suspect hijacked install. Read lockfiles, `*.dist-info/METADATA`, the package database, and linked-library metadata on a **named** binary path.
 
 | Where | macOS | Linux | Windows (PowerShell) | Containers |
 | --- | --- | --- | --- | --- |
@@ -156,6 +156,8 @@ SDKMAN, Gradle, asdf and mise install JDKs under each user's home directory. Inc
 When an advisory provides test hosts that serve the affected chain, test each client type separately. Each client has its own trust store, its own revocation data and its own way of building a chain.
 
 **Only a live connection counts.** A client passes only when that client, making a real connection to the test host through its own networking stack, gets a certificate error. Verifying saved chain files offline (`openssl verify`, `security verify-cert` on PEM files, a script that parses the chain) is not enough. A live connection builds its own path: it may fetch or reuse intermediates and cross-signs that the saved chain does not contain, and it checks revocation online, often accepting the chain when a revocation server does not answer. Offline results can say "revoked" while the live connection succeeds. Use offline verification to explain a live result, never to replace one.
+
+These live probes start `curl`, `python`, `node` or `bun`. That is the exception to the default "do not start those binaries" rule in [Bundled native libraries](#bundled-native-libraries). Confirm the on-disk binary is not a path inventory flagged as a suspect hijacked install before starting it.
 
 | Client | Live probe |
 | --- | --- |

@@ -76,6 +76,7 @@ class InventoryTests(unittest.TestCase):
         self.assertIn("session.upload_progress.enabled", hints)
         self.assertEqual(self.doc["ci_workflows"][0]["unpinned_actions"][0]["ref"], "actions/checkout@v4")
         self.assertEqual([f["from"][0]["image"] for f in self.doc["containers"]], ["php:8.3-fpm"])
+        self.assertEqual(self.doc["dev_server_hints"], [])
 
     def test_untrusted_instructions_flagged_not_followed(self):
         agent = self.doc["agent_instruction_files"][0]
@@ -130,7 +131,10 @@ class InventoryTests(unittest.TestCase):
             "FROM nginxinc/nginx-unprivileged:1.27\n"
             "FROM devcontainers/javascript-node:24\n"
             "FROM openresty/openresty:alpine\n"
-            "FROM envoyproxy/envoy:v1.40.0\n",
+            "FROM envoyproxy/envoy:v1.40.0\n"
+            "FROM istio/pilot:1.31.2\n"
+            "FROM istio/proxyv2:1.31.1\n"
+            "FROM " + ".".join(["docker", "io"]) + "/istio/proxyv2:1.31.1\n",
             encoding="utf-8",
         )
         (root / "docker").mkdir()
@@ -153,6 +157,9 @@ class InventoryTests(unittest.TestCase):
             "devcontainers/javascript-node:24",
             "openresty/openresty:alpine",
             "envoyproxy/envoy:v1.40.0",
+            "istio/pilot:1.31.2",
+            "istio/proxyv2:1.31.1",
+            ".".join(["docker", "io"]) + "/istio/proxyv2:1.31.1",
         ):
             self.assertIn(image, hints)
         self.assertIn("engines.node", hints)
@@ -169,15 +176,49 @@ class InventoryTests(unittest.TestCase):
             "openresty/openresty:alpine",
             "envoyproxy/envoy:v1.40.0",
             "python:3.12",
+            "istio/pilot:1.31.2",
+            "istio/proxyv2:1.31.1",
+            ".".join(["docker", "io"]) + "/istio/proxyv2:1.31.1",
             ".".join(["mcr", "microsoft", "com"]) + "/devcontainers/javascript-node:24",
         ):
             self.assertTrue(inventory.is_runtime_image(ref), ref)
-        for ref in ("scratch", "alpine:3.20", "postgres:16", "golang:1.23"):
+        for ref in (
+            "scratch", "alpine:3.20", "postgres:16", "golang:1.23",
+            "prom/node-exporter:1.8.0", "python-builder:latest", "myorg/python-app:1.0",
+        ):
             self.assertFalse(inventory.is_runtime_image(ref), ref)
         self.assertTrue(inventory._is_sbom("bom.cdx.json"))
         self.assertTrue(inventory._is_sbom("app.sbom.json"))
         self.assertFalse(inventory._is_sbom("presbom.json"))
         self.assertFalse(inventory._is_sbom("sbomething.json"))
+
+    def test_dev_server_hints_not_implied_by_expose(self):
+        expose_only = Path(support.tmpdir()) / "service-a"
+        expose_only.mkdir()
+        (expose_only / "Dockerfile").write_text("FROM alpine:3.20\nEXPOSE 5173\n", encoding="utf-8")
+        res = support.run_script("inventory.py", expose_only, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        expose_doc = json.loads(res.stdout)
+        self.assertTrue(expose_doc["listeners"])
+        self.assertEqual(expose_doc["dev_server_hints"], [])
+
+        with_runner = Path(support.tmpdir()) / "service-a"
+        with_runner.mkdir()
+        (with_runner / "package.json").write_text(
+            json.dumps({"devDependencies": {"vitest": "5.0.4"}, "scripts": {"test:ui": "vitest --ui"}}),
+            encoding="utf-8",
+        )
+        (with_runner / "package-lock.json").write_text('{"packages": {"node_modules/vite": {"version": "5.4.0"}}}\n', encoding="utf-8")
+        (with_runner / "vitest.config.ts").write_text("export default { server: { /* server.host */ } }\n", encoding="utf-8")
+        (with_runner / "vite.config.ts").write_text("export default { server: { host: true } }\nserver.host = true\n", encoding="utf-8")
+        res = support.run_script("inventory.py", with_runner, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        runner_doc = json.loads(res.stdout)
+        hints = " ".join(h["hint"] for h in runner_doc["dev_server_hints"])
+        self.assertIn("vitest", hints)
+        self.assertIn("vite", hints)
+        self.assertIn("bind flag", hints)
+        self.assertEqual(runner_doc["listeners"], [])
 
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"
