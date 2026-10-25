@@ -10,12 +10,12 @@ import check_public_package as cpp
 
 class PackageSelfCheck(unittest.TestCase):
     def test_this_package_has_no_rule_matches(self):
-        pkg = support.clean_copy(Path(support.tmpdir()) / support.ROOT.name)
+        pkg = support.package_copy()
         rep = cpp.scan(pkg, [], cpp.DEFAULT_ALLOWED_HOSTS)
         self.assertEqual(rep.errors, [], rep.errors)
 
     def test_readme_commands_run(self):
-        pkg = support.clean_copy(Path(support.tmpdir()) / support.ROOT.name)
+        pkg = support.package_copy()
         out = support.tmpdir()
         readme = (pkg / "README.md").read_text(encoding="utf-8")
         block = re.search(r"<!-- tested-commands -->\s*```bash\n(.*?)```", readme, re.S)
@@ -32,7 +32,7 @@ class PackageSelfCheck(unittest.TestCase):
 
 class GitMetadata(unittest.TestCase):
     def setUp(self):
-        self.pkg = support.clean_copy(Path(support.tmpdir()) / support.ROOT.name)
+        self.pkg = support.package_copy()
 
     def test_root_git_dir_is_a_warning_not_a_pass_or_block(self):
         (self.pkg / ".git").mkdir()

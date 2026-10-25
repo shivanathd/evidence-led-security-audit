@@ -48,13 +48,64 @@ Run these as the least-privileged account that can see the data. Each command re
 | OS | Command |
 | --- | --- |
 | macOS | Apps: `defaults read /Applications/NAME.app/Contents/Info.plist CFBundleShortVersionString`. Installer packages: `pkgutil --pkgs` and `pkgutil --pkg-info ID`. Homebrew (run as the owning user, not root): `brew list --versions` |
-| Debian, Ubuntu | `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates`. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
-| Fedora, RHEL family | `rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}\n' ca-certificates php-fpm`. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
-| Windows | Read the uninstall registry keys: `Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue \| Where-Object DisplayName \| Select-Object DisplayName, DisplayVersion, Publisher` |
+| Debian, Ubuntu | Pattern query: `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates 'libbrotli*' brotli 'nodejs*' 'node-*' bun 'nginx*' 'envoy*'`. `dpkg-query -W` with several patterns exits 1 if any one pattern is missing, even when others hit. Query one pattern at a time, or ignore the exit code and parse stdout. An empty result for a pattern is `NOT_APPLICABLE` for that name; keep the command output. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
+| Fedora, RHEL family | Pattern query: `rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*' ca-certificates php-fpm` or `dnf list --installed 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*'`. Prefer `-qa` / glob forms; `rpm -q exact-name` on a missing name is a gap, not a PASS. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
+| Alpine | `apk info -e brotli brotli-libs nodejs bun nginx envoy ca-certificates` prints only installed names. Then `apk policy PKG` for the version. A name `-e` omits is `NOT_APPLICABLE` with that output. There is no `libbrotli` package; the shared libraries are `brotli-libs`. |
+| Arch and derivatives | Local pattern query: `pacman -Qs 'brotli|nodejs|bun|nginx|envoy|ca-certificates'`. A name with no hit is `NOT_APPLICABLE`. |
+| openSUSE | `rpm -qa` patterns as on Fedora, or `zypper se -i brotli nodejs bun nginx envoy` |
+| Windows | Read the uninstall registry keys: `Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue \| Where-Object DisplayName \| Select-Object DisplayName, DisplayVersion, Publisher`. Package managers (read-only): `winget list`. Chocolatey 2+: `choco list` is local-only; do not pass a source. Chocolatey 1.x needs `--local-only`. Never use `winget upgrade` or `choco upgrade` during an audit. |
 
 Never query `Win32_Product` on Windows. It runs an installer consistency check that can repair or reconfigure software, so it is not read-only.
 
 A distribution build often carries a fix under an older upstream version number. Decide from the vendor's advisory or the package changelog for the exact build, as `scoped-checks.md` describes.
+
+### Bundled native libraries
+
+Use this when an advisory is in a library that runtimes **bundle** (compression, image codecs, TLS). A lockfile or scanner miss is common. Record every copy: system package, language wheel, runtime binary, container layer, vendored tree. Commands read state only. Do not feed crafted files to a decoder.
+
+Default: do **not** start Node, Bun, Python, pip, poetry, uv, curl, or a mesh CLI. Those load site customizers, `.pth` files or the binary itself. That is the LiteLLM-class trigger this skill forbids. Exception: `istioctl version --remote=false` in the Envoy / Istio row is a local-CLI read that does not contact the mesh. Cert-chain live probes in [Testing a chain with the client that matters](#testing-a-chain-with-the-client-that-matters) start a named client; they must not start a path inventory flagged as a suspect hijacked install. Read lockfiles, `*.dist-info/METADATA`, the package database, and linked-library metadata on a **named** binary path.
+
+| Where | macOS | Linux | Windows (PowerShell) | Containers |
+| --- | --- | --- | --- | --- |
+| Node.js | Lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` / `bun.lockb`). Package DB / `brew list --versions node`. Linked libs on a named path: `otool -L /usr/local/bin/node` (path from the package DB). Do not run `node`. | Same; `readelf -d /usr/bin/node` or `objdump -p /usr/bin/node` (look for `NEEDED`). | Same lockfile and package-DB read. `dumpbin /dependents` on a named `node.exe` only if that tool is already installed. | Package DB and the named binary **inside** the image digest |
+| Bun | Lockfiles; `brew list --versions bun`; `otool -L` on the named `bun` binary | `readelf -d` / `objdump -p` on the named `bun` binary | `dumpbin /dependents` on the named `bun.exe` | Same inside the image |
+| Python wheels | Read `*.dist-info/METADATA` and lockfiles (`uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements*.txt`). Do not run `python`, `pip`, `uv` or `poetry`. | Same | Same under `%LOCALAPPDATA%` and project `.venv` | Read site-packages in the image filesystem |
+| System Brotli | Homebrew: `brew list --versions brotli` | Distro pattern queries above (`libbrotli*` / `brotli` / Alpine `brotli-libs`) | `winget list brotli` if a package is registered | Package database **in the image digest** |
+| curl / libcurl | `otool -L /usr/bin/curl` on that named path. A curl version string does not prove the linked libbrotli build. Do not run `curl --version`. | `readelf -d /usr/bin/curl` or `objdump -p /usr/bin/curl`. Do not use `ldd` (it loads the binary). | `dumpbin /dependents` on a named `curl.exe` | Same inside the image |
+| Envoy / Istio | File metadata of the named `envoy` binary. Local CLI only: `istioctl version --remote=false`. Mesh / control-plane version is a **separate** owner-approved cluster read, not this command. | Same | Unusual on Windows; record as a gap if the fleet has none | Image tag **and** digest; effective EnvoyFilter / decompressor config from the spec |
+| Vendored C copies | Search `vendor/`, `third_party/` and similar for a `brotli` tree; record the path and any VERSION / CMake file. Inventory skips `node_modules` and `.venv` by default. | Same | Same under the project tree | Same inside the image |
+| Image parsers | Same lockfile / `METADATA` read for Pillow | Same | Same | Same |
+
+Rules:
+
+- A CLI on the audit laptop is not evidence for a server or an image.
+- A package or wheel version is evidence for that layer only.
+- If a live query is unavoidable, use an **already-running** owner worker. Confirm the on-disk binary (`/proc/<pid>/exe` or the owner's equivalent) is not a path inventory flagged as a suspect install. Do not start a new interpreter to collect the version.
+- If the advisory names a config switch (Brotli decompressor on, a test-runner `--ui` flag), record the effective setting as well as the version.
+- SBOMs (`bom.json`, `*.cdx.json`, `*.spdx.json`) are leads. Confirm each listed component against a lockfile or the image.
+
+### Known-bad package versions
+
+Compare inventoried versions with hijack records refreshed this run. Do not install or import the package to test it.
+
+| OS | Read-only commands |
+| --- | --- |
+| Any project tree | Read lockfiles and SBOMs that `scripts/inventory.py` listed: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` / `bun.lockb`, `uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements*.txt`. Compare the exact version or digest with records refreshed this run. Do not run `npm` / `pnpm` / `yarn` / `bun` / `pip` / `uv` / `poetry` install commands. |
+| macOS / Linux | Search package metadata for a directory named after the bad version (for example `PACKAGE-1.2.3.dist-info` or `node_modules/PACKAGE/package.json`). Do not start the language runtime in that tree if the advisory says install or startup hooks run. |
+| Windows | The same metadata search under `%LOCALAPPDATA%\Programs`, `%APPDATA%\npm` and project `.venv` / `node_modules` folders. |
+| Images | `docker image inspect IMAGE@DIGEST` (or the owner's equivalent) for tags and the digest. Match the digest the advisory published. |
+| System packages | Same `dpkg-query` / `rpm` / `dnf` / `apk` / `pacman` / `brew` / `winget` commands as the installed-packages table, then compare the build with the hijack record. |
+
+### Dev and debug servers
+
+| OS | Read-only commands |
+| --- | --- |
+| Any | Lockfile version of the test runner or bundler. Config flags: `--ui`, Browser Mode, `api`, `server.host`. |
+| macOS | `lsof -nP -iTCP -sTCP:LISTEN` |
+| Linux | `ss -ltnp` |
+| Windows | `Get-NetTCPConnection -State Listen` |
+
+Do not request `/.env` or other secret files from the listener. Version plus bind evidence is enough.
 
 ### Listening services
 
@@ -105,6 +156,8 @@ SDKMAN, Gradle, asdf and mise install JDKs under each user's home directory. Inc
 When an advisory provides test hosts that serve the affected chain, test each client type separately. Each client has its own trust store, its own revocation data and its own way of building a chain.
 
 **Only a live connection counts.** A client passes only when that client, making a real connection to the test host through its own networking stack, gets a certificate error. Verifying saved chain files offline (`openssl verify`, `security verify-cert` on PEM files, a script that parses the chain) is not enough. A live connection builds its own path: it may fetch or reuse intermediates and cross-signs that the saved chain does not contain, and it checks revocation online, often accepting the chain when a revocation server does not answer. Offline results can say "revoked" while the live connection succeeds. Use offline verification to explain a live result, never to replace one.
+
+These live probes start `curl`, `python`, `node` or `bun`. That is the exception to the default "do not start those binaries" rule in [Bundled native libraries](#bundled-native-libraries). Confirm the on-disk binary is not a path inventory flagged as a suspect hijacked install before starting it.
 
 | Client | Live probe |
 | --- | --- |

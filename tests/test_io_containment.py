@@ -178,7 +178,7 @@ class CoverageGaps(unittest.TestCase):
 
 class PackageReview(unittest.TestCase):
     def setUp(self):
-        self.pkg = support.clean_copy(tmp() / support.ROOT.name)
+        self.pkg = support.package_copy()
 
     def test_binary_needs_review_nonzero(self):
         (self.pkg / "screenshot.bin").write_bytes(b"\x00SYNTHETIC")

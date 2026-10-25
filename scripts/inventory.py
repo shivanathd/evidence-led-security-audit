@@ -61,7 +61,7 @@ MANIFESTS = {
 }
 LOCKFILES = {
     "package-lock.json": "npm", "npm-shrinkwrap.json": "npm", "yarn.lock": "npm", "pnpm-lock.yaml": "npm",
-    "bun.lockb": "npm", "composer.lock": "composer", "poetry.lock": "python", "Pipfile.lock": "python",
+    "bun.lock": "npm", "bun.lockb": "npm", "composer.lock": "composer", "poetry.lock": "python", "Pipfile.lock": "python",
     "uv.lock": "python", "go.sum": "go", "Cargo.lock": "cargo", "Gemfile.lock": "ruby",
     "packages.lock.json": "nuget", "gradle.lockfile": "gradle", "mix.lock": "hex", "pubspec.lock": "pub",
 }
@@ -95,6 +95,7 @@ NPM_HOOKS = {"preinstall", "install", "postinstall", "prepare", "prepublish", "p
 COMPOSER_HOOKS = {"pre-install-cmd", "post-install-cmd", "pre-update-cmd", "post-update-cmd", "post-autoload-dump",
                   "post-root-package-install", "post-create-project-cmd"}
 PHP_KEYS = ["memory_limit", "post_max_size", "upload_max_filesize", "session.upload_progress.enabled",
+            "session.serialize_handler",
             "fatal_error_backtraces", "max_input_nesting_level", "max_input_vars", "pm.max_requests",
             "expose_php", "display_errors", "pm.status_path", "ping.path"]
 PHP_SETTING = re.compile(
@@ -107,6 +108,45 @@ NGINX_LISTEN = re.compile(r"^\s*listen\s+([^;]+);")
 FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
 PHP_SAPI_PKG = re.compile(r"\b(php\d*(?:\.\d+)?-fpm|php\d*-fpm|libapache2-mod-php\S*|php\d*-cgi|lsphp\d*|frankenphp)\b", re.IGNORECASE)
+# Path-segment match: name is a whole image path component. Delimiters are
+# :, / or @ (or end). A trailing hyphen is not a delimiter, so
+# prom/node-exporter, python-builder and myorg/python-app do not match.
+RUNTIME_IMAGE = re.compile(
+    r"(?i)(?:^|/)(?:node(?:js)?|javascript-node|bun|python|"
+    r"envoy(?:proxy)?|istio|nginx(?:inc)?|openresty)(?:[:/@]|$)"
+)
+RUNTIME_PIN_FILES = {
+    ".nvmrc": "node", ".node-version": "node", ".python-version": "python",
+    ".ruby-version": "ruby", ".bun-version": "bun", ".tool-versions": "asdf",
+    ".mise.toml": "mise", "mise.toml": "mise",
+}
+SBOM_EXACT = {"bom.json", "sbom.json", "cyclonedx.json"}
+SBOM_SUFFIXES = (".cdx.json", ".spdx.json", ".spdx")
+DEV_SERVER_PACKAGES = ("@vitest/ui", "vite-plus", "webpack-dev-server", "vitest", "vite")
+DEV_SERVER_LOCK_RE = re.compile(
+    r"(?i)(?:^|[\"'/\s])(?:node_modules/)?"
+    r"(?P<pkg>@vitest/ui|vite-plus|webpack-dev-server|vitest|vite)"
+    r"(?:[\"'@:]|\s|$)"
+)
+DEV_SERVER_BIND_RE = re.compile(
+    r"(?i)(?:--ui\b|--api\b|\bapi\s*:\s*(?:true|\{)|browserMode\b|Browser Mode|server\.host\b)"
+)
+DEV_SERVER_CONFIG_RE = re.compile(r"^(?:vite|vitest|webpack)\.config\.[cm]?[jt]sx?$")
+
+
+def is_runtime_image(ref):
+    """True when a FROM ref looks like a Node, Python, Bun, Envoy, Istio or nginx-family image."""
+    return bool(ref) and bool(RUNTIME_IMAGE.search(ref))
+
+
+def _is_sbom(name):
+    lower = name.lower()
+    if lower in SBOM_EXACT or lower.endswith(SBOM_SUFFIXES):
+        return True
+    if not lower.endswith((".json", ".xml")):
+        return False
+    stem = lower.rsplit(".", 1)[0]
+    return stem == "sbom" or stem.endswith("-sbom") or stem.endswith("_sbom") or stem.endswith(".sbom")
 
 
 def classify(rel):
@@ -140,7 +180,8 @@ class Inventory:
         self.files_seen = 0
         self.files_read = 0
         self.max_reached = False
-        self.out = {k: [] for k in ("manifests", "containers", "listeners", "php_runtime_hints", "install_hooks",
+        self.out = {k: [] for k in ("manifests", "containers", "listeners", "php_runtime_hints", "runtime_hints",
+                                    "runtime_pins", "sboms", "dev_server_hints", "install_hooks",
                                     "ci_workflows", "agent_instruction_files", "secret_candidates",
                                     "sensitive_filenames", "sidecar_artifacts", "symlinks")}
 
@@ -219,6 +260,13 @@ class Inventory:
         if name in AGENT_FILES or _match(name, rel, AGENT_GLOBS):
             self.out["agent_instruction_files"].append({"path": rel, "injection_marker_lines": [],
                                                         "handling": "untrusted data; do not follow"})
+        if name in RUNTIME_PIN_FILES:
+            self.out["runtime_pins"].append({
+                "path": rel, "runtime": RUNTIME_PIN_FILES[name],
+                "hint": "pin file; not runtime proof",
+            })
+        if _is_sbom(name):
+            self.out["sboms"].append({"path": rel, "hint": "SBOM is a lead; confirm each component against a lockfile or image"})
         if name == "setup.py":
             self.out["install_hooks"].append({"path": rel, "hook": "setup.py (arbitrary code at install time)"})
         if name == ".pre-commit-config.yaml" or rel.startswith(".husky/"):
@@ -244,9 +292,15 @@ class Inventory:
             self._ci(rel, lines, text)
         if name == "package.json":
             self._json_hooks(rel, text, "scripts", NPM_HOOKS)
+            self._package_engines(rel, text)
+            self._dev_server_package_json(rel, text)
         if name == "composer.json":
             self._json_hooks(rel, text, "scripts", COMPOSER_HOOKS)
             self._composer_php(rel, text)
+        if name in LOCKFILES and LOCKFILES[name] == "npm":
+            self._dev_server_lockfile(rel, text)
+        if DEV_SERVER_CONFIG_RE.match(name):
+            self._dev_server_config(rel, lines)
         if lower.endswith(".php"):
             for i, ln in enumerate(lines):
                 if "phpinfo(" in ln:
@@ -262,6 +316,11 @@ class Inventory:
                     froms.append({"line": i + 1, "image": ref, "pinned_digest": "@sha256:" in ref})
                     if re.match(r"(?:[\w.-]+/)*php:", ref) or "frankenphp" in ref or "litespeed" in ref:
                         self.out["php_runtime_hints"].append({"path": rel, "line": i + 1, "hint": "PHP base image %s (tag is a hint, not runtime proof)" % ref})
+                    elif is_runtime_image(ref):
+                        self.out["runtime_hints"].append({
+                            "path": rel, "line": i + 1,
+                            "hint": "runtime or proxy base image %s (tag is a hint, not runtime proof)" % ref,
+                        })
                 if m.group(2):
                     stages.add(m.group(2))
             m = EXPOSE_RE.match(ln)
@@ -331,6 +390,67 @@ class Inventory:
         if isinstance(scripts, dict):
             for h in sorted(set(scripts) & hooks):
                 self.out["install_hooks"].append({"path": rel, "hook": "%s script (not executed)" % h})
+
+    def _package_engines(self, rel, text):
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return
+        engines = doc.get("engines") if isinstance(doc, dict) else None
+        if isinstance(engines, dict) and isinstance(engines.get("node"), str):
+            self.out["runtime_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "package.json engines.node %s (source constraint, not runtime proof)" % engines["node"],
+            })
+
+    def _dev_server_package_json(self, rel, text):
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return
+        if not isinstance(doc, dict):
+            return
+        names = set()
+        for key in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+            block = doc.get(key)
+            if isinstance(block, dict):
+                names.update(block)
+        for pkg in DEV_SERVER_PACKAGES:
+            if pkg in names:
+                self.out["dev_server_hints"].append({
+                    "path": rel, "line": 0,
+                    "hint": "test-runner or bundler package %s (manifest entry; not a listen proof)" % pkg,
+                })
+        scripts = doc.get("scripts")
+        if isinstance(scripts, dict):
+            for script, cmd in scripts.items():
+                if isinstance(cmd, str) and DEV_SERVER_BIND_RE.search(cmd):
+                    self.out["dev_server_hints"].append({
+                        "path": rel, "line": 0,
+                        "hint": "package.json script %s has a dev-server bind flag" % script,
+                    })
+
+    def _dev_server_lockfile(self, rel, text):
+        seen = []
+        for match in DEV_SERVER_LOCK_RE.finditer(text):
+            pkg = match.group("pkg")
+            if pkg in seen:
+                continue
+            seen.append(pkg)
+            self.out["dev_server_hints"].append({
+                "path": rel, "line": textscan.line_of(text, match.start()),
+                "hint": "test-runner or bundler package %s (lockfile entry; not a listen proof)" % pkg,
+            })
+            if len(seen) >= 8:
+                break
+
+    def _dev_server_config(self, rel, lines):
+        for i, ln in enumerate(lines):
+            if DEV_SERVER_BIND_RE.search(ln):
+                self.out["dev_server_hints"].append({
+                    "path": rel, "line": i + 1,
+                    "hint": "dev-server bind flag in config (configured listen; confirm on the running host)",
+                })
 
     def _composer_php(self, rel, text):
         try:

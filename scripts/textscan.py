@@ -80,6 +80,11 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "blog.railway.com", "status.railway.com",  # cited by profiles/railway-2026-10-21.md
     "skills.sh", "img.shields.io",  # README badges
     "blog.mozilla.org", "bugzilla.mozilla.org", "emudhra.com", "emudhra.we-have-a-problem.com",  # emudhra profile
+    "support.apple.com",  # cited by profiles/emudhra-2026-10-17.md
+    "nodejs.org",  # cited by profiles/brotli-2026-10-21.md
+    "istio.io",  # cited by profiles/brotli-2026-10-21.md
+    "docs.litellm.ai",  # cited by profiles/litellm-2026-10-21.md
+    "pillow.readthedocs.io",  # cited by profiles/brotli-2026-10-21.md
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

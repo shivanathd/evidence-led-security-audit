@@ -76,6 +76,7 @@ class InventoryTests(unittest.TestCase):
         self.assertIn("session.upload_progress.enabled", hints)
         self.assertEqual(self.doc["ci_workflows"][0]["unpinned_actions"][0]["ref"], "actions/checkout@v4")
         self.assertEqual([f["from"][0]["image"] for f in self.doc["containers"]], ["php:8.3-fpm"])
+        self.assertEqual(self.doc["dev_server_hints"], [])
 
     def test_untrusted_instructions_flagged_not_followed(self):
         agent = self.doc["agent_instruction_files"][0]
@@ -115,6 +116,109 @@ class InventoryTests(unittest.TestCase):
         again = support.run_script("inventory.py", self.root, "--target", "service-a-repo")
         self.assertEqual(self.raw, again.stdout)
         self.assertNotIn(str(self.root), self.raw)
+
+    def test_runtime_pins_sboms_and_base_image_hints(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / ".nvmrc").write_text("24.22.0\n", encoding="utf-8")
+        (root / "bun.lock").write_text("{}\n", encoding="utf-8")
+        (root / "bom.cdx.json").write_text("{}", encoding="utf-8")
+        (root / "presbom.json").write_text("{}", encoding="utf-8")
+        (root / "sbomething.json").write_text("{}", encoding="utf-8")
+        (root / "package.json").write_text('{"engines": {"node": ">=24"}}\n', encoding="utf-8")
+        (root / "Dockerfile").write_text(
+            "FROM node:24-alpine\n"
+            "FROM nginxinc/nginx-unprivileged:1.27\n"
+            "FROM devcontainers/javascript-node:24\n"
+            "FROM openresty/openresty:alpine\n"
+            "FROM envoyproxy/envoy:v1.40.0\n"
+            "FROM istio/pilot:1.31.2\n"
+            "FROM istio/proxyv2:1.31.1\n"
+            "FROM " + ".".join(["docker", "io"]) + "/istio/proxyv2:1.31.1\n",
+            encoding="utf-8",
+        )
+        (root / "docker").mkdir()
+        (root / "docker" / "php.ini").write_text("session.serialize_handler = php_serialize\n", encoding="utf-8")
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        doc = json.loads(res.stdout)
+        pins = {p["path"]: p["runtime"] for p in doc["runtime_pins"]}
+        self.assertEqual(pins[".nvmrc"], "node")
+        manifests = {m["path"]: m["ecosystem"] for m in doc["manifests"]}
+        self.assertEqual(manifests["bun.lock"], "npm")
+        sbom_paths = {s["path"] for s in doc["sboms"]}
+        self.assertIn("bom.cdx.json", sbom_paths)
+        self.assertNotIn("presbom.json", sbom_paths)
+        self.assertNotIn("sbomething.json", sbom_paths)
+        hints = " ".join(h["hint"] for h in doc["runtime_hints"])
+        for image in (
+            "node:24-alpine",
+            "nginxinc/nginx-unprivileged:1.27",
+            "devcontainers/javascript-node:24",
+            "openresty/openresty:alpine",
+            "envoyproxy/envoy:v1.40.0",
+            "istio/pilot:1.31.2",
+            "istio/proxyv2:1.31.1",
+            ".".join(["docker", "io"]) + "/istio/proxyv2:1.31.1",
+        ):
+            self.assertIn(image, hints)
+        self.assertIn("engines.node", hints)
+        self.assertIn("not runtime proof", hints)
+        php_hints = " ".join(h["hint"] for h in doc["php_runtime_hints"])
+        self.assertIn("session.serialize_handler", php_hints)
+
+    def test_runtime_image_and_sbom_heuristics(self):
+        import inventory
+        for ref in (
+            "node:24-alpine",
+            "nginxinc/nginx-unprivileged:1.27",
+            "devcontainers/javascript-node:24",
+            "openresty/openresty:alpine",
+            "envoyproxy/envoy:v1.40.0",
+            "python:3.12",
+            "istio/pilot:1.31.2",
+            "istio/proxyv2:1.31.1",
+            ".".join(["docker", "io"]) + "/istio/proxyv2:1.31.1",
+            ".".join(["mcr", "microsoft", "com"]) + "/devcontainers/javascript-node:24",
+        ):
+            self.assertTrue(inventory.is_runtime_image(ref), ref)
+        for ref in (
+            "scratch", "alpine:3.20", "postgres:16", "golang:1.23",
+            "prom/node-exporter:1.8.0", "python-builder:latest", "myorg/python-app:1.0",
+        ):
+            self.assertFalse(inventory.is_runtime_image(ref), ref)
+        self.assertTrue(inventory._is_sbom("bom.cdx.json"))
+        self.assertTrue(inventory._is_sbom("app.sbom.json"))
+        self.assertFalse(inventory._is_sbom("presbom.json"))
+        self.assertFalse(inventory._is_sbom("sbomething.json"))
+
+    def test_dev_server_hints_not_implied_by_expose(self):
+        expose_only = Path(support.tmpdir()) / "service-a"
+        expose_only.mkdir()
+        (expose_only / "Dockerfile").write_text("FROM alpine:3.20\nEXPOSE 5173\n", encoding="utf-8")
+        res = support.run_script("inventory.py", expose_only, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        expose_doc = json.loads(res.stdout)
+        self.assertTrue(expose_doc["listeners"])
+        self.assertEqual(expose_doc["dev_server_hints"], [])
+
+        with_runner = Path(support.tmpdir()) / "service-a"
+        with_runner.mkdir()
+        (with_runner / "package.json").write_text(
+            json.dumps({"devDependencies": {"vitest": "5.0.4"}, "scripts": {"test:ui": "vitest --ui"}}),
+            encoding="utf-8",
+        )
+        (with_runner / "package-lock.json").write_text('{"packages": {"node_modules/vite": {"version": "5.4.0"}}}\n', encoding="utf-8")
+        (with_runner / "vitest.config.ts").write_text("export default { server: { /* server.host */ } }\n", encoding="utf-8")
+        (with_runner / "vite.config.ts").write_text("export default { server: { host: true } }\nserver.host = true\n", encoding="utf-8")
+        res = support.run_script("inventory.py", with_runner, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        runner_doc = json.loads(res.stdout)
+        hints = " ".join(h["hint"] for h in runner_doc["dev_server_hints"])
+        self.assertIn("vitest", hints)
+        self.assertIn("vite", hints)
+        self.assertIn("bind flag", hints)
+        self.assertEqual(runner_doc["listeners"], [])
 
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"

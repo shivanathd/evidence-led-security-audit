@@ -1,10 +1,10 @@
 # Release-candidate validation
 
-Version 0.2.0, checked on 22 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
+Version 0.2.0, checked on 25 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
 ## Executed checks
 
-- **Unit suite:** 66 test methods passed on Linux with Python 3.14.8 (65 before the macOS fixes below) and on macOS with Python 3.14.6 and the system Python 3.9.6. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
+- **Unit suite:** 72 test methods passed on Linux with Python 3.12 (the previous 0.2.0 record was 66 on Python 3.14.8 / 3.14.6 / 3.9.6). One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
 - **Skill format:** The candidate passed `agentskills validate` using its absolute directory.
 - **Package inspection:** The public-package checker reported no rule match and no unreviewed binary content for this text-only candidate.
 - **Secret check:** Gitleaks 8.30.1 found no leaks in the candidate tree. Pattern checks do not prove that every confidential fact has been detected.
@@ -35,7 +35,7 @@ Keep bytecode disabled so the package check does not encounter generated cache f
 
 ## Limits
 
-Exercised on Linux (Python 3.14.8) and macOS (Python 3.14.6 and 3.9.6). CI runs Ubuntu with 3.9 and 3.14 and macOS with 3.14. Filesystem helpers require POSIX directory-handle/no-follow support and stop when unavailable; Windows is not supported.
+Exercised on Linux (Python 3.12 in this run). CI runs Ubuntu with 3.9 and 3.14 and macOS with 3.14. Filesystem helpers require POSIX directory-handle/no-follow support and stop when unavailable; Windows is not supported.
 
 macOS note: `/tmp` and `/var` are symlinks to `/private/...`, and the helpers refuse any path with a symlinked component. The first macOS run failed 15 tests for this reason alone; the tests now use canonical temp paths, and the refusal message names the canonical path to pass instead.
 

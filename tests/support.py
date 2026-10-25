@@ -11,6 +11,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# SKILL.md name must match this directory name. The workspace checkout
+# may be named something else; copies used by the package checker use this.
+SKILL_DIR_NAME = "evidence-led-security-audit"
 SCRIPTS = ROOT / "scripts"
 EXAMPLES = ROOT / "assets" / "examples"
 CORPUS = Path(__file__).resolve().parent / "corpus" / "adversarial_cases.json"
@@ -103,3 +106,8 @@ def run_script(name, *args, cwd=None):
 def clean_copy(dest):
     shutil.copytree(ROOT, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".git"))
     return Path(dest)
+
+
+def package_copy():
+    """Copy the skill tree into a directory whose name matches SKILL.md."""
+    return clean_copy(Path(tmpdir()) / SKILL_DIR_NAME)

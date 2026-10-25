@@ -93,7 +93,7 @@ flowchart TB
 | Phase | What happens | Detail |
 | --- | --- | --- |
 | 0 Preflight | Authorization, scope, approver roles, tools | [phases.md](references/phases.md) |
-| 1 Inventory | `scripts/inventory.py` lists manifests, listeners, hooks, secrets (location only) | [phases.md](references/phases.md) |
+| 1 Inventory | `scripts/inventory.py` lists manifests, runtime pins, SBOMs, listeners, hooks, secrets (location only) | [phases.md](references/phases.md) |
 | 2 Advisories | Re-read primary sources this run, with dates | [profiles/](profiles/) |
 | 3 Checks | One target and one layer per check | [scoped-checks.md](references/scoped-checks.md), [saas-identity.md](references/saas-identity.md), [endpoint-fleet.md](references/endpoint-fleet.md) |
 | 4 Credential exposure | Owner, rotation, revocation, misuse review | [scoped-checks.md](references/scoped-checks.md) |
@@ -116,7 +116,7 @@ A tag is not a digest, and `php -v` on the CLI says nothing about the web server
 
 ## Endpoints and fleets
 
-For laptops and servers, [endpoint-fleet.md](references/endpoint-fleet.md) gives read-only checks for macOS, Linux and Windows (OS build, installed packages, listening services, certificate trust stores, Java runtimes) and explains how to collect them at scale through an MDM, osquery or configuration management in check mode. Devices that don't report count as gaps, not as clean. The bundled Python helpers don't run on Windows, so Windows evidence is collected with PowerShell and checked elsewhere.
+For laptops and servers, [endpoint-fleet.md](references/endpoint-fleet.md) gives read-only checks for macOS, Linux distros, Windows and containers (OS build, installed packages, bundled native libraries, known-bad package versions, listening services, certificate trust stores, Java runtimes) and explains how to collect them at scale through an MDM, osquery or configuration management in check mode. Devices that don't report count as gaps, not as clean. The bundled Python helpers don't run on Windows, so Windows evidence is collected with PowerShell and checked elsewhere.
 
 ## Incident profiles
 
@@ -124,9 +124,11 @@ Profiles are dated starting points for specific incidents. They are not "latest"
 
 | Profile | Covers | Last checked |
 | --- | --- | --- |
-| [php-2026-10-21.md](profiles/php-2026-10-21.md) | CVE-2026-109618 and CVE-2026-109619 (PHP RCE via OOM corruption and stale global state): fixed builds, exposure per SAPI, interim measures, closure evidence | 2026-10-22 |
-| [railway-2026-10-21.md](profiles/railway-2026-10-21.md) | Possible exposure of environment variables stored on Railway: inventory, rotation, revocation and misuse review | 2026-10-22 |
-| [emudhra-2026-10-17.md](profiles/emudhra-2026-10-17.md) | Compromised eMudhra intermediate CA keys: which clients and trust stores still accept the chains, per OS and runtime, and how to prove they no longer do | 2026-10-22 |
+| [php-2026-10-21.md](profiles/php-2026-10-21.md) | CVE-2026-109618 and CVE-2026-109619 (PHP RCE via OOM corruption and stale global state), plus the 2026-10-23 informational note for CVE-2026-115560: fixed builds, exposure per SAPI, interim measures, closure evidence | 2026-10-25 |
+| [railway-2026-10-21.md](profiles/railway-2026-10-21.md) | Possible exposure of environment variables stored on Railway: inventory, rotation, revocation and misuse review | 2026-10-25 |
+| [emudhra-2026-10-17.md](profiles/emudhra-2026-10-17.md) | Compromised eMudhra intermediate CA keys: which clients and trust stores still accept the chains, per OS and runtime, and how to prove they no longer do | 2026-10-25 |
+| [brotli-2026-10-21.md](profiles/brotli-2026-10-21.md) | CVE-2026-111497 Brotli decoder write (Node, Bun, Python wheels, Envoy/Istio, system libbrotli): bundled copies that lockfile scanners miss | 2026-10-25 |
+| [litellm-2026-10-21.md](profiles/litellm-2026-10-21.md) | Hijacked `litellm` wheels and images (`1.107.0`, `1.82.7`, `1.82.8`), plus the generic rule that a key committed in public is live until the provider revokes it | 2026-10-25 |
 
 To add one, copy an existing profile, cite primary sources only, and name it `<topic>-<yyyy-mm-dd>.md`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -153,7 +155,7 @@ python3 -B -m unittest discover -s tests
 
 ### What each script proves and does not prove
 
-- **`inventory.py`** reads files and lists what it finds: manifests and lockfiles (nested, test-like and vendored ones marked), Dockerfiles, listeners, PHP runtime hints, install hooks, CI action pinning, agent instruction files, secret-shaped values and leftover artifacts.
+- **`inventory.py`** reads files and lists what it finds: manifests and lockfiles (nested, test-like and vendored ones marked), Dockerfiles, listeners, PHP runtime hints, other runtime hints and pin files, SBOMs, install hooks, CI action pinning, agent instruction files, secret-shaped values and leftover artifacts.
   - It never executes repository code and never follows symlinks. It walks by directory handle, so a directory swapped mid-walk shows up as a coverage gap.
   - Secrets are reported by location only, never by value.
   - Symlinked, binary, special, oversized and excluded content (including `.git/`) makes coverage `PARTIAL`, and `--strict` exits 3. The only exception is content a human accepts with `--accept-exclusion 'PATTERN=REASON'`, which is recorded and still unscanned.

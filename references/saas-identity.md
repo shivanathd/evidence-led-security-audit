@@ -26,6 +26,7 @@ Identity problems are usually authorization problems that are hiding behind succ
   - external sharing defaults
 - An API answer of 403 makes the check BLOCKED. It does not mean the tenant is fine. If a credential may have been exposed, misuse cannot be ruled out without the audit log.
 - Export settings through the provider's own admin export where you can. Record the export date and the role used.
+- If the tenant is a host or console that stores **other providers'** keys (AI, payment, git, cloud), a disclosure that those stored values may have been read is a credential-exposure event for every name that was stored. Rotate and revoke at the upstream provider, not only inside the tenant. See Phase 4 and the Railway and LiteLLM profiles.
 
 ## Discriminating tests for authorization fixes
 
