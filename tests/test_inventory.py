@@ -73,10 +73,12 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue({"9253", "0.0.0.0:9253:9253", "0.0.0.0:9000"} <= values)
         hints = " ".join(h["hint"] for h in self.doc["php_runtime_hints"])
         self.assertIn("not runtime proof", hints)
+        self.assertIn("composer.json require.php", hints)
         self.assertIn("session.upload_progress.enabled", hints)
         self.assertEqual(self.doc["ci_workflows"][0]["unpinned_actions"][0]["ref"], "actions/checkout@v4")
         self.assertEqual([f["from"][0]["image"] for f in self.doc["containers"]], ["php:8.3-fpm"])
         self.assertEqual(self.doc["dev_server_hints"], [])
+        self.assertEqual(self.doc["mesh_vpn_hints"], [])
 
     def test_untrusted_instructions_flagged_not_followed(self):
         agent = self.doc["agent_instruction_files"][0]
@@ -185,8 +187,38 @@ class InventoryTests(unittest.TestCase):
         for ref in (
             "scratch", "alpine:3.20", "postgres:16", "golang:1.23",
             "prom/node-exporter:1.8.0", "python-builder:latest", "myorg/python-app:1.0",
+            "phpmyadmin:5", "phpmyadmin/phpmyadmin:5.2", "myorg/php-app:1.0",
+            "php-apache:latest", "webdevops/php-apache:8.3",
         ):
             self.assertFalse(inventory.is_runtime_image(ref), ref)
+            self.assertFalse(inventory.is_php_image(ref), ref)
+        for ref in (
+            "php:8.3-fpm", "php:8.4-cli", "library/php:8.5.12", "php-fpm:alpine",
+            "php:8.3-fpm-alpine", "php:8.2-apache",
+        ):
+            self.assertTrue(inventory.is_runtime_image(ref), ref)
+            self.assertTrue(inventory.is_php_image(ref), ref)
+        self.assertTrue(inventory.is_php_package_token("php8.3"))
+        self.assertTrue(inventory.is_php_package_token("php8.3-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php83"))
+        self.assertTrue(inventory.is_php_package_token("php83-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php85"))
+        self.assertTrue(inventory.is_php_package_token("php85-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php-cgi"))
+        self.assertTrue(inventory.is_php_package_token("php-legacy"))
+        self.assertTrue(inventory.is_php_package_token("php-legacy-fpm"))
+        self.assertTrue(inventory.is_php_package_token("apache2-mod_php8"))
+        for token in ("phpmyadmin", "phpunit", "phpstan", "phpmailer", "php-cs-fixer"):
+            self.assertFalse(inventory.is_php_package_token(token), token)
+        self.assertFalse(inventory.is_php_package_token("php"))
+        for ref in (
+            "tailscale/tailscale:v1.104.2", "headscale/headscale:0.29.5",
+            "zerotier/zerotier:latest", "netbirdio/netbird:latest",
+        ):
+            self.assertTrue(inventory.is_mesh_vpn_image(ref), ref)
+        self.assertFalse(inventory.is_mesh_vpn_image("alpine:3.20"))
+        self.assertFalse(inventory.is_mesh_vpn_image("myorg/tailscale-docs:1"))
         self.assertTrue(inventory._is_sbom("bom.cdx.json"))
         self.assertTrue(inventory._is_sbom("app.sbom.json"))
         self.assertFalse(inventory._is_sbom("presbom.json"))
@@ -219,6 +251,242 @@ class InventoryTests(unittest.TestCase):
         self.assertIn("vite", hints)
         self.assertIn("bind flag", hints)
         self.assertEqual(runner_doc["listeners"], [])
+
+    def test_php_constraints_and_phpmyadmin_are_not_runtimes(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "composer.json").write_text(json.dumps({
+            "require": {"php": "^8.3"},
+            "require-dev": {"php": ">=8.2"},
+            "config": {"platform": {"php": "8.3.12"}},
+        }), encoding="utf-8")
+        (root / "composer.lock").write_text(json.dumps({
+            "platform": {"php": ">=8.3"},
+            "platform-overrides": {"php": "8.3.12"},
+        }), encoding="utf-8")
+        (root / "Dockerfile").write_text(
+            "FROM php:8.4-fpm\n"
+            "FROM php:8.3-fpm-alpine\n"
+            "FROM php:8.2-apache\n"
+            "FROM phpmyadmin:5.2\n"
+            "FROM myorg/php-app:1.0\n"
+            "FROM php-apache:latest\n"
+            "FROM webdevops/php-apache:8.3\n"
+            "RUN apt-get install -y php8.3-fpm phpmyadmin\n"
+            "RUN apk add --no-cache php83 php85 php83-fpm\n"
+            "# apt-get install php8.2-fpm\n",
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        doc = json.loads(res.stdout)
+        hints = " ".join(h["hint"] for h in doc["php_runtime_hints"])
+        self.assertIn("composer.json require.php", hints)
+        self.assertIn("composer.json require-dev.php", hints)
+        self.assertIn("config.platform.php", hints)
+        self.assertIn("composer.lock platform.php", hints)
+        self.assertIn("platform-overrides.php", hints)
+        self.assertIn("php:8.4-fpm", hints)
+        self.assertIn("php:8.3-fpm-alpine", hints)
+        self.assertIn("php:8.2-apache", hints)
+        self.assertIn("php8.3-fpm", hints)
+        self.assertIn("php83", hints)
+        self.assertIn("php85", hints)
+        self.assertNotIn("phpmyadmin", hints)
+        self.assertNotIn("php-app", hints)
+        self.assertFalse(any("php-apache:" in h["hint"] or "webdevops/" in h["hint"] for h in doc["php_runtime_hints"]))
+        self.assertFalse(any("8.2-fpm" in h["hint"] for h in doc["php_runtime_hints"]))
+
+    def test_mesh_vpn_hints_ignore_comment_only_mentions(self):
+        comment_only = Path(support.tmpdir()) / "service-a"
+        comment_only.mkdir()
+        (comment_only / "Dockerfile").write_text(
+            "FROM alpine:3.20\n"
+            "# install tailscale headscale zerotier netbird later\n"
+            "RUN apk add --no-cache curl\n",
+            encoding="utf-8",
+        )
+        (comment_only / "notes.sh").write_text(
+            "# tailscale status --json\n"
+            "echo ready\n",
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", comment_only, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+        with_mesh = Path(support.tmpdir()) / "service-a"
+        with_mesh.mkdir()
+        (with_mesh / "policy").mkdir()
+        (with_mesh / "Dockerfile").write_text(
+            "FROM tailscale/tailscale:v1.104.2\n"
+            "RUN apk add --no-cache tailscale\n",
+            encoding="utf-8",
+        )
+        (with_mesh / "compose.yaml").write_text(
+            "services:\n"
+            "  tailscale:\n"
+            "    image: tailscale/tailscale:stable\n"
+            "  headscale:\n"
+            "    image: headscale/headscale:0.29.5\n",
+            encoding="utf-8",
+        )
+        (with_mesh / "acl.hujson").write_text(
+            '{\n  "acls": [{"action": "accept", "src": ["autogroup:member"], "dst": ["*:*"]}],\n'
+            '  "ssh": [{"action": "accept", "src": ["autogroup:member"], "dst": ["autogroup:self"],'
+            ' "users": ["root"]}],\n  "nodeAttrs": []\n}\n',
+            encoding="utf-8",
+        )
+        (with_mesh / "policy" / "headscale.yaml").write_text("server_url: https://control.example.invalid\n", encoding="utf-8")
+        (with_mesh / "netbird.yml").write_text("managementURL: https://control.example.invalid\n", encoding="utf-8")
+        res = support.run_script("inventory.py", with_mesh, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        hints = " ".join(h["hint"] for h in json.loads(res.stdout)["mesh_vpn_hints"])
+        self.assertIn("tailscale/tailscale:v1.104.2", hints)
+        self.assertIn("installs mesh VPN package tailscale", hints)
+        self.assertIn("compose service tailscale", hints)
+        self.assertIn("compose service headscale", hints)
+        self.assertIn("ssh policy", hints)
+        self.assertIn("mesh VPN config or policy path", hints)
+
+    def test_mesh_vpn_hints_ignore_generic_acl_filenames(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "acl.json").write_text(
+            json.dumps({
+                "request_definition": {"r": "sub, obj, act"},
+                "policy_definition": {"p": "sub, obj, act"},
+                "policy_effect": {"e": "some(where (p.eft == allow))"},
+                "matchers": {"m": "g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act"},
+            }),
+            encoding="utf-8",
+        )
+        (root / "acl.js").write_text("module.exports = { policies: [] };\n", encoding="utf-8")
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+        with_policy = Path(support.tmpdir()) / "service-a"
+        with_policy.mkdir()
+        (with_policy / "acl.json").write_text(
+            '{\n  "acls": [{"action": "accept", "src": ["autogroup:member"], "dst": ["*:*"]}],\n'
+            '  "ssh": [{"action": "check", "src": ["autogroup:member"], "dst": ["autogroup:self"],'
+            ' "users": ["autogroup:nonroot", "root"]}]\n}\n',
+            encoding="utf-8",
+        )
+        (with_policy / "tailscale-acl.json").write_text("{}\n", encoding="utf-8")
+        res = support.run_script("inventory.py", with_policy, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        hints = json.loads(res.stdout)["mesh_vpn_hints"]
+        self.assertTrue(any("ssh policy" in h["hint"] and h["path"] == "acl.json" for h in hints))
+        self.assertTrue(any("policy path" in h["hint"] and h["path"] == "tailscale-acl.json" for h in hints))
+
+    def test_mesh_vpn_hints_ignore_readme_only_mentions(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "README.md").write_text(
+            "Deploy notes: tailscale is optional. We do not ship a tailscale client.\n",
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+    def test_mesh_vpn_hints_ignore_prose_policy_keys(self):
+        import inventory
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            'The file may mention both "ssh" and "acls" plus "groups" and "nodeAttrs".'
+        ))
+        self.assertTrue(inventory._looks_like_mesh_policy(
+            '{"acls": [], "ssh": [{"action": "check"}]}'
+        ))
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "NOTES.md").write_text(
+            'Review the exported policy: it should have both "ssh" and "acls" '
+            'keys, and often "groups" or "nodeAttrs".\n',
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+    def test_mesh_vpn_hints_ssh_only_policy_and_port_objects(self):
+        import inventory
+        ssh_only = (
+            '{"ssh":[{"action":"accept","src":["autogroup:member"],'
+            '"dst":["autogroup:self"]}]}'
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(ssh_only))
+        hujson = (
+            "{\n  ssh: [{\n    action: check,\n"
+            '    src: ["autogroup:member"],\n'
+            '    dst: ["autogroup:self"],\n  }],\n}\n'
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(hujson))
+        # Reviewer-reproduced miss: comment between ssh: and the array,
+        # including a leading space before `[`. Apostrophe variant below.
+        self.assertTrue(inventory._looks_like_mesh_policy(
+            "ssh: // enable\n [{action, src, dst}]"
+        ))
+        commented = (
+            "ssh: // don't enable yet [draft]\n"
+            "[{action, src, dst}]\n"
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(commented))
+        block_comment = (
+            "ssh: /* don't skip ] this */\n"
+            "[{action: accept, src: [\"autogroup:member\"], dst: [\"autogroup:self\"]}]\n"
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(block_comment))
+        self.assertFalse(inventory._looks_like_mesh_policy('{"ssh":{"port":22}}'))
+        self.assertFalse(inventory._looks_like_mesh_policy("{\n  ssh: { port: 22 },\n}\n"))
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            '{"sshd":{"action":"restart","src":["x"],"dst":["y"]}}'
+        ))
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            "Look at ssh: and groups: in the export."
+        ))
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            "groups:\n  app: tag:app\nssh:\n  port: 22\n"
+        ))
+        self.assertFalse(inventory._looks_like_mesh_policy("# ssh: and groups: are required"))
+        self.assertFalse(inventory._looks_like_mesh_policy('{"groups":[], "ssh":{"port":22}}'))
+
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "acl.json").write_text(commented, encoding="utf-8")
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        hints = json.loads(res.stdout)["mesh_vpn_hints"]
+        self.assertTrue(any("ssh policy" in h["hint"] and h["path"] == "acl.json" for h in hints))
+
+        port_only = Path(support.tmpdir()) / "service-a"
+        port_only.mkdir()
+        (port_only / "acl.json").write_text('{"groups":[], "ssh":{"port":22}}\n', encoding="utf-8")
+        res = support.run_script("inventory.py", port_only, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+    def test_hujson_tokenizer_skips_comments_and_ignores_apostrophes(self):
+        import inventory
+        kinds = [k for k, _v in inventory._hujson_tokens(
+            'ssh: // don\'t enable [x]\n /* a } b */ [{action, src, dst}],'
+        )]
+        self.assertEqual(
+            kinds,
+            ["ident", "punct", "punct", "punct", "ident", "punct",
+             "ident", "punct", "ident", "punct", "punct", "punct"],
+        )
+        values = [v for k, v in inventory._hujson_tokens(
+            'ssh: // don\'t enable [x]\n /* a } b */ [{action, src, dst}],'
+        ) if k != "punct"]
+        self.assertEqual(values, ["ssh", "action", "src", "dst"])
+        escaped = inventory._hujson_tokens(r'{"note":"say \"hi\""}')
+        self.assertIn(("str", 'say "hi"'), escaped)
+        bounded = inventory._hujson_tokens("ssh: [{action, src, dst}]", limit=3)
+        self.assertEqual(bounded, [("ident", "ssh")])
+        self.assertLessEqual(len(inventory._hujson_tokens("x" * 300000)), 1)
 
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"

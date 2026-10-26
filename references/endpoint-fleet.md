@@ -48,11 +48,11 @@ Run these as the least-privileged account that can see the data. Each command re
 | OS | Command |
 | --- | --- |
 | macOS | Apps: `defaults read /Applications/NAME.app/Contents/Info.plist CFBundleShortVersionString`. Installer packages: `pkgutil --pkgs` and `pkgutil --pkg-info ID`. Homebrew (run as the owning user, not root): `brew list --versions` |
-| Debian, Ubuntu | Pattern query: `dpkg-query -W -f='${Package} ${Version}\n' 'php*' ca-certificates 'libbrotli*' brotli 'nodejs*' 'node-*' bun 'nginx*' 'envoy*'`. `dpkg-query -W` with several patterns exits 1 if any one pattern is missing, even when others hit. Query one pattern at a time, or ignore the exit code and parse stdout. An empty result for a pattern is `NOT_APPLICABLE` for that name; keep the command output. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
-| Fedora, RHEL family | Pattern query: `rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*' ca-certificates php-fpm` or `dnf list --installed 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*'`. Prefer `-qa` / glob forms; `rpm -q exact-name` on a missing name is a gap, not a PASS. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
-| Alpine | `apk info -e brotli brotli-libs nodejs bun nginx envoy ca-certificates` prints only installed names. Then `apk policy PKG` for the version. A name `-e` omits is `NOT_APPLICABLE` with that output. There is no `libbrotli` package; the shared libraries are `brotli-libs`. |
-| Arch and derivatives | Local pattern query: `pacman -Qs 'brotli|nodejs|bun|nginx|envoy|ca-certificates'`. A name with no hit is `NOT_APPLICABLE`. |
-| openSUSE | `rpm -qa` patterns as on Fedora, or `zypper se -i brotli nodejs bun nginx envoy` |
+| Debian, Ubuntu | Pattern query: `dpkg-query -W -f='${Package} ${Version}\n' 'php*' 'php8*' php-fpm ca-certificates 'libbrotli*' brotli 'nodejs*' 'node-*' bun 'nginx*' 'envoy*'`. `dpkg-query -W` with several patterns exits 1 if any one pattern is missing, even when others hit. Query one pattern at a time, or ignore the exit code and parse stdout. An empty result for a pattern is `NOT_APPLICABLE` for that name; keep the command output. Backport evidence offline: `zcat /usr/share/doc/PACKAGE/changelog.Debian.gz \| head -60` |
+| Fedora, RHEL family | Pattern query: `rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*' ca-certificates php-fpm 'php*' 'php8*'` or `dnf list --installed 'brotli*' 'libbrotli*' 'nodejs*' bun 'nginx*' 'envoy*' php-fpm 'php*'`. Prefer `-qa` / glob forms; `rpm -q exact-name` on a missing name is a gap, not a PASS. Backport evidence: `rpm -q --changelog PACKAGE \| head -60` |
+| Alpine | `apk info -e brotli brotli-libs nodejs bun nginx envoy ca-certificates php82 php83 php84 php85 php83-fpm php85-fpm php-fpm` prints only installed names. Then `apk policy PKG` for the version. A name `-e` omits is `NOT_APPLICABLE` with that output. There is no `libbrotli` package; the shared libraries are `brotli-libs`. |
+| Arch and derivatives | Local pattern query: `pacman -Qs 'brotli\|nodejs\|bun\|nginx\|envoy\|ca-certificates\|php-fpm\|php-cgi\|php-apache\|php-legacy\|^php$'`. A name with no hit is `NOT_APPLICABLE`. The unversioned Arch package `php` is in scope on the host even though inventory does not treat the bare token `php` as a runtime hint. |
+| openSUSE | `rpm -qa` patterns as on Fedora, or `zypper se -i brotli nodejs bun nginx envoy php8 php8-fpm apache2-mod_php8` |
 | Windows | Read the uninstall registry keys: `Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue \| Where-Object DisplayName \| Select-Object DisplayName, DisplayVersion, Publisher`. Package managers (read-only): `winget list`. Chocolatey 2+: `choco list` is local-only; do not pass a source. Chocolatey 1.x needs `--local-only`. Never use `winget upgrade` or `choco upgrade` during an audit. |
 
 Never query `Win32_Product` on Windows. It runs an installer consistency check that can repair or reconfigure software, so it is not read-only.
@@ -63,7 +63,7 @@ A distribution build often carries a fix under an older upstream version number.
 
 Use this when an advisory is in a library that runtimes **bundle** (compression, image codecs, TLS). A lockfile or scanner miss is common. Record every copy: system package, language wheel, runtime binary, container layer, vendored tree. Commands read state only. Do not feed crafted files to a decoder.
 
-Default: do **not** start Node, Bun, Python, pip, poetry, uv, curl, or a mesh CLI. Those load site customizers, `.pth` files or the binary itself. That is the LiteLLM-class trigger this skill forbids. Exception: `istioctl version --remote=false` in the Envoy / Istio row is a local-CLI read that does not contact the mesh. Cert-chain live probes in [Testing a chain with the client that matters](#testing-a-chain-with-the-client-that-matters) start a named client; they must not start a path inventory flagged as a suspect hijacked install. Read lockfiles, `*.dist-info/METADATA`, the package database, and linked-library metadata on a **named** binary path.
+Default: do **not** start Node, Bun, Python, pip, poetry, uv, curl, PHP, or a mesh CLI to "check" a suspect install. Those load site customizers, `.pth` files or the binary itself. That is the LiteLLM-class trigger this skill forbids. Exceptions: `istioctl version --remote=false` in the Envoy / Istio row is a local-CLI read that does not contact the mesh; the Tailscale / overlay commands in [Mesh VPN SSH and privileged forwarding](#mesh-vpn-ssh-and-privileged-forwarding) are local status reads and must not `ping` or `ssh` a peer. Cert-chain live probes in [Testing a chain with the client that matters](#testing-a-chain-with-the-client-that-matters) start a named client; they must not start a path inventory flagged as a suspect hijacked install. Read lockfiles, `*.dist-info/METADATA`, the package database, and linked-library metadata on a **named** binary path.
 
 | Where | macOS | Linux | Windows (PowerShell) | Containers |
 | --- | --- | --- | --- | --- |
@@ -106,6 +106,52 @@ Compare inventoried versions with hijack records refreshed this run. Do not inst
 | Windows | `Get-NetTCPConnection -State Listen` |
 
 Do not request `/.env` or other secret files from the listener. Version plus bind evidence is enough.
+
+### PHP serving-runtime versions
+
+Use this when inventory listed `php_runtime_hints` or the engagement is the October 2026 PHP RCEs. Do not start `php` or `php-fpm` to collect a version.
+
+| Where | Read-only evidence |
+| --- | --- |
+| Project tree | `composer.json` `require.php` / `require-dev.php` / `config.platform.php`; `composer.lock` `platform.php` / `platform-overrides.php`. These are constraints, not runtime proof. |
+| Debian, Ubuntu | `dpkg-query -W -f='${Package} ${Version}\n' 'php8*' php-fpm 'libapache2-mod-php*'` one pattern at a time. |
+| Fedora, RHEL family | `rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 'php*' php-fpm` |
+| Alpine | `apk info -e php82 php83 php84 php85 php83-fpm php85-fpm php-fpm` then `apk policy PKG` |
+| Arch and derivatives | `pacman -Qs 'php-fpm\|php-cgi\|php-apache\|php-legacy\|^php$'` then `pacman -Qi PKG`. The unversioned `php` package is in scope here; inventory still ignores the bare token `php` so it does not collide with application names. |
+| openSUSE | `rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 'php8*' php-fpm apache2-mod_php8` or `zypper se -i php8 php8-fpm apache2-mod_php8` |
+| macOS | Homebrew: `brew list --versions php`. App bundle version from `Info.plist` if a named PHP application bundle exists. |
+| Windows | `winget list php` if registered. Do not start `php.exe`. |
+| Image | Labels and the package DB **inside** the digest. Official `php:` / `php-fpm` tags are hints. |
+| Already-running worker | Owner-run read of that process only, after confirming `/proc/<pid>/exe` (or the owner's equivalent) is not a suspect install. Do not start a new SAPI. |
+
+`phpmyadmin` and other application names that start with `php` are not a PHP runtime.
+
+### Mesh VPN SSH and privileged forwarding
+
+Use this when inventory listed `mesh_vpn_hints` or the host may run Tailscale, Headscale, ZeroTier or NetBird. Every command below is local and read-only. Do not `tailscale set`, `up`, `ssh`, `ping`, `serve` or otherwise contact another node. Do not enable or disable SSH.
+
+Record booleans, versions and **counts** (stale nodes, duplicate names). Never copy a hostname, tailnet name, IP, user email or node id into the report. Use placeholders such as `node-a.example.invalid`.
+
+| OS | Read-only commands |
+| --- | --- |
+| macOS (App Store or standalone app) | App present: `ls /Applications/Tailscale.app`. Version: `defaults read /Applications/Tailscale.app/Contents/Info.plist CFBundleShortVersionString`. The App Store build and the standalone build share that path; record which channel the owner says they installed. CLI, if present: `tailscale version`, `tailscale status --json`, `tailscale lock status`, `tailscale debug prefs`. |
+| macOS / Linux CLI | Same four `tailscale` commands. Prefer `--json` on `status`. `tailscale debug prefs` is a local prefs dump (SSH / `RunSSH`, auto-update). Read `/etc/default/tailscaled` and systemd drop-ins for the **name** `TS_SSH_DISABLE_FORWARDING` and its boolean only. |
+| Linux packages | `dpkg-query -W tailscale headscale` / `rpm -q tailscale headscale` / `apk info -e tailscale headscale`. ZeroTier: `zerotier-cli info` only if it is already installed and the command is local. NetBird: `netbird status` only if already installed; do not `up` or `login`. |
+| Windows | PowerShell needs the call operator: `& "$env:ProgramFiles\Tailscale\tailscale.exe" status --json`. Same form for the other subcommands: `& "$env:ProgramFiles\Tailscale\tailscale.exe" version`, `& "$env:ProgramFiles\Tailscale\tailscale.exe" lock status`, `& "$env:ProgramFiles\Tailscale\tailscale.exe" debug prefs` (if that build has them). Package list: `winget list Tailscale`. |
+| Exported policy | Read the owner's exported HuJSON/JSON (`acl.hujson`, `policy.hujson`, Headscale policy). Look at `ssh` rules (`action` `accept`/`check`, `src`, `dst`, `users`), any forwarding fields on those rules, and `nodeAttrs`. Do not fetch policy from a control plane the owner did not export. |
+| Headscale / ZeroTier / NetBird | Same class: is a remote-shell or privileged-forwarding grant present, and is it broad? If that overlay is absent, `NOT_APPLICABLE` with the empty package-query or missing binary as evidence. |
+
+How to read Tailscale JSON without leaking identity:
+
+- SSH enabled: prefs / status fields that mean "this node runs Tailscale SSH" (commonly `RunSSH` or an equivalent capability). Record true/false.
+- Forwarding: policy rule fields or `TS_SSH_DISABLE_FORWARDING`. If the exported policy has no forwarding keys, record UNKNOWN, not "disabled".
+- Broad rules: `src` contains `autogroup:member` (or a similarly wide autogroup) and `users` contains `root`. Quote those tokens only.
+- Check mode: `action` is `check`. Record it; do not treat it as a fix.
+- Tailnet Lock: `tailscale lock status` enabled/disabled. Do not copy signer names.
+- Version and auto-update: `tailscale version` and prefs auto-update check/apply booleans.
+- Stale or duplicate nodes: count peers with expired keys, long `LastSeen`, or repeated names. Write "2 expired keys, 1 duplicate name" — not the names.
+
+osquery leads (not a substitute for the CLI): `processes` where name is `tailscaled` / `zerotier-one` / `netbird`; `listening_ports` joined to those processes.
 
 ### Listening services
 

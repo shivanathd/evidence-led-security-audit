@@ -85,6 +85,10 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "istio.io",  # cited by profiles/brotli-2026-10-21.md
     "docs.litellm.ai",  # cited by profiles/litellm-2026-10-21.md
     "pillow.readthedocs.io",  # cited by profiles/brotli-2026-10-21.md
+    "tailworm.com",  # cited by profiles/mesh-vpn-ssh-2026-10-25.md
+    "tailscale.com",  # Tailscale SSH, policy, lock and security bulletins
+    "lightning.ai",  # cited by profiles/lightning-ai-2026-10-16.md
+    "unit42.paloaltonetworks.com",  # Unit 42 PHP2Shell retraction note
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
