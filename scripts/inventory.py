@@ -196,11 +196,19 @@ def is_php_package_token(token):
     return bool(token) and bool(PHP_SAPI_PKG.search(token))
 
 
+_MESH_POLICY_SSH_KEY = re.compile(r'(?m)"ssh"\s*:')
+_MESH_POLICY_OTHER_KEY = re.compile(r'(?m)"(?:acls|grants|nodeAttrs|groups)"\s*:')
+
+
 def _looks_like_mesh_policy(text):
-    """HuJSON/JSON that has an ssh block plus Tailscale/Headscale policy keys."""
+    """HuJSON/JSON object that has an ssh key plus another Tailscale/Headscale policy key.
+
+    Requires `"ssh":` and one of `"acls":` / `"grants":` / `"nodeAttrs":` /
+    `"groups":`. Prose that only names those strings does not match.
+    """
     if not text:
         return False
-    return '"ssh"' in text and any(key in text for key in ('"acls"', '"grants"', '"nodeAttrs"', '"groups"'))
+    return bool(_MESH_POLICY_SSH_KEY.search(text) and _MESH_POLICY_OTHER_KEY.search(text))
 
 
 def _is_sbom(name):

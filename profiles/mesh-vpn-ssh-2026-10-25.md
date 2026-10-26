@@ -60,7 +60,7 @@ Record, using placeholders in any report:
 There is no `vendor_patch` path until a primary source names a fixed build. Until then:
 
 - `open` if SSH is enabled and forwarding is allowed (or unknown on headscale accept rules), or if a broad `ssh` rule remains
-- `mitigated` if forwarding is disabled on every **effective** rule **and** `TS_SSH_DISABLE_FORWARDING` is loaded on every SSH-enabled node **and** rules are per-pair, with evidence. Check mode and Tailnet Lock alone are not `fixed`. Tailscale's default implicit SSH rule (`action: check`, `src: autogroup:member`, `dst: autogroup:self`, `users: autogroup:nonroot` + `root`) counts as present until the owner shows a live policy that replaced it or that SSH is off
+- `mitigated` if forwarding is disabled on every **effective** rule **and** `TS_SSH_DISABLE_FORWARDING` is loaded on every SSH-enabled node **and** rules are per-pair, with evidence. Check mode and Tailnet Lock alone are not `fixed`. Tailscale's default implicit SSH rule (`action: check`, `src: autogroup:member`, `dst: autogroup:self`, `users: autogroup:nonroot` + `root`) counts as a grant until the owner shows a live replacement, or confirms that removing `ssh` was intentional. One node's SSH-off / `RunSSH=false` state is a **runtime** observation for that node only; it does not close the shared policy
 - `fixed` only after a vendor-published build is installed and observed, bound to the layers that target requires
 - A file with no `ssh` key is `BLOCKED` / UNKNOWN unless the owner confirms it is the live policy and that removing `ssh` was intentional. Do not treat a missing `ssh` block as "no grant"
 

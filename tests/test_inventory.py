@@ -392,6 +392,25 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
 
+    def test_mesh_vpn_hints_ignore_prose_policy_keys(self):
+        import inventory
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            'The file may mention both "ssh" and "acls" plus "groups" and "nodeAttrs".'
+        ))
+        self.assertTrue(inventory._looks_like_mesh_policy(
+            '{"acls": [], "ssh": [{"action": "check"}]}'
+        ))
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "NOTES.md").write_text(
+            'Review the exported policy: it should have both "ssh" and "acls" '
+            'keys, and often "groups" or "nodeAttrs".\n',
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"
         out.write_text("keep", encoding="utf-8")
