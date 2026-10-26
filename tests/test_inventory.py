@@ -188,10 +188,14 @@ class InventoryTests(unittest.TestCase):
             "scratch", "alpine:3.20", "postgres:16", "golang:1.23",
             "prom/node-exporter:1.8.0", "python-builder:latest", "myorg/python-app:1.0",
             "phpmyadmin:5", "phpmyadmin/phpmyadmin:5.2", "myorg/php-app:1.0",
+            "php-apache:latest", "webdevops/php-apache:8.3",
         ):
             self.assertFalse(inventory.is_runtime_image(ref), ref)
             self.assertFalse(inventory.is_php_image(ref), ref)
-        for ref in ("php:8.3-fpm", "php:8.4-cli", "library/php:8.5.12", "php-fpm:alpine"):
+        for ref in (
+            "php:8.3-fpm", "php:8.4-cli", "library/php:8.5.12", "php-fpm:alpine",
+            "php:8.3-fpm-alpine", "php:8.2-apache",
+        ):
             self.assertTrue(inventory.is_runtime_image(ref), ref)
             self.assertTrue(inventory.is_php_image(ref), ref)
         self.assertTrue(inventory.is_php_package_token("php8.3"))
@@ -199,8 +203,15 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue(inventory.is_php_package_token("php-fpm"))
         self.assertTrue(inventory.is_php_package_token("php83"))
         self.assertTrue(inventory.is_php_package_token("php83-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php85"))
+        self.assertTrue(inventory.is_php_package_token("php85-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php-cgi"))
+        self.assertTrue(inventory.is_php_package_token("php-legacy"))
+        self.assertTrue(inventory.is_php_package_token("php-legacy-fpm"))
+        self.assertTrue(inventory.is_php_package_token("apache2-mod_php8"))
         for token in ("phpmyadmin", "phpunit", "phpstan", "phpmailer", "php-cs-fixer"):
             self.assertFalse(inventory.is_php_package_token(token), token)
+        self.assertFalse(inventory.is_php_package_token("php"))
         for ref in (
             "tailscale/tailscale:v1.104.2", "headscale/headscale:0.29.5",
             "zerotier/zerotier:latest", "netbirdio/netbird:latest",
@@ -255,10 +266,14 @@ class InventoryTests(unittest.TestCase):
         }), encoding="utf-8")
         (root / "Dockerfile").write_text(
             "FROM php:8.4-fpm\n"
+            "FROM php:8.3-fpm-alpine\n"
+            "FROM php:8.2-apache\n"
             "FROM phpmyadmin:5.2\n"
             "FROM myorg/php-app:1.0\n"
+            "FROM php-apache:latest\n"
+            "FROM webdevops/php-apache:8.3\n"
             "RUN apt-get install -y php8.3-fpm phpmyadmin\n"
-            "RUN apk add --no-cache php83 php83-fpm\n"
+            "RUN apk add --no-cache php83 php85 php83-fpm\n"
             "# apt-get install php8.2-fpm\n",
             encoding="utf-8",
         )
@@ -272,10 +287,14 @@ class InventoryTests(unittest.TestCase):
         self.assertIn("composer.lock platform.php", hints)
         self.assertIn("platform-overrides.php", hints)
         self.assertIn("php:8.4-fpm", hints)
+        self.assertIn("php:8.3-fpm-alpine", hints)
+        self.assertIn("php:8.2-apache", hints)
         self.assertIn("php8.3-fpm", hints)
         self.assertIn("php83", hints)
+        self.assertIn("php85", hints)
         self.assertNotIn("phpmyadmin", hints)
         self.assertNotIn("php-app", hints)
+        self.assertFalse(any("php-apache:" in h["hint"] or "webdevops/" in h["hint"] for h in doc["php_runtime_hints"]))
         self.assertFalse(any("8.2-fpm" in h["hint"] for h in doc["php_runtime_hints"]))
 
     def test_mesh_vpn_hints_ignore_comment_only_mentions(self):
@@ -329,6 +348,49 @@ class InventoryTests(unittest.TestCase):
         self.assertIn("compose service headscale", hints)
         self.assertIn("ssh policy", hints)
         self.assertIn("mesh VPN config or policy path", hints)
+
+    def test_mesh_vpn_hints_ignore_generic_acl_filenames(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "acl.json").write_text(
+            json.dumps({
+                "request_definition": {"r": "sub, obj, act"},
+                "policy_definition": {"p": "sub, obj, act"},
+                "policy_effect": {"e": "some(where (p.eft == allow))"},
+                "matchers": {"m": "g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act"},
+            }),
+            encoding="utf-8",
+        )
+        (root / "acl.js").write_text("module.exports = { policies: [] };\n", encoding="utf-8")
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+        with_policy = Path(support.tmpdir()) / "service-a"
+        with_policy.mkdir()
+        (with_policy / "acl.json").write_text(
+            '{\n  "acls": [{"action": "accept", "src": ["autogroup:member"], "dst": ["*:*"]}],\n'
+            '  "ssh": [{"action": "check", "src": ["autogroup:member"], "dst": ["autogroup:self"],'
+            ' "users": ["autogroup:nonroot", "root"]}]\n}\n',
+            encoding="utf-8",
+        )
+        (with_policy / "tailscale-acl.json").write_text("{}\n", encoding="utf-8")
+        res = support.run_script("inventory.py", with_policy, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        hints = json.loads(res.stdout)["mesh_vpn_hints"]
+        self.assertTrue(any("ssh policy" in h["hint"] and h["path"] == "acl.json" for h in hints))
+        self.assertTrue(any("policy path" in h["hint"] and h["path"] == "tailscale-acl.json" for h in hints))
+
+    def test_mesh_vpn_hints_ignore_readme_only_mentions(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "README.md").write_text(
+            "Deploy notes: tailscale is optional. We do not ship a tailscale client.\n",
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
 
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"

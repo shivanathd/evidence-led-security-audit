@@ -109,9 +109,13 @@ FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
 # Serving PHP packages and official images. Bare "php" plus a letter
 # (phpmyadmin, phpunit, phpstan) is not a match; a version or SAPI suffix is.
+# Arch/openSUSE: php-fpm / php-cgi / php-legacy / apache2-mod_php*. The
+# unversioned Arch package name "php" is not an inventory token (it collides
+# with application names); query it on the host via pacman, not this regex.
 PHP_SAPI_PKG = re.compile(
-    r"(?i)\b(php-fpm|php\d+(?:\.\d+)?(?:-fpm|-cli|-cgi|-common)?|"
-    r"libapache2-mod-php\S*|lsphp\d*|frankenphp)\b"
+    r"(?i)\b(php-fpm|php-cgi|php-embed|php-legacy(?:-fpm|-cgi|-apache)?|"
+    r"php\d+(?:\.\d+)?(?:-fpm|-cli|-cgi|-common)?|"
+    r"libapache2-mod-php\S*|apache2-mod_php\S*|lsphp\d*|frankenphp)\b"
 )
 # Path-segment match: name is a whole image path component. Delimiters are
 # :, / or @ (or end). A trailing hyphen is not a delimiter, so
@@ -128,11 +132,14 @@ MESH_VPN_IMAGE = re.compile(
 MESH_VPN_PKG = re.compile(r"(?i)\b(tailscale|headscale|zerotier(?:-one)?|netbird)\b")
 MESH_VPN_SERVICES = frozenset({"tailscale", "headscale", "zerotier", "netbird"})
 MESH_VPN_PATH_PARTS = frozenset({"tailscale", "headscale", "zerotier", "zerotier-one", "netbird"})
+# Filename-only mesh policy/config. Generic ACL names (acl.json, acl.js) are
+# Casbin/app stubs too often; those need a content check, not a name match.
 MESH_VPN_FILENAMES = frozenset({
-    "acl.hujson", "acl.json", "acl.js", "policy.hujson",
+    "acl.hujson", "policy.hujson",
     "headscale.yaml", "headscale.yml", "tailscale-acl.json", "tailnet-acl.json",
     "tailnet-policy.json", "netbird.yml", "netbird.yaml",
 })
+MESH_VPN_GENERIC_ACL_NAMES = frozenset({"acl.json", "acl.js"})
 RUNTIME_PIN_FILES = {
     ".nvmrc": "node", ".node-version": "node", ".python-version": "python",
     ".ruby-version": "ruby", ".bun-version": "bun", ".tool-versions": "asdf",
@@ -158,7 +165,12 @@ def is_runtime_image(ref):
 
 
 def is_php_image(ref):
-    """True for official php / php-fpm image refs, not phpmyadmin or php-app names."""
+    """True for official php / php-fpm image refs, not phpmyadmin or php-app names.
+
+    Tags such as php:8.3-fpm-alpine and php:8.2-apache match. Repo names
+    php-apache and webdevops/php-apache do not (hyphenated image name, not
+    the official php: tag).
+    """
     if not ref:
         return False
     lower = ref.lower()
@@ -173,7 +185,14 @@ def is_mesh_vpn_image(ref):
 
 
 def is_php_package_token(token):
-    """True for distro PHP runtime packages (php8.3, php-fpm, apk php83), not phpmyadmin."""
+    """True for distro PHP runtime packages, not phpmyadmin.
+
+    Covers Debian/Ubuntu (php8.3, php-fpm, libapache2-mod-php), Alpine
+    (php83, php85), Arch SAPI packages (php-fpm, php-cgi, php-legacy), and
+    openSUSE (php8, apache2-mod_php8). The unversioned Arch package name
+    ``php`` and image repos ``php-apache`` / ``webdevops/php-apache`` are
+    out of scope for this token (they collide with application names).
+    """
     return bool(token) and bool(PHP_SAPI_PKG.search(token))
 
 
@@ -568,21 +587,25 @@ class Inventory:
                 })
 
     def _mesh_vpn_name(self, rel, name):
+        lower = name.lower()
+        if lower in MESH_VPN_GENERIC_ACL_NAMES:
+            return
         parts = {p.lower() for p in PurePosixPath(rel).parts}
-        if parts & MESH_VPN_PATH_PARTS or name.lower() in MESH_VPN_FILENAMES:
+        if parts & MESH_VPN_PATH_PARTS or lower in MESH_VPN_FILENAMES:
             self.out["mesh_vpn_hints"].append({
                 "path": rel, "line": 0,
                 "hint": "mesh VPN config or policy path (filename or directory; not runtime proof)",
             })
 
     def _mesh_vpn_text(self, rel, name, text):
-        if _looks_like_mesh_policy(text):
-            if any(h["path"] == rel and "ssh policy" in h["hint"] for h in self.out["mesh_vpn_hints"]):
-                return
-            self.out["mesh_vpn_hints"].append({
-                "path": rel, "line": 0,
-                "hint": "exported mesh / Tailscale-style ssh policy (file contents; confirm it is the live policy)",
-            })
+        if not _looks_like_mesh_policy(text):
+            return
+        if any(h["path"] == rel and "ssh policy" in h["hint"] for h in self.out["mesh_vpn_hints"]):
+            return
+        self.out["mesh_vpn_hints"].append({
+            "path": rel, "line": 0,
+            "hint": "exported mesh / Tailscale-style ssh policy (file contents; confirm it is the live policy)",
+        })
 
     def result(self, label, target):
         partial_reasons = sorted(self.gaps)
