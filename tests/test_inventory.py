@@ -424,15 +424,38 @@ class InventoryTests(unittest.TestCase):
             '    dst: ["autogroup:self"],\n  }],\n}\n'
         )
         self.assertTrue(inventory._looks_like_mesh_policy(hujson))
+        # Reviewer-reproduced miss: comment between ssh: and the array,
+        # including a leading space before `[`. Apostrophe variant below.
+        self.assertTrue(inventory._looks_like_mesh_policy(
+            "ssh: // enable\n [{action, src, dst}]"
+        ))
+        commented = (
+            "ssh: // don't enable yet [draft]\n"
+            "[{action, src, dst}]\n"
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(commented))
+        block_comment = (
+            "ssh: /* don't skip ] this */\n"
+            "[{action: accept, src: [\"autogroup:member\"], dst: [\"autogroup:self\"]}]\n"
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(block_comment))
         self.assertFalse(inventory._looks_like_mesh_policy('{"ssh":{"port":22}}'))
         self.assertFalse(inventory._looks_like_mesh_policy("{\n  ssh: { port: 22 },\n}\n"))
         self.assertFalse(inventory._looks_like_mesh_policy(
             '{"sshd":{"action":"restart","src":["x"],"dst":["y"]}}'
         ))
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            "Look at ssh: and groups: in the export."
+        ))
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            "groups:\n  app: tag:app\nssh:\n  port: 22\n"
+        ))
+        self.assertFalse(inventory._looks_like_mesh_policy("# ssh: and groups: are required"))
+        self.assertFalse(inventory._looks_like_mesh_policy('{"groups":[], "ssh":{"port":22}}'))
 
         root = Path(support.tmpdir()) / "service-a"
         root.mkdir()
-        (root / "acl.json").write_text(ssh_only + "\n", encoding="utf-8")
+        (root / "acl.json").write_text(commented, encoding="utf-8")
         res = support.run_script("inventory.py", root, "--target", "service-a-repo")
         self.assertEqual(res.returncode, 0, res.stderr)
         hints = json.loads(res.stdout)["mesh_vpn_hints"]
@@ -440,10 +463,30 @@ class InventoryTests(unittest.TestCase):
 
         port_only = Path(support.tmpdir()) / "service-a"
         port_only.mkdir()
-        (port_only / "acl.json").write_text('{"ssh":{"port":22}}\n', encoding="utf-8")
+        (port_only / "acl.json").write_text('{"groups":[], "ssh":{"port":22}}\n', encoding="utf-8")
         res = support.run_script("inventory.py", port_only, "--target", "service-a-repo")
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+    def test_hujson_tokenizer_skips_comments_and_ignores_apostrophes(self):
+        import inventory
+        kinds = [k for k, _v in inventory._hujson_tokens(
+            'ssh: // don\'t enable [x]\n /* a } b */ [{action, src, dst}],'
+        )]
+        self.assertEqual(
+            kinds,
+            ["ident", "punct", "punct", "punct", "ident", "punct",
+             "ident", "punct", "ident", "punct", "punct", "punct"],
+        )
+        values = [v for k, v in inventory._hujson_tokens(
+            'ssh: // don\'t enable [x]\n /* a } b */ [{action, src, dst}],'
+        ) if k != "punct"]
+        self.assertEqual(values, ["ssh", "action", "src", "dst"])
+        escaped = inventory._hujson_tokens(r'{"note":"say \"hi\""}')
+        self.assertIn(("str", 'say "hi"'), escaped)
+        bounded = inventory._hujson_tokens("ssh: [{action, src, dst}]", limit=3)
+        self.assertEqual(bounded, [("ident", "ssh")])
+        self.assertLessEqual(len(inventory._hujson_tokens("x" * 300000)), 1)
 
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"

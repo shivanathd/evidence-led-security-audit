@@ -196,81 +196,174 @@ def is_php_package_token(token):
     return bool(token) and bool(PHP_SAPI_PKG.search(token))
 
 
-# Quoted JSON keys or unquoted HuJSON identifiers. The lookbehind keeps
-# openssh / sshd / my_ssh from counting as the ssh policy section.
-_MESH_IDENT = r'(?:"{0}"|(?<![A-Za-z_]){0})'
-_MESH_SSH_KEY = re.compile(r'(?m)' + _MESH_IDENT.format('ssh') + r'\s*:')
-_MESH_POLICY_OTHER_KEY = re.compile(
-    r'(?m)' + _MESH_IDENT.format(r'(?:acls|grants|nodeAttrs|groups)') + r'\s*:'
-)
-_MESH_RULE_ACTION = re.compile(r'(?m)' + _MESH_IDENT.format('action') + r'\s*:')
-_MESH_RULE_SRC = re.compile(r'(?m)' + _MESH_IDENT.format('src') + r'\s*:')
-_MESH_RULE_DST = re.compile(r'(?m)' + _MESH_IDENT.format('dst') + r'\s*:')
+# HuJSON-aware scan of mesh SSH policy. Bounded so a huge file cannot
+# turn this heuristic into an unbounded walk. Inventory already skips
+# files above --max-file-bytes; this is an extra cap on tokenizing.
+MESH_POLICY_SCAN_LIMIT = 262144
+_MESH_POLICY_OTHER = frozenset({"acls", "grants", "nodeAttrs", "groups"})
+_MESH_RULE_MEMBERS = frozenset({"action", "src", "dst"})
+_HUJSON_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_HUJSON_NUM = re.compile(r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?")
 
 
-def _json_value_after(text, start):
-    """Return the `{...}` or `[...]` after a key's colon, or '' if not an object/array."""
-    i = start
+def _hujson_tokens(text, limit=MESH_POLICY_SCAN_LIMIT):
+    """Tokenize JSON/HuJSON: comments, double-quoted strings, trailing commas.
+
+    Yields (kind, value) where kind is str, ident, num, or punct. Skips
+    whitespace and // /* */ comments outside strings. Single quotes are
+    not string delimiters. Input longer than *limit* is truncated.
+    """
+    if not text:
+        return []
+    if len(text) > limit:
+        text = text[:limit]
+    tokens = []
+    i = 0
     n = len(text)
-    while i < n and text[i] in ' \t\r\n':
+    while i < n:
+        c = text[i]
+        if c in " \t\r\n":
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            nl = text.find("\n", i + 2)
+            i = n if nl < 0 else nl + 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            end = text.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            continue
+        if c == '"':
+            i += 1
+            buf = []
+            while i < n:
+                ch = text[i]
+                if ch == "\\" and i + 1 < n:
+                    buf.append(text[i + 1])
+                    i += 2
+                    continue
+                if ch == '"':
+                    i += 1
+                    break
+                buf.append(ch)
+                i += 1
+            tokens.append(("str", "".join(buf)))
+            continue
+        ident = _HUJSON_IDENT.match(text, i)
+        if ident:
+            tokens.append(("ident", ident.group(0)))
+            i = ident.end()
+            continue
+        num = _HUJSON_NUM.match(text, i)
+        if num:
+            tokens.append(("num", num.group(0)))
+            i = num.end()
+            continue
+        if c in "{}[],:":
+            tokens.append(("punct", c))
         i += 1
-    if i >= n or text[i] not in '{[':
-        return ''
-    pairs = {'{': '}', '[': ']'}
-    stack = [text[i]]
-    in_str = False
-    escape = False
-    quote = None
-    j = i + 1
-    while j < n:
-        c = text[j]
-        if in_str:
-            if escape:
-                escape = False
-            elif c == '\\':
-                escape = True
-            elif c == quote:
-                in_str = False
-        elif c in '"\'':
-            in_str = True
-            quote = c
-        elif c in '{[':
-            stack.append(c)
-        elif c in '}]':
-            if not stack or pairs[stack[-1]] != c:
-                return ''
-            stack.pop()
-            if not stack:
-                return text[i:j + 1]
-        j += 1
-    return ''
+    return tokens
 
 
-def _ssh_block_is_rule_shaped(block):
-    return bool(
-        block
-        and _MESH_RULE_ACTION.search(block)
-        and _MESH_RULE_SRC.search(block)
-        and _MESH_RULE_DST.search(block)
-    )
+def _token_name(tok):
+    if tok[0] in ("str", "ident"):
+        return tok[1]
+    return None
+
+
+def _value_end(tokens, start):
+    """Index after the value starting at start. Scalars consume one token."""
+    n = len(tokens)
+    if start >= n:
+        return start
+    kind, value = tokens[start]
+    if not (kind == "punct" and value in "{["):
+        return start + 1
+    depth = 0
+    i = start
+    while i < n:
+        k, v = tokens[i]
+        if k == "punct":
+            if v in "{[":
+                depth += 1
+            elif v in "}]":
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+        i += 1
+    return n
+
+
+def _colon_keys(tokens, start, end):
+    names = set()
+    i = start
+    while i + 1 < end:
+        name = _token_name(tokens[i])
+        nxt = tokens[i + 1]
+        if name is not None and nxt[0] == "punct" and nxt[1] == ":":
+            names.add(name)
+            i += 2
+            continue
+        i += 1
+    return names
+
+
+def _member_names(tokens, start, end):
+    """Object member names: `name:` keys or bare `{action, src}` identifiers."""
+    names = _colon_keys(tokens, start, end)
+    i = start
+    while i < end:
+        name = _token_name(tokens[i])
+        if name is not None and i > start and i + 1 < end:
+            prev, nxt = tokens[i - 1], tokens[i + 1]
+            if (
+                prev[0] == "punct" and prev[1] in "{,"
+                and nxt[0] == "punct" and nxt[1] in ",}"
+            ):
+                names.add(name)
+        i += 1
+    return names
+
+
+def _is_port_only_object(tokens, start, end):
+    if start >= end or tokens[start] != ("punct", "{"):
+        return False
+    names = _member_names(tokens, start, end)
+    return bool(names) and names <= {"port"}
 
 
 def _looks_like_mesh_policy(text):
     """True for a JSON/HuJSON mesh SSH policy, not a service ssh port object.
 
-    Needs an `ssh` key (`"ssh":` or HuJSON `ssh:`) plus either another policy
-    key (`acls` / `grants` / `nodeAttrs` / `groups`) or a rule-shaped object
-    (`action`, `src`, `dst`) inside that ssh value. `"ssh": {"port": 22}`
-    does not match.
+    The `ssh` key must have a `{...}` or `[...]` value (comments between
+    `ssh:` and the value are skipped). That value is a hit when it is
+    rule-shaped (`action` / `src` / `dst` members) or when it is an
+    object/array and the file also has `acls` / `grants` / `nodeAttrs` /
+    `groups`. A `{port: N}`-only object is never a hit.
     """
-    if not text:
+    tokens = _hujson_tokens(text)
+    if not tokens:
         return False
-    has_other = bool(_MESH_POLICY_OTHER_KEY.search(text))
-    for match in _MESH_SSH_KEY.finditer(text):
-        if has_other:
-            return True
-        if _ssh_block_is_rule_shaped(_json_value_after(text, match.end())):
-            return True
+    has_other = bool(_colon_keys(tokens, 0, len(tokens)) & _MESH_POLICY_OTHER)
+    i = 0
+    n = len(tokens)
+    while i + 1 < n:
+        name = _token_name(tokens[i])
+        if name == "ssh" and tokens[i + 1] == ("punct", ":"):
+            val_i = i + 2
+            if val_i >= n or tokens[val_i][0] != "punct" or tokens[val_i][1] not in "{[":
+                i += 1
+                continue
+            val_end = _value_end(tokens, val_i)
+            if _is_port_only_object(tokens, val_i, val_end):
+                i = val_end
+                continue
+            members = _member_names(tokens, val_i, val_end)
+            if _MESH_RULE_MEMBERS <= members or has_other:
+                return True
+            i = val_end
+            continue
+        i += 1
     return False
 
 
