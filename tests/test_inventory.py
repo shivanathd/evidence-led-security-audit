@@ -411,6 +411,40 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
 
+    def test_mesh_vpn_hints_ssh_only_policy_and_port_objects(self):
+        import inventory
+        ssh_only = (
+            '{"ssh":[{"action":"accept","src":["autogroup:member"],'
+            '"dst":["autogroup:self"]}]}'
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(ssh_only))
+        hujson = (
+            "{\n  ssh: [{\n    action: check,\n"
+            '    src: ["autogroup:member"],\n'
+            '    dst: ["autogroup:self"],\n  }],\n}\n'
+        )
+        self.assertTrue(inventory._looks_like_mesh_policy(hujson))
+        self.assertFalse(inventory._looks_like_mesh_policy('{"ssh":{"port":22}}'))
+        self.assertFalse(inventory._looks_like_mesh_policy("{\n  ssh: { port: 22 },\n}\n"))
+        self.assertFalse(inventory._looks_like_mesh_policy(
+            '{"sshd":{"action":"restart","src":["x"],"dst":["y"]}}'
+        ))
+
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "acl.json").write_text(ssh_only + "\n", encoding="utf-8")
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        hints = json.loads(res.stdout)["mesh_vpn_hints"]
+        self.assertTrue(any("ssh policy" in h["hint"] and h["path"] == "acl.json" for h in hints))
+
+        port_only = Path(support.tmpdir()) / "service-a"
+        port_only.mkdir()
+        (port_only / "acl.json").write_text('{"ssh":{"port":22}}\n', encoding="utf-8")
+        res = support.run_script("inventory.py", port_only, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"
         out.write_text("keep", encoding="utf-8")

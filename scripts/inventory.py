@@ -196,19 +196,82 @@ def is_php_package_token(token):
     return bool(token) and bool(PHP_SAPI_PKG.search(token))
 
 
-_MESH_POLICY_SSH_KEY = re.compile(r'(?m)"ssh"\s*:')
-_MESH_POLICY_OTHER_KEY = re.compile(r'(?m)"(?:acls|grants|nodeAttrs|groups)"\s*:')
+# Quoted JSON keys or unquoted HuJSON identifiers. The lookbehind keeps
+# openssh / sshd / my_ssh from counting as the ssh policy section.
+_MESH_IDENT = r'(?:"{0}"|(?<![A-Za-z_]){0})'
+_MESH_SSH_KEY = re.compile(r'(?m)' + _MESH_IDENT.format('ssh') + r'\s*:')
+_MESH_POLICY_OTHER_KEY = re.compile(
+    r'(?m)' + _MESH_IDENT.format(r'(?:acls|grants|nodeAttrs|groups)') + r'\s*:'
+)
+_MESH_RULE_ACTION = re.compile(r'(?m)' + _MESH_IDENT.format('action') + r'\s*:')
+_MESH_RULE_SRC = re.compile(r'(?m)' + _MESH_IDENT.format('src') + r'\s*:')
+_MESH_RULE_DST = re.compile(r'(?m)' + _MESH_IDENT.format('dst') + r'\s*:')
+
+
+def _json_value_after(text, start):
+    """Return the `{...}` or `[...]` after a key's colon, or '' if not an object/array."""
+    i = start
+    n = len(text)
+    while i < n and text[i] in ' \t\r\n':
+        i += 1
+    if i >= n or text[i] not in '{[':
+        return ''
+    pairs = {'{': '}', '[': ']'}
+    stack = [text[i]]
+    in_str = False
+    escape = False
+    quote = None
+    j = i + 1
+    while j < n:
+        c = text[j]
+        if in_str:
+            if escape:
+                escape = False
+            elif c == '\\':
+                escape = True
+            elif c == quote:
+                in_str = False
+        elif c in '"\'':
+            in_str = True
+            quote = c
+        elif c in '{[':
+            stack.append(c)
+        elif c in '}]':
+            if not stack or pairs[stack[-1]] != c:
+                return ''
+            stack.pop()
+            if not stack:
+                return text[i:j + 1]
+        j += 1
+    return ''
+
+
+def _ssh_block_is_rule_shaped(block):
+    return bool(
+        block
+        and _MESH_RULE_ACTION.search(block)
+        and _MESH_RULE_SRC.search(block)
+        and _MESH_RULE_DST.search(block)
+    )
 
 
 def _looks_like_mesh_policy(text):
-    """HuJSON/JSON object that has an ssh key plus another Tailscale/Headscale policy key.
+    """True for a JSON/HuJSON mesh SSH policy, not a service ssh port object.
 
-    Requires `"ssh":` and one of `"acls":` / `"grants":` / `"nodeAttrs":` /
-    `"groups":`. Prose that only names those strings does not match.
+    Needs an `ssh` key (`"ssh":` or HuJSON `ssh:`) plus either another policy
+    key (`acls` / `grants` / `nodeAttrs` / `groups`) or a rule-shaped object
+    (`action`, `src`, `dst`) inside that ssh value. `"ssh": {"port": 22}`
+    does not match.
     """
     if not text:
         return False
-    return bool(_MESH_POLICY_SSH_KEY.search(text) and _MESH_POLICY_OTHER_KEY.search(text))
+    has_other = bool(_MESH_POLICY_OTHER_KEY.search(text))
+    for match in _MESH_SSH_KEY.finditer(text):
+        if has_other:
+            return True
+        if _ssh_block_is_rule_shaped(_json_value_after(text, match.end())):
+            return True
+    return False
 
 
 def _is_sbom(name):
