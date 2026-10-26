@@ -73,10 +73,12 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue({"9253", "0.0.0.0:9253:9253", "0.0.0.0:9000"} <= values)
         hints = " ".join(h["hint"] for h in self.doc["php_runtime_hints"])
         self.assertIn("not runtime proof", hints)
+        self.assertIn("composer.json require.php", hints)
         self.assertIn("session.upload_progress.enabled", hints)
         self.assertEqual(self.doc["ci_workflows"][0]["unpinned_actions"][0]["ref"], "actions/checkout@v4")
         self.assertEqual([f["from"][0]["image"] for f in self.doc["containers"]], ["php:8.3-fpm"])
         self.assertEqual(self.doc["dev_server_hints"], [])
+        self.assertEqual(self.doc["mesh_vpn_hints"], [])
 
     def test_untrusted_instructions_flagged_not_followed(self):
         agent = self.doc["agent_instruction_files"][0]
@@ -185,8 +187,27 @@ class InventoryTests(unittest.TestCase):
         for ref in (
             "scratch", "alpine:3.20", "postgres:16", "golang:1.23",
             "prom/node-exporter:1.8.0", "python-builder:latest", "myorg/python-app:1.0",
+            "phpmyadmin:5", "phpmyadmin/phpmyadmin:5.2", "myorg/php-app:1.0",
         ):
             self.assertFalse(inventory.is_runtime_image(ref), ref)
+            self.assertFalse(inventory.is_php_image(ref), ref)
+        for ref in ("php:8.3-fpm", "php:8.4-cli", "library/php:8.5.12", "php-fpm:alpine"):
+            self.assertTrue(inventory.is_runtime_image(ref), ref)
+            self.assertTrue(inventory.is_php_image(ref), ref)
+        self.assertTrue(inventory.is_php_package_token("php8.3"))
+        self.assertTrue(inventory.is_php_package_token("php8.3-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php-fpm"))
+        self.assertTrue(inventory.is_php_package_token("php83"))
+        self.assertTrue(inventory.is_php_package_token("php83-fpm"))
+        for token in ("phpmyadmin", "phpunit", "phpstan", "phpmailer", "php-cs-fixer"):
+            self.assertFalse(inventory.is_php_package_token(token), token)
+        for ref in (
+            "tailscale/tailscale:v1.104.2", "headscale/headscale:0.29.5",
+            "zerotier/zerotier:latest", "netbirdio/netbird:latest",
+        ):
+            self.assertTrue(inventory.is_mesh_vpn_image(ref), ref)
+        self.assertFalse(inventory.is_mesh_vpn_image("alpine:3.20"))
+        self.assertFalse(inventory.is_mesh_vpn_image("myorg/tailscale-docs:1"))
         self.assertTrue(inventory._is_sbom("bom.cdx.json"))
         self.assertTrue(inventory._is_sbom("app.sbom.json"))
         self.assertFalse(inventory._is_sbom("presbom.json"))
@@ -219,6 +240,95 @@ class InventoryTests(unittest.TestCase):
         self.assertIn("vite", hints)
         self.assertIn("bind flag", hints)
         self.assertEqual(runner_doc["listeners"], [])
+
+    def test_php_constraints_and_phpmyadmin_are_not_runtimes(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / "composer.json").write_text(json.dumps({
+            "require": {"php": "^8.3"},
+            "require-dev": {"php": ">=8.2"},
+            "config": {"platform": {"php": "8.3.12"}},
+        }), encoding="utf-8")
+        (root / "composer.lock").write_text(json.dumps({
+            "platform": {"php": ">=8.3"},
+            "platform-overrides": {"php": "8.3.12"},
+        }), encoding="utf-8")
+        (root / "Dockerfile").write_text(
+            "FROM php:8.4-fpm\n"
+            "FROM phpmyadmin:5.2\n"
+            "FROM myorg/php-app:1.0\n"
+            "RUN apt-get install -y php8.3-fpm phpmyadmin\n"
+            "RUN apk add --no-cache php83 php83-fpm\n"
+            "# apt-get install php8.2-fpm\n",
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        doc = json.loads(res.stdout)
+        hints = " ".join(h["hint"] for h in doc["php_runtime_hints"])
+        self.assertIn("composer.json require.php", hints)
+        self.assertIn("composer.json require-dev.php", hints)
+        self.assertIn("config.platform.php", hints)
+        self.assertIn("composer.lock platform.php", hints)
+        self.assertIn("platform-overrides.php", hints)
+        self.assertIn("php:8.4-fpm", hints)
+        self.assertIn("php8.3-fpm", hints)
+        self.assertIn("php83", hints)
+        self.assertNotIn("phpmyadmin", hints)
+        self.assertNotIn("php-app", hints)
+        self.assertFalse(any("8.2-fpm" in h["hint"] for h in doc["php_runtime_hints"]))
+
+    def test_mesh_vpn_hints_ignore_comment_only_mentions(self):
+        comment_only = Path(support.tmpdir()) / "service-a"
+        comment_only.mkdir()
+        (comment_only / "Dockerfile").write_text(
+            "FROM alpine:3.20\n"
+            "# install tailscale headscale zerotier netbird later\n"
+            "RUN apk add --no-cache curl\n",
+            encoding="utf-8",
+        )
+        (comment_only / "notes.sh").write_text(
+            "# tailscale status --json\n"
+            "echo ready\n",
+            encoding="utf-8",
+        )
+        res = support.run_script("inventory.py", comment_only, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["mesh_vpn_hints"], [])
+
+        with_mesh = Path(support.tmpdir()) / "service-a"
+        with_mesh.mkdir()
+        (with_mesh / "policy").mkdir()
+        (with_mesh / "Dockerfile").write_text(
+            "FROM tailscale/tailscale:v1.104.2\n"
+            "RUN apk add --no-cache tailscale\n",
+            encoding="utf-8",
+        )
+        (with_mesh / "compose.yaml").write_text(
+            "services:\n"
+            "  tailscale:\n"
+            "    image: tailscale/tailscale:stable\n"
+            "  headscale:\n"
+            "    image: headscale/headscale:0.29.5\n",
+            encoding="utf-8",
+        )
+        (with_mesh / "acl.hujson").write_text(
+            '{\n  "acls": [{"action": "accept", "src": ["autogroup:member"], "dst": ["*:*"]}],\n'
+            '  "ssh": [{"action": "accept", "src": ["autogroup:member"], "dst": ["autogroup:self"],'
+            ' "users": ["root"]}],\n  "nodeAttrs": []\n}\n',
+            encoding="utf-8",
+        )
+        (with_mesh / "policy" / "headscale.yaml").write_text("server_url: https://control.example.invalid\n", encoding="utf-8")
+        (with_mesh / "netbird.yml").write_text("managementURL: https://control.example.invalid\n", encoding="utf-8")
+        res = support.run_script("inventory.py", with_mesh, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        hints = " ".join(h["hint"] for h in json.loads(res.stdout)["mesh_vpn_hints"])
+        self.assertIn("tailscale/tailscale:v1.104.2", hints)
+        self.assertIn("installs mesh VPN package tailscale", hints)
+        self.assertIn("compose service tailscale", hints)
+        self.assertIn("compose service headscale", hints)
+        self.assertIn("ssh policy", hints)
+        self.assertIn("mesh VPN config or policy path", hints)
 
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"

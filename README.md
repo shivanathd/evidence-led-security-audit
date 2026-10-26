@@ -124,11 +124,13 @@ Profiles are dated starting points for specific incidents. They are not "latest"
 
 | Profile | Covers | Last checked |
 | --- | --- | --- |
-| [php-2026-10-21.md](profiles/php-2026-10-21.md) | CVE-2026-109618 and CVE-2026-109619 (PHP RCE via OOM corruption and stale global state), plus the 2026-10-23 informational note for CVE-2026-115560: fixed builds, exposure per SAPI, interim measures, closure evidence | 2026-10-25 |
+| [php-2026-10-21.md](profiles/php-2026-10-21.md) | CVE-2026-109618 and CVE-2026-109619 (PHP RCE via OOM corruption and stale global state), plus the 2026-10-23 informational note for CVE-2026-115560: fixed builds, per-layer checks, interim measures, Unit 42 retraction | 2026-10-26 |
 | [railway-2026-10-21.md](profiles/railway-2026-10-21.md) | Possible exposure of environment variables stored on Railway: inventory, rotation, revocation and misuse review | 2026-10-25 |
 | [emudhra-2026-10-17.md](profiles/emudhra-2026-10-17.md) | Compromised eMudhra intermediate CA keys: which clients and trust stores still accept the chains, per OS and runtime, and how to prove they no longer do | 2026-10-25 |
 | [brotli-2026-10-21.md](profiles/brotli-2026-10-21.md) | CVE-2026-111497 Brotli decoder write (Node, Bun, Python wheels, Envoy/Istio, system libbrotli): bundled copies that lockfile scanners miss | 2026-10-25 |
 | [litellm-2026-10-21.md](profiles/litellm-2026-10-21.md) | Hijacked `litellm` wheels and images (`1.107.0`, `1.82.7`, `1.82.8`), plus the generic rule that a key committed in public is live until the provider revokes it | 2026-10-25 |
+| [mesh-vpn-ssh-2026-10-25.md](profiles/mesh-vpn-ssh-2026-10-25.md) | Mesh VPN SSH and privileged forwarding (Tailworm / Tailscale SSH, Headscale, ZeroTier, NetBird): no CVE or fixed build at last check | 2026-10-26 |
+| [lightning-ai-2026-10-16.md](profiles/lightning-ai-2026-10-16.md) | Hosted notebook and model platforms that store provider keys (Lightning AI Studio as the dated example): rotate-and-verify-revoked | 2026-10-26 |
 
 To add one, copy an existing profile, cite primary sources only, and name it `<topic>-<yyyy-mm-dd>.md`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -155,7 +157,7 @@ python3 -B -m unittest discover -s tests
 
 ### What each script proves and does not prove
 
-- **`inventory.py`** reads files and lists what it finds: manifests and lockfiles (nested, test-like and vendored ones marked), Dockerfiles, listeners, PHP runtime hints, other runtime hints and pin files, SBOMs, install hooks, CI action pinning, agent instruction files, secret-shaped values and leftover artifacts.
+- **`inventory.py`** reads files and lists what it finds: manifests and lockfiles (nested, test-like and vendored ones marked), Dockerfiles, listeners, PHP runtime hints (official `php` / `php-fpm` images, distro packages, composer `php` constraints), other runtime hints and pin files, mesh VPN hints (Tailscale / Headscale / ZeroTier / NetBird), SBOMs, install hooks, CI action pinning, agent instruction files, secret-shaped values and leftover artifacts.
   - It never executes repository code and never follows symlinks. It walks by directory handle, so a directory swapped mid-walk shows up as a coverage gap.
   - Secrets are reported by location only, never by value.
   - Symlinked, binary, special, oversized and excluded content (including `.git/`) makes coverage `PARTIAL`, and `--strict` exits 3. The only exception is content a human accepts with `--accept-exclusion 'PATTERN=REASON'`, which is recorded and still unscanned.

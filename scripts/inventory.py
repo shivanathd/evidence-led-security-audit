@@ -107,14 +107,32 @@ USES_RE = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+)")
 NGINX_LISTEN = re.compile(r"^\s*listen\s+([^;]+);")
 FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
-PHP_SAPI_PKG = re.compile(r"\b(php\d*(?:\.\d+)?-fpm|php\d*-fpm|libapache2-mod-php\S*|php\d*-cgi|lsphp\d*|frankenphp)\b", re.IGNORECASE)
+# Serving PHP packages and official images. Bare "php" plus a letter
+# (phpmyadmin, phpunit, phpstan) is not a match; a version or SAPI suffix is.
+PHP_SAPI_PKG = re.compile(
+    r"(?i)\b(php-fpm|php\d+(?:\.\d+)?(?:-fpm|-cli|-cgi|-common)?|"
+    r"libapache2-mod-php\S*|lsphp\d*|frankenphp)\b"
+)
 # Path-segment match: name is a whole image path component. Delimiters are
 # :, / or @ (or end). A trailing hyphen is not a delimiter, so
-# prom/node-exporter, python-builder and myorg/python-app do not match.
+# prom/node-exporter, python-builder, myorg/python-app and phpmyadmin do not match.
 RUNTIME_IMAGE = re.compile(
     r"(?i)(?:^|/)(?:node(?:js)?|javascript-node|bun|python|"
-    r"envoy(?:proxy)?|istio|nginx(?:inc)?|openresty)(?:[:/@]|$)"
+    r"envoy(?:proxy)?|istio|nginx(?:inc)?|openresty|"
+    r"php(?:-fpm)?)(?:[:/@]|$)"
 )
+PHP_IMAGE = re.compile(r"(?i)(?:^|/)(?:php(?:-fpm)?)(?:[:/@]|$)")
+MESH_VPN_IMAGE = re.compile(
+    r"(?i)(?:^|/)(?:tailscale|headscale|zerotier|netbird(?:io)?)(?:[:/@]|$)"
+)
+MESH_VPN_PKG = re.compile(r"(?i)\b(tailscale|headscale|zerotier(?:-one)?|netbird)\b")
+MESH_VPN_SERVICES = frozenset({"tailscale", "headscale", "zerotier", "netbird"})
+MESH_VPN_PATH_PARTS = frozenset({"tailscale", "headscale", "zerotier", "zerotier-one", "netbird"})
+MESH_VPN_FILENAMES = frozenset({
+    "acl.hujson", "acl.json", "acl.js", "policy.hujson",
+    "headscale.yaml", "headscale.yml", "tailscale-acl.json", "tailnet-acl.json",
+    "tailnet-policy.json", "netbird.yml", "netbird.yaml",
+})
 RUNTIME_PIN_FILES = {
     ".nvmrc": "node", ".node-version": "node", ".python-version": "python",
     ".ruby-version": "ruby", ".bun-version": "bun", ".tool-versions": "asdf",
@@ -135,8 +153,35 @@ DEV_SERVER_CONFIG_RE = re.compile(r"^(?:vite|vitest|webpack)\.config\.[cm]?[jt]s
 
 
 def is_runtime_image(ref):
-    """True when a FROM ref looks like a Node, Python, Bun, Envoy, Istio or nginx-family image."""
+    """True when a FROM ref looks like a Node, Python, Bun, Envoy, Istio, nginx-family or official PHP image."""
     return bool(ref) and bool(RUNTIME_IMAGE.search(ref))
+
+
+def is_php_image(ref):
+    """True for official php / php-fpm image refs, not phpmyadmin or php-app names."""
+    if not ref:
+        return False
+    lower = ref.lower()
+    if "frankenphp" in lower or "litespeed" in lower:
+        return True
+    return bool(PHP_IMAGE.search(ref))
+
+
+def is_mesh_vpn_image(ref):
+    """True for Tailscale, Headscale, ZeroTier or NetBird image refs."""
+    return bool(ref) and bool(MESH_VPN_IMAGE.search(ref))
+
+
+def is_php_package_token(token):
+    """True for distro PHP runtime packages (php8.3, php-fpm, apk php83), not phpmyadmin."""
+    return bool(token) and bool(PHP_SAPI_PKG.search(token))
+
+
+def _looks_like_mesh_policy(text):
+    """HuJSON/JSON that has an ssh block plus Tailscale/Headscale policy keys."""
+    if not text:
+        return False
+    return '"ssh"' in text and any(key in text for key in ('"acls"', '"grants"', '"nodeAttrs"', '"groups"'))
 
 
 def _is_sbom(name):
@@ -181,7 +226,7 @@ class Inventory:
         self.files_read = 0
         self.max_reached = False
         self.out = {k: [] for k in ("manifests", "containers", "listeners", "php_runtime_hints", "runtime_hints",
-                                    "runtime_pins", "sboms", "dev_server_hints", "install_hooks",
+                                    "runtime_pins", "sboms", "dev_server_hints", "mesh_vpn_hints", "install_hooks",
                                     "ci_workflows", "agent_instruction_files", "secret_candidates",
                                     "sensitive_filenames", "sidecar_artifacts", "symlinks")}
 
@@ -273,6 +318,7 @@ class Inventory:
             self.out["install_hooks"].append({"path": rel, "hook": "developer git hook configuration"})
         if name == ".user.ini":
             self.out["php_runtime_hints"].append({"path": rel, "line": 0, "hint": ".user.ini present: applied after request startup, so it is not an early-config mitigation"})
+        self._mesh_vpn_name(rel, name)
 
     def _scan_text(self, rel, name, text):
         for pattern, start, _end in textscan.find_secrets(text):
@@ -297,8 +343,11 @@ class Inventory:
         if name == "composer.json":
             self._json_hooks(rel, text, "scripts", COMPOSER_HOOKS)
             self._composer_php(rel, text)
+        if name == "composer.lock":
+            self._composer_lock_php(rel, text)
         if name in LOCKFILES and LOCKFILES[name] == "npm":
             self._dev_server_lockfile(rel, text)
+        self._mesh_vpn_text(rel, name, text)
         if DEV_SERVER_CONFIG_RE.match(name):
             self._dev_server_config(rel, lines)
         if lower.endswith(".php"):
@@ -314,12 +363,17 @@ class Inventory:
                 ref = m.group(1)
                 if ref.lower() != "scratch" and ref not in stages:
                     froms.append({"line": i + 1, "image": ref, "pinned_digest": "@sha256:" in ref})
-                    if re.match(r"(?:[\w.-]+/)*php:", ref) or "frankenphp" in ref or "litespeed" in ref:
+                    if is_php_image(ref):
                         self.out["php_runtime_hints"].append({"path": rel, "line": i + 1, "hint": "PHP base image %s (tag is a hint, not runtime proof)" % ref})
                     elif is_runtime_image(ref):
                         self.out["runtime_hints"].append({
                             "path": rel, "line": i + 1,
                             "hint": "runtime or proxy base image %s (tag is a hint, not runtime proof)" % ref,
+                        })
+                    if is_mesh_vpn_image(ref):
+                        self.out["mesh_vpn_hints"].append({
+                            "path": rel, "line": i + 1,
+                            "hint": "mesh VPN base image %s (tag is a hint, not runtime proof)" % ref,
                         })
                 if m.group(2):
                     stages.add(m.group(2))
@@ -330,8 +384,20 @@ class Inventory:
                     self.out["listeners"].append({"path": rel, "line": i + 1, "source": "EXPOSE", "value": port})
             if re.match(r"^\s*USER\s+", ln, re.IGNORECASE):
                 user = ln.split(None, 1)[1].strip() if len(ln.split(None, 1)) > 1 else ""
-            for pm in PHP_SAPI_PKG.finditer(ln):
-                self.out["php_runtime_hints"].append({"path": rel, "line": i + 1, "hint": "package or SAPI reference %s" % pm.group(1)})
+            if not ln.lstrip().startswith("#"):
+                for pm in PHP_SAPI_PKG.finditer(ln):
+                    self.out["php_runtime_hints"].append({"path": rel, "line": i + 1, "hint": "package or SAPI reference %s" % pm.group(1)})
+                if re.match(r"^\s*RUN\s+", ln, re.IGNORECASE):
+                    seen = []
+                    for pm in MESH_VPN_PKG.finditer(ln):
+                        name = pm.group(1).lower()
+                        if name in seen:
+                            continue
+                        seen.append(name)
+                        self.out["mesh_vpn_hints"].append({
+                            "path": rel, "line": i + 1,
+                            "hint": "Dockerfile installs mesh VPN package %s (install line; not runtime proof)" % pm.group(1),
+                        })
         self.out["containers"].append({"path": rel, "from": froms, "expose": expose,
                                        "user": user if user is not None else "not set (defaults to image user, often root)"})
 
@@ -341,6 +407,18 @@ class Inventory:
             if not ln.strip() or ln.strip().startswith("#"):
                 continue
             indent = len(ln) - len(ln.lstrip())
+            svc = re.match(r"^(\s*)([A-Za-z0-9._-]+):\s*$", ln)
+            if svc and svc.group(2).lower() in MESH_VPN_SERVICES:
+                self.out["mesh_vpn_hints"].append({
+                    "path": rel, "line": i + 1,
+                    "hint": "compose service %s (service name; confirm the image and whether the daemon is enabled)" % svc.group(2),
+                })
+            img = re.match(r"^\s*image:\s*['\"]?([^'\"\s#]+)", ln)
+            if img and is_mesh_vpn_image(img.group(1)):
+                self.out["mesh_vpn_hints"].append({
+                    "path": rel, "line": i + 1,
+                    "hint": "compose mesh VPN image %s (tag is a hint, not runtime proof)" % img.group(1),
+                })
             if re.match(r"^\s*ports:\s*$", ln):
                 ports_indent = indent
                 continue
@@ -457,9 +535,54 @@ class Inventory:
             doc = json.loads(text)
         except ValueError:
             return
-        req = doc.get("require") if isinstance(doc, dict) else None
-        if isinstance(req, dict) and isinstance(req.get("php"), str):
-            self.out["php_runtime_hints"].append({"path": rel, "line": 0, "hint": "composer requires php %s (source constraint, not runtime proof)" % req["php"]})
+        if not isinstance(doc, dict):
+            return
+        for key in ("require", "require-dev"):
+            block = doc.get(key)
+            if isinstance(block, dict) and isinstance(block.get("php"), str):
+                self.out["php_runtime_hints"].append({
+                    "path": rel, "line": 0,
+                    "hint": "composer.json %s.php %s (source constraint, not runtime proof)" % (key, block["php"]),
+                })
+        cfg = doc.get("config")
+        platform = cfg.get("platform") if isinstance(cfg, dict) else None
+        if isinstance(platform, dict) and isinstance(platform.get("php"), str):
+            self.out["php_runtime_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "composer.json config.platform.php %s (source constraint, not runtime proof)" % platform["php"],
+            })
+
+    def _composer_lock_php(self, rel, text):
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return
+        if not isinstance(doc, dict):
+            return
+        for key in ("platform", "platform-overrides"):
+            block = doc.get(key)
+            if isinstance(block, dict) and isinstance(block.get("php"), str):
+                self.out["php_runtime_hints"].append({
+                    "path": rel, "line": 0,
+                    "hint": "composer.lock %s.php %s (lock constraint, not runtime proof)" % (key, block["php"]),
+                })
+
+    def _mesh_vpn_name(self, rel, name):
+        parts = {p.lower() for p in PurePosixPath(rel).parts}
+        if parts & MESH_VPN_PATH_PARTS or name.lower() in MESH_VPN_FILENAMES:
+            self.out["mesh_vpn_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "mesh VPN config or policy path (filename or directory; not runtime proof)",
+            })
+
+    def _mesh_vpn_text(self, rel, name, text):
+        if _looks_like_mesh_policy(text):
+            if any(h["path"] == rel and "ssh policy" in h["hint"] for h in self.out["mesh_vpn_hints"]):
+                return
+            self.out["mesh_vpn_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "exported mesh / Tailscale-style ssh policy (file contents; confirm it is the live policy)",
+            })
 
     def result(self, label, target):
         partial_reasons = sorted(self.gaps)
