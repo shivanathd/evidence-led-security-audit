@@ -1,6 +1,6 @@
 # Optional profile: developer-endpoint threats briefing of 2026-10-27
 
-Last checked: 2026-10-27. This profile is a dated snapshot, not a standing rule. On every run, re-read the primary sources below and record their `retrieved_on` dates. If a source has changed, the source wins and this file is out of date.
+Last checked: 2026-10-27. This profile is a dated snapshot, not a standing rule. On every run, re-read the primary sources below and record their `retrieved_on` dates. If a source has changed, the source wins and this file is out of date. `host_checks.py` does not fetch sources; fragments stamp `retrieved_on` with this briefing date until a human corrects it.
 
 This profile is the dated fact base for `scripts/host_checks.py`. How the checks run, what they read on each OS, and their limits are in [references/host-checks.md](../references/host-checks.md). Fleet-scale collection is in [references/endpoint-fleet.md](../references/endpoint-fleet.md). Older profiles go deeper on some of the same incidents: [litellm](litellm-2026-10-21.md), [brotli](brotli-2026-10-21.md), [emudhra](emudhra-2026-10-17.md), [php](php-2026-10-21.md), [railway](railway-2026-10-21.md) and [lightning-ai](lightning-ai-2026-10-16.md).
 

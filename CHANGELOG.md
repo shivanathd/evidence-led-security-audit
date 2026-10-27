@@ -14,7 +14,9 @@
 
 - Tests for the POSIX-only helpers (`inventory.py`, `check_public_package.py`, `render_report.py --out`) are skipped where those helpers exit BLOCKED, so the suite runs on Windows.
 - Briefing source hosts added to the reviewed public-host list used by the leak scanner.
-- Host path helpers treat POSIX `/home/...` locators the same on every OS, keep simulated PATH entries that already sit under `sysroot`, and de-duplicate `Lib`/`lib` site-packages on case-folding volumes.
+- Host path helpers treat POSIX `/home/...` locators the same on every OS, keep simulated PATH entries that already sit under `sysroot`, and de-duplicate `Lib`/`lib` site-packages on case-folding volumes. `display()` redacts the original locator before POSIX `abspath` of a drive-prefixed `/home` path.
+- `py_pins` ignores `#`-comments so a commented pin is not treated as installed.
+- `pe_file_version` still scans the head of a file larger than the read window (the tail-only pass used to abort).
 
 ## 0.2.x - 2026-10-25 to 2026-10-26
 

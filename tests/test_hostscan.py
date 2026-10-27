@@ -217,17 +217,23 @@ class Parsers(unittest.TestCase):
     def test_py_pins(self):
         text = "LiteLLM[proxy]==1.107.0\nbrotli>=1.1\ncertifi\n# litellm==9\n"
         found = hs.py_pins(text, "requirements.txt", {"litellm", "brotli", "certifi"})
-        self.assertIn("1.107.0", found["litellm"])
+        self.assertEqual(found["litellm"], {"1.107.0"})
         self.assertEqual(found["brotli"], {"spec:>=1.1"})
         self.assertEqual(found["certifi"], {"spec:unpinned"})
         lock = '[[package]]\nname = "litellm"\nversion = "1.106.2"\n'
         self.assertEqual(hs.py_pins(lock, "uv.lock", {"litellm"}), {"litellm": {"1.106.2"}})
+        self.assertEqual(hs.py_pins("# litellm==1.107.0\nRUN pip install litellm==1.106.2\n",
+                                   "dockerfile", {"litellm"}), {"litellm": {"1.106.2"}})
         self.assertEqual(hs.cargo_lock_versions('[[package]]\nname = "wasmtime"\nversion = "48.0.6"\n', {"wasmtime"}),
                          {"wasmtime": {"48.0.6"}})
 
     def test_pe_and_go_and_plist(self):
         self.assertEqual(hs.pe_file_version(self.put("a.dll", hostfix.pe_with_version(hostfix.dotted(8, 4, 27, 0)))), hostfix.dotted(8, 4, 27, 0))
         self.assertIsNone(hs.pe_file_version(self.put("b.dll", b"MZ" + b"\x00" * 100)))
+        # Version in the head of a file larger than the scan window: tail-only would miss it.
+        head_only = hostfix.pe_with_version(hostfix.dotted(8, 4, 27, 0), pad=48)
+        self.assertGreater(len(head_only), 80)
+        self.assertEqual(hs.pe_file_version(self.put("head.dll", head_only), limit=80), hostfix.dotted(8, 4, 27, 0))
         self.assertEqual(hs.go_main_module(self.put("ovh", hostfix.go_with_buildinfo("github.com/ovh/ovhcloud-cli", "v0.13.0"))),
                          ("github.com/ovh/ovhcloud-cli", "v0.13.0"))
         self.assertIsNone(hs.go_main_module(self.put("plain", b"\x7fELF" + b"\x00" * 100)))

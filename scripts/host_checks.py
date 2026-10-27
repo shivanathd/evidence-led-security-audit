@@ -335,16 +335,21 @@ class Host:
                 return m.group(1) + ":" + (m.group(2) or "/")
             return rel or "/"
         # Config locators may be POSIX or drive-prefixed and not on this host.
-        # Redact both the abspath form (Windows turns "/home/..." into "D:/home/...")
-        # and the original string. Do not treat "X:/Users/..." as /home here.
-        for candidate in (p.replace("\\", "/"), raw.replace("\\", "/")):
-            redacted = re.sub(r"(?i)^[A-Z]:/home/[^/]+", "/<home>", candidate)
-            redacted = re.sub(r"^/(?:Users|home)/[^/]+", "/<home>", redacted)
-            if redacted != candidate:
-                return redacted
-        p = p.replace("\\", "/")
-        p = re.sub(r"(?i)^([A-Z]:/Users/)[^/]+", r"\1<user>", p)
-        return p
+        # Redact the original string first. On POSIX, abspath("D:/home/...") is a
+        # cwd-relative path under the runner home and would otherwise redact the
+        # runner's /home instead of the locator. Do not treat "X:/Users/..." as
+        # /home here.
+        original = raw.replace("\\", "/")
+        redacted = re.sub(r"(?i)^[A-Z]:/home/[^/]+", "/<home>", original)
+        redacted = re.sub(r"^/(?:Users|home)/[^/]+", "/<home>", redacted)
+        if redacted != original:
+            return redacted
+        candidate = p.replace("\\", "/")
+        redacted = re.sub(r"(?i)^[A-Z]:/home/[^/]+", "/<home>", candidate)
+        redacted = re.sub(r"^/(?:Users|home)/[^/]+", "/<home>", redacted)
+        if redacted != candidate:
+            return redacted
+        return re.sub(r"(?i)^([A-Z]:/Users/)[^/]+", r"\1<user>", candidate)
 
     # -- cached collectors -------------------------------------------------
     def cached(self, key, fn):
@@ -2421,7 +2426,8 @@ def report_fragments(doc, target, collected_on):
     return {
         "note": "Merge into the report. NOT_APPLICABLE needs a human approved_by_role; dependency-layer PASS also needs "
                 "inventory_manifests and covers from inventory.py. Sources are the briefing's links dated "
-                + BRIEFING_DATE + "; re-read primary advisories before closing findings.",
+                + BRIEFING_DATE + " (this tool does not fetch them); a human must re-read primary "
+                "advisories and correct retrieved_on before closing findings.",
         "sources": [sources[k] for k in sorted(sources)], "evidence": evidence, "required_checks": checks}
 
 

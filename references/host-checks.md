@@ -40,7 +40,7 @@ Allowlist format. Every entry needs a `reason` and at least one of `path_glob`, 
 Each check ends as `PASS`, `FAIL`, `BLOCKED` or `NOT_APPLICABLE`. Each finding is `affected`, `review`, `unknown` or `info`.
 
 - **FAIL**: at least one `affected` or `review` finding.
-- **BLOCKED**: a file it needed could not be read, the walk ran out of time or entries, or (for trust stores) no store could be read. The reason says which.
+- **BLOCKED**: the check recorded a blocked reason, a present component's version or state could not be read without executing it, the walk ran out of time or entries, or (for trust stores) no store could be read. The reason says which. An unreadable file is a gap; it only BLOCKS if that check needed the file.
 - **PASS**: for the indicator checks (planted hooks, large blobs, planted instruction files, `testmetest`, `function-color`, LiteLLM 1.107.0), PASS means "searched the listed roots and found none". For version checks, PASS means the component was found and every copy is fixed.
 - **NOT_APPLICABLE**: the component was not found. A missing tool is "not present", not an error. In a report, NOT_APPLICABLE still needs a human `approved_by_role`.
 
@@ -66,7 +66,7 @@ Per the briefing, the worm wipes the home folder if its stolen GitHub token is r
 
 ## Coverage by OS
 
-Every check reads the walked roots (default: home) on every OS. The table lists the extra places each check reads per OS. "Walk" means project files found under the roots: lockfiles, manifests, Dockerfiles, compose files and deploy YAML.
+The walk (default: home) indexes project files under `--root`: lockfiles, manifests, Dockerfiles, compose files and deploy YAML. The table lists extra places each check reads per OS. Browser, package, trust-store and binary lookups use those fixed locations; they are not limited to `--root`.
 
 | Check | macOS | Linux | Windows |
 | --- | --- | --- | --- |
@@ -97,7 +97,7 @@ Every check reads the walked roots (default: home) on every OS. The table lists 
 - **Hook scripts.** In a repository's AI tool folder, files in `hooks/` folders, hook keys in settings JSON, scripts with a script extension and executable files are all reported. An extensionless, non-executable file outside `hooks/` is not reported on its own, but the hook config that runs it is.
 - **Plugin caches** under `~/.cursor/plugins`, `~/.claude/plugins` and editor `extensions/` folders are not walked. They are vendor-managed and large; review them through the editor.
 - **Windows PHP rebuild suffix.** A `-1` rebuild suffix is not visible in the DLL version resource, so a Windows build exactly at a fixed version is a `review` rather than a PASS.
-- **Depth and roots.** Anything deeper than `--max-depth` or outside `--root` is not seen. Depth misses are counted and named in the reason; they do not make the check FAIL.
+- **Depth and roots.** The walk does not see anything deeper than `--max-depth` or outside `--root`. Depth misses are counted and named in the reason; they do not make the check FAIL. Browser, package, trust-store and binary lookups still use the fixed locations in the table.
 - **Large blobs.** LFS-tracked files in the size band are `info`, not `review`. A payload committed under an LFS pattern is therefore not flagged as `review`; check LFS objects nobody expected by hand.
 - **CVE-2026-40369** is unconfirmed in the briefing. `browser-versions` lists versions only and never says "affected".
 - **Not covered here:** anything needing network scanning or admin consoles. See the skipped list in the profile.

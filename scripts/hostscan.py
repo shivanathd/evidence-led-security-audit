@@ -512,6 +512,8 @@ def py_pins(text, kind, wanted):
                 if isinstance(val, dict) and isinstance(val.get("version"), str):
                     add(name, val["version"].lstrip("="))
         return found
+    # Drop #-comments so "# litellm==1.107.0" is not treated as a pin.
+    text = "\n".join(line.split("#", 1)[0] for line in text.splitlines())
     for m in re.finditer(r"(?im)(?<![^\s\"',\[])([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^\]]*\])?\s*(===?|~=|>=|<=|!=|>|<)?"
                          r"\s*([0-9][0-9A-Za-z.+!*-]*)?", text):
         name, op, ver = m.group(1), m.group(3), m.group(4)
@@ -540,10 +542,11 @@ def cargo_lock_versions(text, wanted):
 
 def pe_file_version(path, limit=16 * 1024 * 1024):
     """FileVersion from a Windows PE VS_FIXEDFILEINFO block, scanning the head and tail of the file."""
-    for tail in (True, False):
-        data = read_bytes(path, limit, tail=tail)
+    # read_bytes(tail=False) returns None for oversized files. The version
+    # resource often sits in the head, so the head pass uses _read_head.
+    for data in (read_bytes(path, limit, tail=True), _read_head(path, limit)):
         if not data:
-            return None
+            continue
         i = data.find(b"\xbd\x04\xef\xfe")
         while i != -1 and i + 16 <= len(data):
             _sig, _struc, ms, ls = struct.unpack_from("<IIII", data, i)
