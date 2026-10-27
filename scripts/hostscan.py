@@ -670,6 +670,13 @@ def git_index_entries(gitdir, limit=64 * 1024 * 1024):
     data = read_bytes(os.path.join(gitdir, "index"), limit)
     if not data or data[:4] != b"DIRC":
         return None if data is None else {}
+    try:
+        return _parse_git_index(data)
+    except (ValueError, struct.error, IndexError):
+        return None
+
+
+def _parse_git_index(data):
     version, count = struct.unpack_from(">II", data, 4)
     if version not in (2, 3, 4):
         return None
@@ -750,15 +757,12 @@ def git_large_blobs(gitdir, lo, hi, budget, max_objects=5_000_000, gaps=None):
             if gaps:
                 gaps.add("unparsed", os.path.join(packdir, name), "pack index not version 2")
             continue
-        n = struct.unpack_from(">I", idx, 8 + 255 * 4)[0]
-        names_at, offs_at = 8 + 256 * 4, 8 + 256 * 4 + n * 20 + n * 4
-        large_at = offs_at + n * 4
-        offsets = []
-        for k in range(n):
-            off = struct.unpack_from(">I", idx, offs_at + k * 4)[0]
-            if off & 0x80000000:
-                off = struct.unpack_from(">Q", idx, large_at + (off & 0x7FFFFFFF) * 8)[0]
-            offsets.append((off, idx[names_at + k * 20:names_at + k * 20 + 20].hex()))
+        try:
+            offsets = _pack_offsets(idx)
+        except (struct.error, IndexError):
+            if gaps:
+                gaps.add("unparsed", os.path.join(packdir, name), "pack index truncated")
+            continue
         offsets.sort()
         pack_size = lstat(pack).st_size
         try:
@@ -806,6 +810,19 @@ def git_large_blobs(gitdir, lo, hi, budget, max_objects=5_000_000, gaps=None):
         finally:
             os.close(fd)
     return results, True
+
+
+def _pack_offsets(idx):
+    n = struct.unpack_from(">I", idx, 8 + 255 * 4)[0]
+    names_at, offs_at = 8 + 256 * 4, 8 + 256 * 4 + n * 20 + n * 4
+    large_at = offs_at + n * 4
+    offsets = []
+    for k in range(n):
+        off = struct.unpack_from(">I", idx, offs_at + k * 4)[0]
+        if off & 0x80000000:
+            off = struct.unpack_from(">Q", idx, large_at + (off & 0x7FFFFFFF) * 8)[0]
+        offsets.append((off, idx[names_at + k * 20:names_at + k * 20 + 20].hex()))
+    return offsets
 
 
 def _read_head(path, n):

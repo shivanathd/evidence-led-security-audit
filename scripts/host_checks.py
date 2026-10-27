@@ -1346,7 +1346,7 @@ def check_large_blobs(host, r):
                 res, why = "info", "allowlisted: %s" % reason
             elif is_lfs:
                 res, why = "info", "matches a Git LFS pattern in .gitattributes"
-            elif in_window and where != "untracked working-tree file":
+            elif in_window:
                 res, why = "review", "about the size of the reported ~13 MB payload; not confirmed as added by the owner"
             else:
                 res, why = "info", "large file outside the review window"
