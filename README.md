@@ -33,7 +33,7 @@ npx skills add shivanathd/evidence-led-security-audit -a claude-code -g
 
 Or clone the repository into your agent's skills directory (for Claude Code, `~/.claude/skills/`). Keep the folder name `evidence-led-security-audit`.
 
-**Requirements:** Python 3.9 or newer, standard library only. Nothing to install, no network calls. The file helpers need macOS or Linux; on other hosts they stop with `BLOCKED` instead of running with weaker checks.
+**Requirements:** Python 3.9 or newer, standard library only. Nothing to install, no network calls. `host_checks.py` runs on macOS, Linux and Windows. The other file helpers need macOS or Linux; on other hosts they stop with `BLOCKED` instead of running with weaker checks.
 
 ## Use it
 
@@ -43,6 +43,7 @@ Ask your agent in plain language and name what you own:
 - *"Our app ran on Railway. Work out which secrets were exposed and build the rotation and revocation checklist."*
 - *"I manage our Macs, Linux servers and Windows laptops. Which of them still trust the compromised eMudhra intermediates? Read-only, through our MDM."*
 - *"Here's the patched build. Retest it against last week's baseline report."*
+- *"Check this laptop for the October 27 briefing items: planted agent hooks, LiteLLM 1.107.0, old Node and certifi. Read-only."*
 
 The agent then:
 
@@ -116,7 +117,9 @@ A tag is not a digest, and `php -v` on the CLI says nothing about the web server
 
 ## Endpoints and fleets
 
-For laptops and servers, [endpoint-fleet.md](references/endpoint-fleet.md) gives read-only checks for macOS, Linux distros, Windows and containers (OS build, installed packages, bundled native libraries, known-bad package versions, listening services, certificate trust stores, Java runtimes) and explains how to collect them at scale through an MDM, osquery or configuration management in check mode. Devices that don't report count as gaps, not as clean. The bundled Python helpers don't run on Windows, so Windows evidence is collected with PowerShell and checked elsewhere.
+For laptops and servers, [endpoint-fleet.md](references/endpoint-fleet.md) gives read-only checks for macOS, Linux distros, Windows and containers (OS build, installed packages, bundled native libraries, known-bad package versions, listening services, certificate trust stores, Java runtimes) and explains how to collect them at scale through an MDM, osquery or configuration management in check mode. Devices that don't report count as gaps, not as clean.
+
+For the machine you are on, `scripts/host_checks.py` runs 33 read-only checks from the 2026-10-27 developer-endpoint briefing on macOS, Linux and Windows. It covers planted AI-tool hooks and 13 MB payload blobs from the testmetest worm, planted `AGENTS.md`/`CLAUDE.md` files, unexpected MCP servers and base URLs in coding-agent configs, `function-color`, LiteLLM 1.107.0, Brotli CVE-2026-111497 in Node, Python and .NET, certifi and eMudhra roots, Chrome 156, PHP2Shell and more. It reads metadata only, never runs the programs it checks, and prints the testmetest clean-up order (clean the machine first, then revoke the token) without doing either. See [host-checks.md](references/host-checks.md) for per-OS coverage and limits. The other bundled helpers don't run on Windows, so collect other Windows evidence with PowerShell and check it elsewhere.
 
 ## Incident profiles
 
@@ -131,6 +134,7 @@ Profiles are dated starting points for specific incidents. They are not "latest"
 | [litellm-2026-10-21.md](profiles/litellm-2026-10-21.md) | Hijacked `litellm` wheels and images (`1.107.0`, `1.82.7`, `1.82.8`), plus the generic rule that a key committed in public is live until the provider revokes it | 2026-10-25 |
 | [mesh-vpn-ssh-2026-10-25.md](profiles/mesh-vpn-ssh-2026-10-25.md) | Mesh VPN SSH and privileged forwarding (Tailworm / Tailscale SSH, Headscale, ZeroTier, NetBird): no CVE or fixed build at last check | 2026-10-26 |
 | [lightning-ai-2026-10-16.md](profiles/lightning-ai-2026-10-16.md) | Hosted notebook and model platforms that store provider keys (Lightning AI Studio as the dated example): rotate-and-verify-revoked | 2026-10-26 |
+| [dev-endpoint-2026-10-27.md](profiles/dev-endpoint-2026-10-27.md) | Developer-endpoint briefing behind `host_checks.py`: testmetest worm, planted agent files, LiteLLM, Brotli, eMudhra, Chrome 156, PHP2Shell and the "check if we use it" items, with skipped items and reasons | 2026-10-27 |
 
 To add one, copy an existing profile, cite primary sources only, and name it `<topic>-<yyyy-mm-dd>.md`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -149,6 +153,7 @@ python3 scripts/validate_report.py assets/examples/after-fix-report.json --basel
 python3 scripts/render_report.py assets/examples/baseline-report.json --out "$OUT/baseline.md"
 python3 scripts/render_report.py assets/examples/after-fix-report.json --baseline assets/examples/baseline-report.json --out "$OUT/after-fix.md"
 python3 scripts/inventory.py assets --target service-a-repo --out "$OUT/inventory.json"
+python3 scripts/host_checks.py --root assets --only litellm-1-107-0 --out "$OUT/host-checks.json"
 python3 scripts/check_public_package.py .
 python3 -B -m unittest discover -s tests
 ```
@@ -171,6 +176,11 @@ python3 -B -m unittest discover -s tests
 
   It cannot tell whether the evidence is real. `--public` adds leak rules and withholds the matched text. Without it, the validator prints `PUBLIC_SCAN_NOT_RUN`.
 - **`render_report.py`** turns a valid report into Markdown, treating all report data as plain text. It redacts URL credentials, private-key blocks and token shapes, refuses reports that contain secret-shaped values, and never overwrites a file without `--force`.
+- **`host_checks.py`** checks the machine it runs on for the 2026-10-27 briefing items (see [host-checks.md](references/host-checks.md)).
+  - It reads files, the Windows registry and two read-only listings (`rpm -qa`, macOS `security find-certificate`). It never runs audited programs or git, and makes no network calls.
+  - Config values are reduced to names and hosts and then redacted; secret values never reach the output.
+  - The walk skips `node_modules` and caches, never follows symlinks, and is bounded by depth, entries and time. Anything it could not read makes the check BLOCKED or coverage PARTIAL.
+  - Versions come from metadata, so a binary with false metadata is not detected.
 - **`check_public_package.py`** looks for things that should not be published: secret-shaped strings, non-reserved hosts, emails, IP addresses, account-like IDs, home paths, hooks, symlinks and caches. Pass your own private terms with `--denylist` (keep that file outside the package). Extra public hosts come only from a reviewed `--host-policy` file, and any override returns `NEEDS_REVIEW`. A clean run means no rule matched; it does not prove the package is free of private data.
 
 Host policy format (the same file works for `validate_report.py --public --host-policy`):
@@ -192,7 +202,7 @@ Host policy format (the same file works for `validate_report.py --public --host-
 - The machine-checked deployed-fix chain is image-based: source commit, build revision, image digest, runtime observation. For bare-metal or managed services, collect the real package and runtime evidence and report closure as incomplete; do not invent a digest to make validation pass.
 - The required layers per target are a floor, not a full checklist. Add the checks the engagement needs before work starts.
 - The validator enforces the inventory it is given. A reviewer still compares the report's inventory record with the raw inventory output.
-- Tested on Linux and on macOS with Python 3.9 and 3.14. Windows is not supported by the file helpers. See [VALIDATION.md](VALIDATION.md).
+- CI runs on Ubuntu (Python 3.9 and 3.14), macOS (3.14) and Windows (3.9 and 3.14). On Windows only `host_checks.py` and `validate_report.py` run; the other file helpers stop with BLOCKED. See [VALIDATION.md](VALIDATION.md).
 
 ## Repository layout
 
@@ -203,8 +213,9 @@ Host policy format (the same file works for `validate_report.py --public --host-
 | `profiles/` | Dated incident profiles |
 | `assets/report.schema.json` | Report structure |
 | `assets/examples/` | Synthetic baseline and after-fix reports (`service-a`, `example.invalid`) |
-| `scripts/` | `inventory.py`, `validate_report.py`, `render_report.py`, `check_public_package.py` |
-| `tests/` | Standard-library unit tests and an adversarial corpus of 69 bad reports |
+| `scripts/` | `inventory.py`, `validate_report.py`, `render_report.py`, `check_public_package.py`, `host_checks.py` (with `hostscan.py`) |
+| `tests/` | Standard-library unit tests, simulated-host fixtures for every host check, and an adversarial corpus of 69 bad reports |
+| `CHANGELOG.md` | Release notes |
 
 ## Contributing and security
 

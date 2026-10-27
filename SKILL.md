@@ -2,9 +2,9 @@
 name: evidence-led-security-audit
 description: "Read-only, evidence-backed security audit of systems you may assess. Use when asked whether a system is affected by a CVE or breach (PHP RCEs, leaked platform secrets), to audit a repo, image, server, device fleet or SaaS tenant, or to write a fix-and-retest report with honest coverage gaps."
 license: MIT
-compatibility: "Any agent that reads SKILL.md; no connector, model provider, hook or scheduler needed. Helpers use the Python 3.9+ stdlib with no network; file helpers need Linux or macOS, else they stop with BLOCKED."
+compatibility: "Any agent that reads SKILL.md; no connector, model provider, hook or scheduler needed. Helpers use the Python 3.9+ stdlib with no network; host_checks.py also runs on Windows, other file helpers stop there with BLOCKED."
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # Evidence-Led Security Audit
@@ -13,7 +13,7 @@ Run an authorized, read-only audit. Every claim cites evidence; anything uncheck
 
 ## Hard rules
 
-1. **Authorization first.** Written owner approval and a target list. New findings never add targets; ask the owner.
+1. **Authorization first.** Written owner approval and a target list. New findings never add targets.
 2. **Read-only by default.** No exploit payloads, production probes, installs, install hooks or running repo code. No automatic rotation, deploys or publication.
 3. **Missing means BLOCKED, not zero.** A missing tool, 403, timeout, truncation or unparsed file makes the check BLOCKED.
 4. **Layers are separate.** A source version does not prove what runs; a CLI version does not prove the web SAPI. Closure needs source SHA = deployed build source, bound to the image digest seen at runtime.
@@ -24,17 +24,17 @@ Run an authorized, read-only audit. Every claim cites evidence; anything uncheck
 
 ## Workflow
 
-Do the phases in order. A phase whose gate fails stops or reports BLOCKED. See [references/phases.md](references/phases.md).
+Do the phases in order. A phase whose gate fails stops or reports BLOCKED. See [phases](references/phases.md).
 
 0. **Preflight**: authorization, scope, mode, tools, required checks, sources to refresh.
 1. **Inventory**: `python3 scripts/inventory.py <repo> --target ID --out inv.json --strict`
 2. **Advisories**: refresh primary sources this run and date them. Optional dated [profiles/](profiles/).
-3. **Checks**: source, dependency, image, runtime, identity, config. See [scoped-checks](references/scoped-checks.md), [saas-identity](references/saas-identity.md), [endpoint-fleet](references/endpoint-fleet.md).
+3. **Checks**: source, dependency, image, runtime, identity, config. See [scoped-checks](references/scoped-checks.md), [saas-identity](references/saas-identity.md), [endpoint-fleet](references/endpoint-fleet.md). One machine: `scripts/host_checks.py` ([host-checks](references/host-checks.md)).
 4. **Credential exposure**: prepare containment and notification; run only approved actions.
-5. **Refutation and review**: [references/orchestration.md](references/orchestration.md).
+5. **Refutation and review**: [orchestration](references/orchestration.md).
 6. **Baseline report and fix plan**: validate, then render.
 7. **After-fix retest**: a separate report, validated with `--baseline`.
-8. **Postflight**: sanitize, package check, coverage verdict. See [reporting-release](references/reporting-release.md).
+8. **Postflight**: sanitize, package check, verdict. See [reporting-release](references/reporting-release.md).
 
 ## Verdicts
 
@@ -53,7 +53,7 @@ python3 scripts/render_report.py assets/examples/baseline-report.json --out "$OU
 python3 scripts/check_public_package.py . --denylist /path/private-terms.txt
 ```
 
-The validator checks structure and consistency, not whether evidence is real. Scanners and adapters: [references/tooling-adapters.md](references/tooling-adapters.md).
+The validator checks structure and consistency, not whether evidence is real. Scanners and adapters: [tooling-adapters](references/tooling-adapters.md).
 
 ## What needs a human
 

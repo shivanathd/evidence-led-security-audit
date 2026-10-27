@@ -29,6 +29,28 @@ results = hostfix.results
 at, dotted, APP, WIN_HOME = hostfix.at, hostfix.dotted, getattr(hostfix, "APP"), hostfix.WIN_HOME
 
 
+class PathHelpers(unittest.TestCase):
+    def test_abs_locator_is_os_independent(self):
+        posix = "/".join(["", "home", "example", "code", "app"])
+        win = "C:/" + "Users/example/code"
+        self.assertTrue(hc.is_abs_locator(posix))
+        self.assertTrue(hc.is_abs_locator(win))
+        self.assertTrue(hc.is_abs_locator(win.replace("/", "\\")))
+        self.assertFalse(hc.is_abs_locator("project"))
+        self.assertFalse(hc.is_abs_locator("~/code/app"))
+
+    def test_display_redacts_foreign_posix_home(self):
+        posix = "/".join(["", "home", "example", "code", "app"])
+        driven = "D:" + posix
+        s = hostfix.Sim("linux")
+        self.addCleanup(s.cleanup)
+        self.assertEqual(s.host().display(posix), "/<home>/code/app")
+        w = hostfix.Sim("windows")
+        self.addCleanup(w.cleanup)
+        self.assertEqual(w.host().display(posix), "/<home>/code/app")
+        self.assertEqual(w.host().display(driven), "/<home>/code/app")
+
+
 class SimCase(unittest.TestCase):
     platform = "linux"
 
@@ -327,6 +349,13 @@ class AgentConfigs(SimCase):
         self.assertEqual(servers["remote"]["server"]["header_names"], ["Authorization"])
         self.assertEqual(servers["img"]["server"]["image"], "registry.example.com/team/mcp:1.0")
         self.assertEqual(servers["local"]["server"]["scope"], "/<home>/code/app")
+        # The same POSIX locator must redact on a Windows host: os.path.isabs("/home/...")
+        # is False on Python 3.13+ Windows, and abspath prefixes a drive letter on 3.9.
+        w = self.sim("windows")
+        self.write_configs(w)
+        wc = w.check("agent-config-endpoints")
+        wservers = {f["server"]["name"]: f for f in wc["findings"] if "server" in f}
+        self.assertEqual(wservers["local"]["server"]["scope"], "/<home>/code/app")
         details = " ".join(f["detail"] for f in c["findings"])
         self.assertIn("https://proxy.example.net:8443", details)
         self.assertIn("https://llm.example.org", details)
@@ -381,6 +410,7 @@ class PythonPackages(SimCase):
     def test_litellm_windows_layout_and_pipx(self):
         w = self.sim("windows")
         w.venv("~/work/.venv", {"litellm": "1.107.0"}, windows_layout=True)
+        # One install even when Lib/ and lib/ are the same folder (macOS APFS).
         self.assertEqual(results(w.check("litellm-1-107-0")), ["affected"])
         m = self.sim("darwin")
         m.venv("~/.local/pipx/venvs/litellm", {"litellm": "1.107.0"})
@@ -434,8 +464,12 @@ class NodeRuntime(SimCase):
         self.assertStatus(self.s.check("brotli-nodejs"), "PASS")
 
     def test_missing_and_unreadable_binary(self):
-        self.s.env = {"PATH": self.s.path("/usr/bin") + os.pathsep + self.s.path("/nonexistent")}
+        mapped = self.s.path("/usr/bin")
+        self.s.env = {"PATH": mapped + os.pathsep + self.s.path("/nonexistent")}
         self.assertStatus(self.s.check("brotli-nodejs"), "NOT_APPLICABLE")
+        dirs = hc.path_dirs(self.s.host())
+        self.assertTrue(any(os.path.normcase(os.path.abspath(d)) == os.path.normcase(os.path.abspath(mapped))
+                            for d in dirs), dirs)
         self.s.write("/usr/bin/node", b"\x7fELF")
         self.assertStatus(self.s.check("brotli-nodejs"), "BLOCKED")
 

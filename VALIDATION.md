@@ -1,22 +1,25 @@
 # Release-candidate validation
 
-Version 0.2.0, checked on 26 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
+Version 0.3.0, checked on 27 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
 ## Executed checks
 
-- **Unit suite:** 79 test methods passed on Linux with Python 3.12 (the previous 0.2.0 record was 78 on Python 3.12). One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
-- **Skill format:** The candidate passed `agentskills validate` using its absolute directory.
-- **Package inspection:** The public-package checker reported no rule match and no unreviewed binary content for this text-only candidate.
-- **Secret check:** Gitleaks 8.30.1 found no leaks in the candidate tree. Pattern checks do not prove that every confidential fact has been detected.
+- **Unit suite:** 188 test methods on Linux with Python 3.12. POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
+- **Skill format:** The candidate passed `agentskills validate` using its absolute directory when that CLI was available. The hub stays under 4,000 characters.
+- **Package inspection:** The public-package checker reported no rule match and no unreviewed binary content for this text-only candidate. One coverage-table cell named a product whose last label is a public TLD; it now names the shared-runtime folders instead. Detection rules were not changed and no extra host was added to the reviewed list.
+- **Secret check:** Pattern checks (`textscan` secret shapes, `check_public_package.py`, a privacy grep of the branch diff) found no leaked values. Pattern checks do not prove that every confidential fact has been detected.
 - **Examples:** The baseline and after-fix examples validate structurally; the after-fix example intentionally remains INCOMPLETE because a required check is blocked.
-- **Endpoint guide commands:** the macOS commands in `references/endpoint-fleet.md` were run read-only on macOS 27.0. The Linux and Windows commands follow each vendor's documented tools and were not executed for this release. The osquery table and column names were checked against the osquery table specs.
-- **Manual privacy review:** Audit examples are synthetic. Public-source citations are intentional; no real audit inventory, credentials or incident evidence is bundled.
+- **Host checks:** Fixture tests cover every check id on simulated macOS, Linux and Windows hosts (positive, negative and edge cases: symlink loops, unreadable directories, missing binaries, prereleases, Windows paths, spaces and unicode). A whole-run test proves no writes, no network, no subprocess beyond the two read-only listings, and no planted secret values in the JSON. CI also runs `host_checks.py` against each runner into `$RUNNER_TEMP`.
+- **Endpoint guide commands:** the macOS commands in `references/endpoint-fleet.md` were run read-only on macOS 27.0 in the previous release. The Linux and Windows commands follow each vendor's documented tools and were not executed for this release. The osquery table and column names were checked against the osquery table specs.
+- **Manual privacy review:** Audit examples are synthetic. Public-source citations are intentional. The only personal name in the tree is the repository owner's. No company name from the briefing header is present.
 
 ## Adversarial development checks
 
-Separate authoring and reviewing model roles were used, followed by deterministic tests. Review found defects in baseline comparison, evidence/target binding, publication policy handling, diagnostic redaction and filesystem containment; regression tests now cover the identified paths.
+Separate authoring and reviewing model roles were used, followed by deterministic tests. Earlier review found defects in baseline comparison, evidence/target binding, publication policy handling, diagnostic redaction and filesystem containment; those remain covered.
 
-The tests include rejected missing baselines, wrong-target evidence, non-human technical proof, accepted-risk clearance, missing image/runtime links, unaccepted inventory gaps, root and ancestor symlinks, directory swaps, output overwrite safety, binary-content review, URL userinfo, complete private-key blocks and diagnostic privacy. Model agreement was not used as execution evidence.
+This release's host-check review found and closed: Plex build hashes parsed as prereleases; UTF-16BE BMPString certificates missed; `py_pins` dropping a package after `RUN pip install`; .NET shared-framework folder casing; Windows `%TEMP%` not scanned for planted instructions; routine project `npm install`/`curl` lines treated as planted; quoted TOML env keys in Codex config; `~/go/pkg` (module cache) walked while `~/go/src` projects were skipped; Windows path display using case-sensitive compare; `Lib`/`lib` site-packages double-counted on case-folding volumes; simulated PATH entries already under `sysroot` remapped as a guest drive; Claude project keys using POSIX `/home/...` treated as relative on Python 3.13+ Windows and drive-prefixed on 3.9. Regression tests cover each of those paths. Model agreement was not used as execution evidence.
+
+The tests include rejected missing baselines, wrong-target evidence, non-human technical proof, accepted-risk clearance, missing image/runtime links, unaccepted inventory gaps, root and ancestor symlinks, directory swaps, output overwrite safety, binary-content review, URL userinfo, complete private-key blocks and diagnostic privacy, plus host-check false negatives, false positives, no-write / no-network / no-exec invariants and secret-value withholding.
 
 ## Reproduce
 
@@ -31,11 +34,13 @@ PYTHONDONTWRITEBYTECODE=1 python3 -B scripts/validate_report.py \
   --baseline assets/examples/baseline-report.json --public
 ```
 
+On Windows (Python 3.9+), only the unit suite and `validate_report.py` / `host_checks.py` apply. `inventory.py`, `check_public_package.py` and `render_report.py --out` exit BLOCKED by design.
+
 Keep bytecode disabled so the package check does not encounter generated cache files. A package check with a host override must return NEEDS_REVIEW for independent approval, not an automated publication pass.
 
 ## Limits
 
-Exercised on Linux (Python 3.12 in this run). CI runs Ubuntu with 3.9 and 3.14 and macOS with 3.14. Filesystem helpers require POSIX directory-handle/no-follow support and stop when unavailable; Windows is not supported.
+Exercised on Linux (Python 3.12 in this run). CI runs Ubuntu with 3.9 and 3.14, macOS with 3.14, and Windows with 3.9 and 3.14. Filesystem helpers other than `host_checks.py` require POSIX directory-handle/no-follow support and stop when unavailable.
 
 macOS note: `/tmp` and `/var` are symlinks to `/private/...`, and the helpers refuse any path with a symlinked component. The first macOS run failed 15 tests for this reason alone; the tests now use canonical temp paths, and the refusal message names the canonical path to pass instead.
 

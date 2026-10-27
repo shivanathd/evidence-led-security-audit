@@ -303,7 +303,7 @@ class Host:
         val = self.env.get(name) or default
         if val is None:
             return None
-        if re.match(r"^[A-Za-z]:[\\/]", val) and self.sysroot and not val.startswith(self.sysroot):
+        if re.match(r"^[A-Za-z]:[\\/]", val) and self.sysroot and not under_root(self.sysroot, val):
             return self.sys(val)
         return val
 
@@ -321,7 +321,8 @@ class Host:
     def display(self, path):
         if path is None:
             return None
-        p = os.path.abspath(str(path))
+        raw = str(path)
+        p = os.path.abspath(raw)
         home, pn = os.path.normcase(self.home), os.path.normcase(p)
         if pn == home or pn.startswith(home + os.sep):
             rel = p[len(home):].replace("\\", "/")
@@ -333,9 +334,16 @@ class Host:
             if m:
                 return m.group(1) + ":" + (m.group(2) or "/")
             return rel or "/"
+        # Config locators may be POSIX or drive-prefixed and not on this host.
+        # Redact both the abspath form (Windows turns "/home/..." into "D:/home/...")
+        # and the original string. Do not treat "X:/Users/..." as /home here.
+        for candidate in (p.replace("\\", "/"), raw.replace("\\", "/")):
+            redacted = re.sub(r"(?i)^[A-Z]:/home/[^/]+", "/<home>", candidate)
+            redacted = re.sub(r"^/(?:Users|home)/[^/]+", "/<home>", redacted)
+            if redacted != candidate:
+                return redacted
         p = p.replace("\\", "/")
         p = re.sub(r"(?i)^([A-Z]:/Users/)[^/]+", r"\1<user>", p)
-        p = re.sub(r"^/(?:Users|home)/[^/]+", "/<home>", p)
         return p
 
     # -- cached collectors -------------------------------------------------
@@ -665,6 +673,32 @@ def registry_matches(host, pattern):
     return [e for e in host.registry if rx.search(e.get("name", ""))]
 
 
+def under_root(root, path):
+    """True when path is already inside root (case-insensitive on Windows)."""
+    if not root:
+        return False
+    r = os.path.normcase(os.path.abspath(root))
+    p = os.path.normcase(os.path.abspath(path))
+    return p == r or p.startswith(r + os.sep)
+
+
+def fs_id(path):
+    """Identity of a filesystem object so Lib/ and lib/ are one dir on a case-folding volume."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return ("path", os.path.normcase(os.path.abspath(path)))
+    if st.st_ino:
+        return ("ino", st.st_dev, st.st_ino)
+    return ("path", os.path.normcase(os.path.abspath(path)))
+
+
+def is_abs_locator(value):
+    """Absolute POSIX or Windows locator; not the host's os.path.isabs (Python 3.13+)."""
+    s = str(value).replace("\\", "/")
+    return s.startswith("/") or bool(re.match(r"^[A-Za-z]:/", s))
+
+
 def path_dirs(host):
     raw = host.env.get("PATH") or host.env.get("Path") or ""
     sep = ";" if host.platform == "windows" else os.pathsep
@@ -673,7 +707,9 @@ def path_dirs(host):
         d = d.strip().strip('"')
         if not d:
             continue
-        if re.match(r"^[A-Za-z]:[\\/]", d) and host.sysroot:
+        # A simulated host on Windows already has PATH entries under sysroot
+        # (D:/tmp/.../sys/usr/bin). Remapping those as guest drive D: is wrong.
+        if re.match(r"^[A-Za-z]:[\\/]", d) and host.sysroot and not under_root(host.sysroot, d):
             d = host.sys(d)
         if d not in out:
             out.append(d)
@@ -754,7 +790,7 @@ def env_roots(host):
                 roots += [("python", d) for d in glob_dirs(host, pf, "python*")]
         seen, out = set(), []
         for label, r in roots:
-            key = os.path.normcase(os.path.abspath(r))
+            key = fs_id(r)
             if key not in seen:
                 seen.add(key)
                 out.append((label, r))
@@ -826,7 +862,7 @@ def site_dirs(host):
                         out.append(("store python", os.path.join(py, "site-packages")))
         seen, uniq = set(), []
         for label, sp in out:
-            key = os.path.normcase(os.path.abspath(sp))
+            key = fs_id(sp)
             if key not in seen:
                 seen.add(key)
                 uniq.append((label, sp))
@@ -1637,7 +1673,7 @@ def check_agent_configs(host, r):
             groups = [("", doc)]
             projects = doc.get("projects")
             if isinstance(projects, dict):
-                groups += [(host.display(k) if os.path.isabs(str(k)) else "project", v)
+                groups += [(host.display(k) if is_abs_locator(k) else "project", v)
                            for k, v in sorted(projects.items()) if isinstance(v, dict)]
             for scope, g in groups:
                 for key in ("mcpServers", "servers"):
