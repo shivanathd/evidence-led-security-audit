@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -19,6 +20,12 @@ EXAMPLES = ROOT / "assets" / "examples"
 CORPUS = Path(__file__).resolve().parent / "corpus" / "adversarial_cases.json"
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(SCRIPTS))
+
+import safeio  # noqa: E402 - needs the scripts folder on sys.path
+
+# inventory.py, check_public_package.py and render_report --out exit BLOCKED without
+# POSIX openat support (Windows); host_checks.py and validate_report.py still run there.
+POSIX_ONLY = unittest.skipIf(safeio.HOST_SUPPORT_ERROR, "needs POSIX openat support; the script exits BLOCKED here")
 
 # Built at runtime so the package never stores secret-shaped strings.
 PLACEHOLDERS = {

@@ -322,11 +322,12 @@ class Host:
         if path is None:
             return None
         p = os.path.abspath(str(path))
-        home = self.home
-        if p == home or p.startswith(home + os.sep):
+        home, pn = os.path.normcase(self.home), os.path.normcase(p)
+        if pn == home or pn.startswith(home + os.sep):
             rel = p[len(home):].replace("\\", "/")
             return "~" + rel
-        if self.sysroot and (p == self.sysroot or p.startswith(self.sysroot + os.sep)):
+        root = os.path.normcase(self.sysroot) if self.sysroot else None
+        if root and (pn == root or pn.startswith(root + os.sep)):
             rel = p[len(self.sysroot):].replace("\\", "/")
             m = re.match(r"^/([A-Z])(/.*)?$", rel) if self.platform == "windows" else None
             if m:

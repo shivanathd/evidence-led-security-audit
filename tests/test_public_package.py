@@ -8,6 +8,7 @@ import support
 import check_public_package as cpp
 
 
+@support.POSIX_ONLY
 class PackageSelfCheck(unittest.TestCase):
     def test_this_package_has_no_rule_matches(self):
         pkg = support.package_copy()
@@ -30,6 +31,7 @@ class PackageSelfCheck(unittest.TestCase):
             self.assertEqual(res.returncode, 0, "%s\n%s%s" % (cmd, res.stdout, res.stderr))
 
 
+@support.POSIX_ONLY
 class GitMetadata(unittest.TestCase):
     def setUp(self):
         self.pkg = support.package_copy()
@@ -47,6 +49,7 @@ class GitMetadata(unittest.TestCase):
         self.assertIn("FORBIDDEN_ARTIFACT", {i["code"] for i in rep.errors})
 
 
+@support.POSIX_ONLY
 class BadPackage(unittest.TestCase):
     def setUp(self):
         self.d = Path(support.tmpdir()) / "bad-skill"

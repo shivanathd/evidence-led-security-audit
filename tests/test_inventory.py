@@ -35,6 +35,7 @@ def build_repo(root):
     return marker
 
 
+@support.POSIX_ONLY
 class InventoryTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(support.tmpdir()) / "service-a"
