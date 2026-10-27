@@ -36,8 +36,10 @@ _VER = re.compile(r"^\s*(?:\d+:)?[vV]?(\d+(?:\.\d+)*)(.*)$", re.DOTALL)
 _PRE = re.compile(r"(?i)^(?:[-._~+]?)(?:a|alpha|b|beta|c|rc|pre|preview|dev|nightly|canary|snapshot|next|insiders?|"
                   r"unstable|test|ea)(?:[-._]?\d+)*(?:[-._+].*)?$")
 _PRE_ANY = re.compile(r"(?i)(?:^|[-._~+\d])(?:alpha|beta|rc|pre|preview|dev|nightly|canary|snapshot|next|unstable)"
-                      r"(?:[-._]?\d+)*(?=$|[-._+])|^[-.]?(?:a|b|c)\d")
+                      r"(?:[-._]?\d+)*(?=$|[-._+])|^[-.]?(?:a|b|c)\d+(?=$|[-._+])")
 _DISTRO = re.compile(r"(?i)(?:^-\d|ubuntu|deb\d|dfsg|\+b\d|el\d|fc\d|\.amzn|-r\d+$|alpine|\+esm|~)")
+# Vendor build hashes such as Plex's "1.43.3.10861-a0bfb8370" are build metadata, not prereleases.
+_BUILD_HASH = re.compile(r"(?i)^[-+][0-9a-f]{7,40}$")
 
 
 class Version:
@@ -49,7 +51,7 @@ class Version:
         self.raw = raw
         self.nums = nums
         self.rest = rest
-        self.prerelease = bool(rest) and bool(_PRE.match(rest) or _PRE_ANY.search(rest))
+        self.prerelease = bool(rest) and not _BUILD_HASH.match(rest) and bool(_PRE.match(rest) or _PRE_ANY.search(rest))
         self.vendor_suffix = bool(rest) and not self.prerelease and bool(_DISTRO.search(rest))
 
     def __repr__(self):
@@ -510,7 +512,7 @@ def py_pins(text, kind, wanted):
                 if isinstance(val, dict) and isinstance(val.get("version"), str):
                     add(name, val["version"].lstrip("="))
         return found
-    for m in re.finditer(r"(?im)(?:^|[\s\"',\[])([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^\]]*\])?\s*(===?|~=|>=|<=|!=|>|<)?"
+    for m in re.finditer(r"(?im)(?<![^\s\"',\[])([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^\]]*\])?\s*(===?|~=|>=|<=|!=|>|<)?"
                          r"\s*([0-9][0-9A-Za-z.+!*-]*)?", text):
         name, op, ver = m.group(1), m.group(3), m.group(4)
         if norm_py(name) not in wanted:
@@ -636,7 +638,9 @@ def der_mentions(der, needle=b"emudhra"):
     low = der.lower()
     i = low.find(needle)
     if i == -1:
-        return None
+        i = low.find(needle.decode("ascii").encode("utf-16-be"))
+        if i == -1:
+            return None
     for start in range(i - 2, max(-1, i - 131), -1):
         tag = der[start]
         if tag not in _DER_STRINGS or start + 2 > len(der):
