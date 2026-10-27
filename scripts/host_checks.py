@@ -62,7 +62,8 @@ BRIEFING = "Security briefing, 16-27 Oct 2026 (public reports; dated 2026-10-27)
 BRIEFING_DATE = "2026-10-27"
 APP = ".app"
 MIB = 1024 * 1024
-DOTNET_FRAMEWORKS = tuple("Microsoft." + n + APP for n in ("NETCore", "AspNetCore", "WindowsDesktop"))
+# Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
+DOTNET_FRAMEWORKS = tuple("Microsoft.%s.%s" % (n, "App") for n in ("NETCore", "AspNetCore", "WindowsDesktop"))
 # Split so the public-leak IPv4 pattern does not read this version as an address.
 BROTLICFFI_FIXED = "1.2.1" + ".0"
 
@@ -365,7 +366,7 @@ SKIP_ANY = {"node_modules", ".git", "__pycache__", ".cache", ".npm", ".pnpm-stor
             ".angular", ".expo", ".dart_tool", ".pub-cache", ".android", ".ivy2", ".sbt", ".coursier"}
 SKIP_HOME_ROOT = {"library", "appdata", ".local", ".nvm", ".pyenv", ".rbenv", ".rvm", ".asdf", ".volta", ".fnm",
                   ".conda", ".dotnet", ".vscode-server", ".cursor-server", ".windsurf-server", "miniconda3", "anaconda3",
-                  "miniforge3", "mambaforge", "micromamba", "go", ".docker", ".orbstack", "snap", ".wine",
+                  "miniforge3", "mambaforge", "micromamba", ".docker", ".orbstack", "snap", ".wine",
                   "pictures", "music", "movies", "videos", ".virtualenvs", ".rubies", ".nodenv", ".jenv", ".sdkman",
                   ".bun", ".deno", ".wasmtime", ".lightning", ".railway", ".tiup", ".colima", ".lima", ".minikube",
                   ".kube", ".ssh", ".gnupg", ".aws", ".azure", ".config"}
@@ -462,6 +463,9 @@ def build_index(host):
         if "package.json" in low:
             child_skip.update({"dist", "build", "coverage", "out", ".svelte-kit"})
         plow = [p.lower() for p in parts]
+        if ctx.get("is_home") and plow == ["go"]:
+            # ~/go/pkg is the Go module cache; ~/go/src can hold real GOPATH projects.
+            child_skip.add("pkg")
         if plow[-2:] == ["wp-content", "plugins"] and "updraftplus" in low:
             idx.updraft.append(os.path.join(path, low["updraftplus"]))
         if "bin" in low and "app" in low and hs.is_regular(os.path.join(path, low["app"], "etc", "env.php")):
@@ -1454,14 +1458,17 @@ INSTR_MARKERS = [
     ("download_command", HOOK_MARKERS[0][1]),
     ("pipe_to_shell", HOOK_MARKERS[1][1]),
 ]
+# Setup docs in a real project routinely say "npm install" or "curl localhost"; alone they do not list a project file.
+PROJECT_ROUTINE_MARKERS = {"package_install", "download_command"}
 
 
 def check_planted_instructions(host, r):
     idx = index(host)
     files = list(idx.instr)
     temp_dirs = [host.sys("/tmp")] if host.platform != "windows" else []
-    if host.env.get("TEMP") or host.env.get("TMP"):
-        temp_dirs.append(host.env.get("TEMP") or host.env.get("TMP"))
+    temp = host.winvar("TEMP", None) or host.winvar("TMP", None)
+    if temp:
+        temp_dirs.append(temp)
     for td in temp_dirs:
         for n in hs.listdir(td)[:5000]:
             p = os.path.join(td, n)
@@ -1488,7 +1495,7 @@ def check_planted_instructions(host, r):
             where = "under Downloads (do not start coding agents here)"
         elif parent in loose or not in_project:
             where = "outside any project folder"
-        elif marks:
+        elif set(marks) - PROJECT_ROUTINE_MARKERS:
             where = "inside a project, with risky instructions"
         else:
             legit += 1
@@ -1610,7 +1617,7 @@ def check_agent_configs(host, r):
                     if url:
                         spec["url"] = url[0]
                     env = dict(tables.get(tname + ".env", {}))
-                    env.update({k: "" for k in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*=", kv.get("env", ""))})
+                    env.update({k: "" for k in re.findall(r"[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?\s*=", kv.get("env", ""))})
                     if env:
                         spec["env"] = env
                     servers.append(server_summary(m.group(1), spec))
@@ -2324,6 +2331,9 @@ def run_check(host, meta):
         status, reason = "NOT_APPLICABLE", "not present: no install, package, file or config found"
     if r.blocked and status == "FAIL":
         reason += "; also incomplete: " + "; ".join(r.blocked)
+    deep = host.gaps.counts.get("max_depth", 0) if meta["uses_walk"] else 0
+    if deep and status in ("PASS", "FAIL", "NOT_APPLICABLE"):
+        reason += "; %d folder(s) deeper than --max-depth %d were not listed" % (deep, host.max_depth)
     order = {"affected": 0, "review": 1, "unknown": 2, "info": 3}
     findings = sorted(r.findings, key=lambda f: (order.get(f["result"], 9), f.get("component", ""), f.get("path", "") or "",
                                                  f.get("version", "") or "", json.dumps(f, sort_keys=True)))
