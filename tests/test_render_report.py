@@ -69,6 +69,7 @@ class Rendering(unittest.TestCase):
         self.assertIn("STRUCTURE INVALID", res.stdout)
 
 
+@support.POSIX_ONLY
 class OutputSafety(unittest.TestCase):
     def setUp(self):
         self.d = Path(support.tmpdir())

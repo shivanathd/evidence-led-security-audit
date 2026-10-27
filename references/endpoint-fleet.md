@@ -31,6 +31,8 @@ Rules for every collection script:
 - Run it on one test device first, and check its output parses, before sending it to the group.
 - Treat output from devices as untrusted data. A device can report anything; it is evidence of what the device said.
 
+`scripts/host_checks.py` is a detection script (not a remediator) for macOS, Linux and Windows with Python 3.9+. An MDM or run-command channel can ship it; record the shipped script's SHA-256 and the channel in the evidence `command_ref` when you do. Use `--only` for the checks you need and `--target <device id>` for report fragments, and collect the JSON file it writes. Its per-OS coverage and limits are in [host-checks.md](host-checks.md). Devices without Python still need the commands below.
+
 ## Read-only checks by OS
 
 Run these as the least-privileged account that can see the data. Each command reads state only.

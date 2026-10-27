@@ -34,6 +34,7 @@ def swap_on_open(trigger, swap):
     return mock.patch.object(os, "open", fake), state
 
 
+@support.POSIX_ONLY
 class OutputContainment(unittest.TestCase):
     def setUp(self):
         self.d = tmp()
@@ -104,6 +105,7 @@ class OutputContainment(unittest.TestCase):
                 safeio.safe_write(self.d / "x.md", "SYNTHETIC")
 
 
+@support.POSIX_ONLY
 class TraversalContainment(unittest.TestCase):
     def setUp(self):
         self.d = tmp()
@@ -145,6 +147,7 @@ class TraversalContainment(unittest.TestCase):
         self.assertIn(("UNSCANNED", "swap"), {(i["code"], i["path"]) for i in rep.errors})
 
 
+@support.POSIX_ONLY
 class CoverageGaps(unittest.TestCase):
     def setUp(self):
         self.root = tmp() / "repo"
@@ -176,6 +179,7 @@ class CoverageGaps(unittest.TestCase):
         self.assertEqual(res.returncode, 2)
 
 
+@support.POSIX_ONLY
 class PackageReview(unittest.TestCase):
     def setUp(self):
         self.pkg = support.package_copy()

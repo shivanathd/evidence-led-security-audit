@@ -87,6 +87,9 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "pillow.readthedocs.io",  # cited by profiles/brotli-2026-10-21.md
     "tailworm.com",  # cited by profiles/mesh-vpn-ssh-2026-10-25.md
     "tailscale.com",  # Tailscale SSH, policy, lock and security bulletins
+    # cited by scripts/host_checks.py and profiles/dev-endpoint-2026-10-27.md
+    "www.theregister.com", "thehackernews.com", "www.bleepingcomputer.com", "www.aikido.dev", "patchtheplanet.org",
+    "unit42.paloaltonetworks.com", "www.securityweek.com", "voidsec.com", "x.com", "www.csoonline.com", "lightning.ai",
     "lightning.ai",  # cited by profiles/lightning-ai-2026-10-16.md
     "unit42.paloaltonetworks.com",  # Unit 42 PHP2Shell retraction note
 })
