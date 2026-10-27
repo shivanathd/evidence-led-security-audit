@@ -19,9 +19,16 @@ jobs:
             python: "3.14"
           - os: macos-latest
             python: "3.14"
+          - os: windows-latest
+            python: "3.9"
+          - os: windows-latest
+            python: "3.14"
     runs-on: ${{ matrix.os }}
     env:
       PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -31,7 +38,12 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Unit tests
         run: python -B -m unittest discover -s tests -v
+      # check_public_package.py and safeio need POSIX openat support; on Windows they exit BLOCKED by design.
       - name: Public package check
+        if: runner.os != 'Windows'
         run: python -B scripts/check_public_package.py .
       - name: Example reports validate
         run: python -B scripts/validate_report.py assets/examples/after-fix-report.json --baseline assets/examples/baseline-report.json --public
+      # Read-only run against the runner itself; the report stays in RUNNER_TEMP and is never uploaded.
+      - name: Host checks smoke run
+        run: python -B scripts/host_checks.py --out "$RUNNER_TEMP/host-checks.json" --time-budget 120 --max-entries 200000
