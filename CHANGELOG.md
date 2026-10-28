@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 - 2026-10-30
+
+### Added
+
+- Four host checks for the 2026-10-28 briefing items, taking the bundled set from 33 to 37:
+  - `tailscale-ssh-1104`: Tailscale SSH forwarding (TS-2026-014 to TS-2026-017). Fixed in 1.104.4. Reads package/app metadata, prefs `RunSSH`, the `TS_SSH_DISABLE_FORWARDING` name in service files or tailscaled environ, and exported `ssh` policy keys. Never runs `tailscale` or restarts `tailscaled`.
+  - `peoplesoft-presence`: Oracle PeopleSoft / PeopleTools footprint for CVE-2026-35273. Presence is `review` (a patched host may keep the same PeopleTools version). No PIA probe.
+  - `anthropic-ai-chain` (unconfirmed): browser and OS patch level against a dated Chrome 156 floor. Safari, Windows and Linux exact builds are recorded as unverified. The Anthropic research post is real; mapping a given host to those chains is not.
+  - `gmo-onamae-presence`: local zone/config hints for Onamae Desktop Cloud / DNS. No live DNS. Generic "GMO" text is not a hit.
+- `inventory.py` emits `peoplesoft_hints` and `gmo_onamae_hints`, and records `actions/setup-node` `node-version` pins as runtime hints.
+- Dated profiles: `peoplesoft-2026-10-28.md`, `anthropic-ai-chain-2026-10-27.md`, `gmo-onamae-2026-10-21.md`.
+
+### Changed
+
+- `brotli-nodejs` also classifies `.nvmrc`, `.node-version`, `.tool-versions`, `package.json` `engines.node` and CI `setup-node` pins. In-the-wild use against Node 24.22.0 is labelled unverified (not a Node.js or NVD claim).
+- Mesh-VPN profile last-checked 2026-10-28: Tailscale published bulletins TS-2026-014..017 and named 1.104.4. No CVE id. `TS_SSH_DISABLE_FORWARDING=1` is the vendor-documented mitigation when a host cannot update.
+- Example baseline / after-fix reports include the four checks as `NOT_APPLICABLE` with inventory evidence so an after-fix compare does not drop them.
+- Reviewed public hosts: `www.oracle.com`, `oracle.com`, `www.anthropic.com`, `anthropic.com`, `internet.gmo`.
+- `check_public_package.py` compact file-count target raised from 40 to 50 for the new dated profiles.
+- Host-check report fragments stamp `retrieved_on` with `--collected-on` (this run does not fetch advisories).
+
 ## 0.3.1 - 2026-10-29
 
 ### Added

@@ -57,9 +57,9 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.3.0"
-BRIEFING = "Security briefing, 16-27 Oct 2026 (public reports; dated 2026-10-27)"
-BRIEFING_DATE = "2026-10-27"
+VERSION = "0.4.0"
+BRIEFING = "Security briefing, 16-28 Oct 2026 (public reports; dated 2026-10-28)"
+BRIEFING_DATE = "2026-10-28"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -152,6 +152,24 @@ SRC = {
                     "https://thehackernews.com/2026/10/hackers-infect-953-online-stores-with.html"),
     "thn-connectwise": ("The Hacker News: China-linked hackers use ARTEX AI (ConnectWise Cloud Backup)",
                         "https://thehackernews.com/2026/10/china-linked-hackers-use-artex-ai.html"),
+    "tailscale-ssh-blog": ("Tailscale: SSH findings and fixes (2026-10-28)",
+                           "https://tailscale.com/blog/tailscale-ssh-findings-fixes"),
+    "tailscale-bulletins": ("Tailscale security bulletins (TS-2026-014 to TS-2026-017)",
+                            "https://tailscale.com/security-bulletins"),
+    "oracle-cve-2026-35273": ("Oracle Security Alert CVE-2026-35273 (PeopleSoft PeopleTools)",
+                              "https://www.oracle.com/security-alerts/alert-cve-2026-35273.html"),
+    "thn-peoplesoft": ("The Hacker News: ShinyHunters exploited Oracle PeopleSoft",
+                       "https://thehackernews.com/2026/10/shinyhunters-exploited-oracle.html"),
+    "anthropic-ai-chain": ("Anthropic: Discovering vulnerabilities with Claude (2026-10-27)",
+                           "https://www.anthropic.com/research/discovering-vulnerabilities-with-claude"),
+    "thn-anthropic-chain": ("The Hacker News: Anthropic unreleased AI model chains exploits (unconfirmed claim)",
+                            "https://thehackernews.com/2026/10/anthropics-unreleased-ai-model-chains.html"),
+    "gmo-onamae": ("GMO Internet: Desktop Cloud unauthorized-access notice",
+                   "https://internet.gmo/en/news/article/258/"),
+    "thn-gmo-onamae": ("The Hacker News: GMO Onamae Desktop Cloud breach and bounty",
+                       "https://thehackernews.com/2026/10/japans-gmo-offers-1-million-bounty-to.html"),
+    "thn-polyshell-node": ("The Hacker News: Adobe Commerce PolyShell (Node in-the-wild claim, unverified)",
+                           "https://thehackernews.com/2026/10/adobe-commerce-polyshell-attacks-breach.html"),
 }
 
 SKIPPED = [
@@ -416,6 +434,11 @@ class Index:
         self.nextcloud = []
         self.qdrant_cfg = []
         self.mcp_files = []
+        self.node_pins = []
+        self.ci_yml = []
+        self.peoplesoft = []
+        self.gmo_cfg = []
+        self.mesh_acl = []
         self.complete = True
         self.stopped = None
 
@@ -486,6 +509,9 @@ def build_index(host):
             idx.magento.append(path)
         if "occ" in low and "version.php" in low:
             idx.nextcloud.append(path)
+        if any(n.lower() in {"psconfig.sh", "psappsrv.cfg"} for n in names) or (
+                "allowedhosts.properties" in low and any(k in plow for k in ("peoplesoft", "peopletools", "psft", "pia"))):
+            idx.peoplesoft.append(path)
         new = {
             "is_home": bool(ctx.get("root_marker") and ctx.get("is_home")),
             "repo": repo,
@@ -520,6 +546,19 @@ def build_index(host):
             idx.nuget.append(path)
         if low in ("config.yaml", "production.yaml", "development.yaml") and any("qdrant" in p for p in plow):
             idx.qdrant_cfg.append(path)
+        if low in (".nvmrc", ".node-version", ".tool-versions"):
+            idx.node_pins.append((path, low))
+        if (low.endswith((".yml", ".yaml")) and ".github" in plow and "workflows" in plow) or low == ".gitlab-ci.yml":
+            idx.ci_yml.append(path)
+        if low in ("psconfig.sh", "psappsrv.cfg", "psprcs.cfg") or (
+                low in ("allowedhosts.properties", "configuration.properties")
+                and any(p in plow for p in ("peoplesoft", "peopletools", "psft", "pia"))):
+            idx.peoplesoft.append(path)
+        if low.endswith(".zone") or low in ("named.conf", "named.conf.local") or (
+                "dns" in plow and low.endswith((".tf", ".conf", ".ini", ".txt"))):
+            idx.gmo_cfg.append(path)
+        if low in ("acl.hujson", "policy.hujson", "tailscale-acl.json", "tailnet-acl.json", "tailnet-policy.json"):
+            idx.mesh_acl.append(path)
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
 
@@ -1746,7 +1785,7 @@ def check_litellm(host, r):
 
 
 def check_brotli_node(host, r):
-    fixed, nofix = ["22.23.4", "24.22.1", "26.12.1"], [(20,)]
+    fixed, nofix = NODE_BROTLI_FIXED, [(20,)]
     seen = set()
     for src, d in node_install_dirs(host):
         ver = os.path.basename(d)
@@ -1785,6 +1824,89 @@ def check_brotli_node(host, r):
         else:
             r.add("info", "Node.js base image", "moving tag %s; rebuild the image to pick up the fixed build" % tag,
                   path=host.display(path), version=tag)
+    for path, kind in index(host).node_pins:
+        classify_node_pin(r, host.display(path), kind, text_of(host, path, 16 * 1024) or "", fixed, nofix)
+    for path, kind in index(host).npm:
+        if kind == "package.json":
+            classify_node_engines(r, host.display(path), text_of(host, path, MIB) or "", fixed, nofix)
+    for path in index(host).ci_yml:
+        classify_setup_node(r, host.display(path), text_of(host, path, 4 * MIB) or "", fixed, nofix)
+    if r.findings:
+        r.notes.append("In-the-wild exploitation against Node 24.22.0 is unverified as a Node.js or NVD claim; "
+                       "the October 2026 Node.js advisory names CVE-2026-111497 and the fixed builds above")
+
+
+def classify_node_pin(r, path, kind, text, fixed, nofix):
+    """Classify a version-manager pin. An exact X.Y.Z is compared; a range is recorded only."""
+    first = ""
+    for ln in text.splitlines():
+        s = ln.split("#", 1)[0].strip()
+        if not s:
+            continue
+        if kind == ".tool-versions":
+            m = re.match(r"(?i)^(?:nodejs|node)\s+(\S+)", s)
+            if m:
+                first = m.group(1)
+                break
+            continue
+        first = s.split()[0]
+        break
+    if not first:
+        return
+    disp = path  # display applied by caller via host.display in check
+    v = hs.parse_version(first)
+    label = "Node.js pin (%s)" % kind
+    if v is None or len(v.nums) < 3:
+        r.add("info", label, "pin %s is not an exact X.Y.Z; the resolved patch is unknown" % first,
+              path=disp, version=first)
+        return
+    classify_version(r, label, first, disp, fixed, 1, nofix, kind + " pin")
+
+
+def classify_node_engines(r, path, text, fixed, nofix):
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return
+    engines = doc.get("engines") if isinstance(doc, dict) else None
+    spec = engines.get("node") if isinstance(engines, dict) else None
+    if not isinstance(spec, str) or not spec.strip():
+        return
+    spec = spec.strip()
+    v = hs.parse_version(spec)
+    if v is None or len(v.nums) < 3 or any(c in spec for c in "<>^~*|"):
+        r.add("info", "package.json engines.node",
+              "constraint %s (source constraint, not runtime proof)" % spec, path=path, version=spec)
+        return
+    classify_version(r, "package.json engines.node", spec, path, fixed, 1, nofix, "engines.node exact pin")
+
+
+def classify_setup_node(r, path, text, fixed, nofix):
+    """Read actions/setup-node node-version lines. Does not run CI or Node."""
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        if not re.search(r"(?i)uses:\s*['\"]?actions/setup-node", ln):
+            continue
+        ver = None
+        for j in range(i + 1, min(i + 16, len(lines))):
+            nxt = lines[j]
+            if re.match(r"^\s*-\s+", nxt) and j > i + 1:
+                break
+            m = re.match(r"^\s*node-version:\s*['\"]?v?([^'\"\s#]+)", nxt)
+            if m:
+                ver = m.group(1)
+                break
+            if re.match(r"^\s*node-version-file:", nxt):
+                r.add("info", "CI setup-node", "node-version-file (the pin file is classified separately)", path=path)
+                ver = False
+                break
+        if ver is False or ver is None:
+            continue
+        v = hs.parse_version(ver)
+        if v is None or len(v.nums) < 3:
+            r.add("info", "CI setup-node", "node-version %s is not an exact X.Y.Z" % ver, path=path, version=ver)
+        else:
+            classify_version(r, "CI setup-node", ver, path, fixed, 1, nofix, "workflow node-version")
 
 
 def check_brotli_python(host, r):
@@ -2203,6 +2325,337 @@ def check_connectwise(host, r):
                    detail="ConnectWise present; ask whether you or a managed IT provider use ConnectWise Cloud Backup")
 
 
+# Assembled so the public-leak scanner does not treat detection strings as live hosts.
+_ONAMAE_COM = "onamae" + ".com"
+_ONAMAE_COJP = "onamae" + ".co.jp"
+_TS_SSH_ENV = "TS_SSH" + "_DISABLE_FORWARDING"
+TAILSCALE_FIXED = "1.104.4"
+NODE_BROTLI_FIXED = ["22.23.4", "24.22.1", "26.12.1"]
+
+
+def _truthy_flag(value):
+    return str(value).strip().strip("\"'").lower() in ("1", "true", "yes", "on")
+
+
+def tailscale_installs(host):
+    """(source, version_or_None, path_or_None) for Tailscale clients. Never runs tailscale."""
+    out = []
+    for ver, src in linux_packages(host).get("tailscale", []):
+        out.append(("%s package" % src, ver, None))
+    for ver, p in cellar(host).get("tailscale", []):
+        out.append(("Homebrew", ver, p))
+    for base in (host.sys("/Applications"), host.h("Applications")):
+        plist = os.path.join(base, "Tailscale" + APP, "Contents", "Info.plist")
+        if hs.is_regular(plist):
+            ver = hs.plist_value(plist, "CFBundleShortVersionString") or hs.plist_value(plist, "CFBundleVersion")
+            out.append(("macOS app", ver, plist))
+    for e in registry_matches(host, r"^Tailscale\b"):
+        out.append(("uninstall registry", e.get("version") or None, None))
+    for pf in host.program_files():
+        exe = os.path.join(pf, "Tailscale", "tailscale.exe")
+        if hs.is_regular(exe):
+            out.append(("Windows PE", hs.pe_file_version(exe), exe))
+    extra = [host.sys("/usr/bin"), host.sys("/usr/local/bin"), host.sys("/opt/homebrew/bin"),
+             host.h(".local", "bin")]
+    if not any(src.endswith("package") or src in ("Homebrew", "macOS app", "Windows PE", "uninstall registry")
+               for src, _v, _p in out):
+        for exe in find_binaries(host, ["tailscale"], extra):
+            pv = hs.pe_file_version(exe) if host.platform == "windows" and hs.is_regular(exe) else None
+            out.append(("binary on PATH", pv, exe))
+    return out
+
+
+def tailscale_runssh(host):
+    """True/False/None from on-disk prefs. Does not run `tailscale debug prefs`."""
+    candidates = [
+        host.sys("/var/lib/tailscale/prefs.json"),
+        host.sys("/var/lib/tailscale/tailscaled.state"),
+        host.h(".config", "tailscale", "prefs.json"),
+        host.h("Library", "Application Support", "Tailscale", "prefs.json"),
+        os.path.join(host.localappdata(), "Tailscale", "prefs.json"),
+    ]
+    for base in (host.sys("/var/lib/tailscale"), host.h(".config", "tailscale"),
+                 host.h("Library", "Application Support", "Tailscale"),
+                 os.path.join(host.localappdata(), "Tailscale")):
+        if hs.is_plain_dir(base):
+            for n in hs.listdir(base)[:80]:
+                if n.lower().endswith((".json", ".plist")) or n in ("prefs", "prefs.json"):
+                    candidates.append(os.path.join(base, n))
+    seen = set()
+    for path in candidates:
+        key = os.path.normcase(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not hs.is_regular(path):
+            continue
+        text = text_of(host, path, MIB)
+        if not text:
+            continue
+        m = re.search(r'(?i)"RunSSH"\s*:\s*(true|false)', text)
+        if m:
+            return m.group(1).lower() == "true", path
+        m = re.search(r"(?i)<key>RunSSH</key>\s*<(true|false)/>", text)
+        if m:
+            return m.group(1).lower() == "true", path
+    return None, None
+
+
+def tailscale_forwarding_disabled(host):
+    """Whether TS_SSH_DISABLE_FORWARDING is set. Reads files and tailscaled environ only."""
+    files = [
+        host.sys("/etc/default/tailscaled"),
+        host.sys("/etc/sysconfig/tailscaled"),
+        host.sys("/Library/LaunchDaemons/com.tailscale.tailscaled.plist"),
+    ]
+    drop = host.sys("/etc/systemd/system/tailscaled.service.d")
+    if hs.is_plain_dir(drop):
+        for n in hs.listdir(drop)[:40]:
+            if n.endswith(".conf"):
+                files.append(os.path.join(drop, n))
+    rx = re.compile(r"(?m)^\s*(?:Environment(?:File)?\s*=\s*)?%s\s*=\s*[\"']?(\S+)" % re.escape(_TS_SSH_ENV), re.I)
+    for path in files:
+        text = text_of(host, path, 256 * 1024)
+        if not text:
+            continue
+        m = rx.search(text)
+        if m and _truthy_flag(m.group(1)):
+            return True, path
+    proc = host.sys("/proc")
+    if hs.is_plain_dir(proc):
+        for name in hs.listdir(proc)[:4096]:
+            if not name.isdigit():
+                continue
+            comm = hs.read_text(os.path.join(proc, name, "comm"), 64)
+            if not comm or comm.strip() != "tailscaled":
+                continue
+            env = hs.read_bytes(os.path.join(proc, name, "environ"), 64 * 1024, host.gaps)
+            if not env:
+                continue
+            prefix = (_TS_SSH_ENV + "=").encode()
+            for item in env.split(b"\0"):
+                if item.startswith(prefix):
+                    if _truthy_flag(item.split(b"=", 1)[1].decode("ascii", "replace")):
+                        return True, "/proc/<pid>/environ"
+                    return False, "/proc/<pid>/environ"
+    return None, None
+
+
+def tailscale_acl_has_ssh(host):
+    """True when an exported policy file has an ssh key. Rules are not copied."""
+    paths = list(index(host).mesh_acl)
+    for extra in (host.h("tailscale-acl.json"), host.h("tailnet-policy.json"),
+                  host.sys("/etc/tailscale/acl.json"), host.sys("/etc/headscale/acl.hujson")):
+        if extra not in paths:
+            paths.append(extra)
+    hits = []
+    for path in paths:
+        text = text_of(host, path, MIB)
+        if text and re.search(r'(?i)(?:^|[{\s,])"?ssh"?\s*:', text):
+            hits.append(path)
+    return hits
+
+
+def check_tailscale_ssh(host, r):
+    installs = tailscale_installs(host)
+    ssh_on, prefs_path = tailscale_runssh(host)
+    mit, mit_path = tailscale_forwarding_disabled(host)
+    acl_paths = tailscale_acl_has_ssh(host)
+    images = list(docker_refs(host, r"tailscale/tailscale"))
+    if not installs and ssh_on is None and not acl_paths and not images:
+        return
+    for src, ver, path in installs:
+        disp = host.display(path) if path else None
+        if not ver:
+            r.add("unknown", "Tailscale (%s)" % src,
+                  "present; version not readable without running tailscale", path=disp)
+            continue
+        v = hs.parse_version(ver)
+        if v is None:
+            r.add("unknown", "Tailscale (%s)" % src, "version string could not be parsed", path=disp, version=ver)
+            continue
+        if hs.at_least(v, TAILSCALE_FIXED):
+            r.add("info", "Tailscale (%s)" % src,
+                  "at or above vendor-fixed build %s (TS-2026-014 to TS-2026-017)" % TAILSCALE_FIXED,
+                  path=disp, version=ver)
+            continue
+        note = "below vendor-fixed build %s" % TAILSCALE_FIXED
+        if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(TAILSCALE_FIXED).nums) == 0:
+            note = "prerelease of the fixed build %s is not treated as fixed" % TAILSCALE_FIXED
+        if v.vendor_suffix:
+            note += "; distribution build string, confirm any vendor backport in its changelog"
+        if ssh_on is False:
+            r.add("info", "Tailscale (%s)" % src,
+                  note + "; Tailscale SSH is off (RunSSH false); still upgrade", path=disp, version=ver)
+        else:
+            ssh = "Tailscale SSH is on (RunSSH true)" if ssh_on is True else \
+                "Tailscale SSH state unread (prefs not on disk; tailscale is never run)"
+            extra = "; mitigation %s=1 not set" % _TS_SSH_ENV if mit is not True else \
+                "; mitigation %s is set (not a vendor patch)" % _TS_SSH_ENV
+            r.add("affected", "Tailscale (%s)" % src, note + "; " + ssh + extra, path=disp, version=ver)
+    for path, image, tag in images:
+        v = hs.parse_version(tag)
+        if v and hs.at_least(v, TAILSCALE_FIXED):
+            r.add("info", "Tailscale image", "at or above %s" % TAILSCALE_FIXED,
+                  path=host.display(path), version=tag, image=image)
+        elif v:
+            r.add("affected", "Tailscale image", "below %s; rebuild after upgrading" % TAILSCALE_FIXED,
+                  path=host.display(path), version=tag, image=image)
+        else:
+            r.add("info", "Tailscale image", "moving tag %s; rebuild to pick up 1.104.4" % tag,
+                  path=host.display(path), version=tag, image=image)
+    if prefs_path is not None:
+        r.notes.append("RunSSH read from prefs metadata (command not run): %s" % host.display(prefs_path))
+    if mit is True:
+        r.add("info", "Tailscale SSH forwarding mitigation",
+              "%s is set; vendor says this disables forwarding without disabling SSH "
+              "(mitigation, not a vendor patch; restart is a recommendation only and was not performed)" % _TS_SSH_ENV,
+              path=host.display(mit_path) if mit_path and not str(mit_path).startswith("/proc/") else mit_path)
+    elif installs and ssh_on is not False:
+        r.notes.append("%s was not set in the listed service files or tailscaled environ" % _TS_SSH_ENV)
+    for path in acl_paths:
+        r.add("review", "exported Tailscale ssh policy",
+              "ssh rules are present; rule bodies are not copied. Confirm forwarding is off on every effective rule",
+              path=host.display(path))
+    unread_and_unfixed = False
+    for src, ver, path in installs:
+        v = hs.parse_version(ver) if ver else None
+        if v is None or not hs.at_least(v, TAILSCALE_FIXED):
+            unread_and_unfixed = True
+            break
+    if installs and ssh_on is None and unread_and_unfixed and not any(f["result"] == "affected" for f in r.findings):
+        r.add("unknown", "Tailscale SSH prefs",
+              "client present; RunSSH could not be read from disk and tailscale is never run")
+
+
+def check_peoplesoft(host, r):
+    paths = [host.sys(p) for p in ("/opt/oracle/psft", "/opt/oracle/pt8.61", "/opt/oracle/pt8.62",
+                                   "/opt/oracle/peopletools", "/opt/PT8.61", "/opt/PT8.62", "/app/psft")]
+    paths += glob_dirs(host, host.sys("/opt/oracle"), "pt8.*") + glob_dirs(host, host.sys("/opt"), "psft*")
+    paths += glob_dirs(host, host.sys("/opt/oracle"), "peopletools*") + glob_dirs(host, host.sys("/opt/oracle"), "peoplesoft*")
+    paths += glob_dirs(host, host.sys("/opt"), "peopletools*")
+    cfg_names = ("allowedhosts.properties", "psconfig.sh", "psappsrv.cfg", "psprcs.cfg")
+    for d in list(paths):
+        if not hs.is_plain_dir(d):
+            continue
+        for fn in cfg_names:
+            p = os.path.join(d, fn)
+            if hs.is_regular(p):
+                r.add("review", "Oracle PeopleSoft / PeopleTools",
+                      "PeopleSoft config or tools file on disk (contents not dumped)", path=host.display(p))
+    for pf in host.program_files():
+        paths += glob_dirs(host, pf, "peoplesoft*") + glob_dirs(host, pf, "peopletools*")
+    presence_check(host, r, "Oracle PeopleSoft / PeopleTools",
+                   paths, binaries=["psadmin"],
+                   packages=["peoplesoft", "peopletools"],
+                   registry=r"PeopleSoft|PeopleTools",
+                   detail="PeopleSoft footprint; Oracle alert CVE-2026-35273 covers PeopleTools 8.61 and 8.62 "
+                          "(CVSS 9.8). ShinyHunters reporting describes a three-flaw chain under that one CVE. "
+                          "A patched host may keep the same PeopleTools version; treat presence as review")
+    for path in index(host).peoplesoft:
+        r.add("review", "Oracle PeopleSoft / PeopleTools",
+              "PeopleSoft config or tools file on disk (contents not dumped)", path=host.display(path))
+    for path, image, tag in docker_refs(host, r"peoplesoft|peopletools"):
+        r.add("review", "PeopleSoft image", "image reference present", path=host.display(path),
+              version=tag, image=image)
+    if r.present:
+        r.notes.append("No live PIA probe was performed. Absence of a version bump is not evidence of a patch")
+
+
+def check_anthropic_chain(host, r):
+    """Record browser and OS patch levels against dated floors. The chain claim is unconfirmed."""
+    for b in browsers(host):
+        name = b["browser"]
+        ver = b["version"]
+        disp = host.display(b["path"]) if b.get("path") else None
+        if name.startswith(("Google Chrome", "Chromium")):
+            v = hs.parse_version(ver) if ver else None
+            if v is None:
+                r.add("unknown", name, "installed; version not readable (%s)" % b["source"], path=disp)
+            elif v.nums[0] < 156:
+                r.add("review", name,
+                      "below dated Chrome 156 floor (Anthropic post: Chrome CVEs patched as of 156). "
+                      "The AI-discovered chain claim itself is unconfirmed",
+                      path=disp, version=ver)
+            else:
+                r.add("info", name, "156 or newer vs dated floor (%s)" % b["source"], path=disp, version=ver)
+        elif name == "Safari":
+            r.add("info", name,
+                  "version recorded; desktop Safari fixed build is unverified "
+                  "(news cited iOS/iPadOS 26.5.2; no desktop build confirmed)",
+                  path=disp, version=ver or "unknown")
+        else:
+            r.add("info", name, "version recorded (%s); not a dated floor for this claim" % b["source"],
+                  path=disp, version=ver or "unknown")
+    if host.platform == "linux":
+        rel = hs.read_text(host.sys("/proc/sys/kernel/osrelease"), 4096) or \
+            hs.read_text(host.sys("/proc/version"), 4096)
+        if rel:
+            first = rel.strip().split()[0] if rel.strip() else rel.strip()
+            r.add("info", "Linux kernel",
+                  "version recorded; exact patched builds for CVE-2026-98432 (MPTCP UAF) are unverified",
+                  path="/proc/sys/kernel/osrelease", version=first[:80])
+    elif host.platform == "darwin":
+        plist = host.sys("/System/Library/CoreServices/SystemVersion.plist")
+        ver = hs.plist_value(plist, "ProductVersion") if hs.is_regular(plist) else None
+        if ver:
+            r.add("info", "macOS",
+                  "version recorded; desktop Safari / macOS build that closes the reported SOP chain is unverified",
+                  path=host.display(plist), version=ver)
+    elif host.platform == "windows":
+        for e in registry_matches(host, r"^Windows (10|11|Server)"):
+            r.add("info", e.get("name") or "Windows",
+                  "build recorded; exact patched build for CVE-2026-33096 (HTTP/3 QUIC DoS) is unverified",
+                  version=e.get("version") or "unknown")
+            break
+    if r.present:
+        r.blocked.append("Anthropic AI-discovered exploit-chain claim is unconfirmed: Chrome 156 is a dated floor; "
+                         "Safari, Windows and Linux fixed builds named in news were not verified against a vendor "
+                         "security bulletin retrieved for this check")
+
+
+def _onamae_host_in(text):
+    if not text:
+        return False
+    low = text.lower()
+    return _ONAMAE_COM in low or _ONAMAE_COJP in low
+
+
+def check_gmo_onamae(host, r):
+    """Local config / zone-file hints only. No live DNS."""
+    files = list(index(host).gmo_cfg)
+    for extra in (host.sys("/etc/bind/named.conf"), host.sys("/etc/bind/named.conf.local"),
+                  host.sys("/etc/named.conf"), host.sys("/etc/resolv.conf"),
+                  host.h(".config", "onamae"), host.h("onamae.ini")):
+        if extra not in files:
+            files.append(extra)
+    for base in (host.sys("/etc/bind"), host.sys("/etc/named"), host.sys("/var/named"), host.h("zones")):
+        if hs.is_plain_dir(base):
+            for n in hs.listdir(base)[:80]:
+                p = os.path.join(base, n)
+                if hs.is_regular(p):
+                    files.append(p)
+    seen = set()
+    for path in files:
+        key = os.path.normcase(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        text = text_of(host, path, MIB)
+        if not _onamae_host_in(text):
+            continue
+        dnsish = bool(re.search(r"(?i)\b(NS|MX|nameserver)\b", text or ""))
+        r.add("review", "GMO Onamae Desktop Cloud / DNS hint",
+              "local file names an Onamae host" + (" (NS/MX/nameserver context)" if dnsish else "") +
+              "; vendor confirmed customer data taken. Rotate credentials and review exposed data. "
+              "No live DNS query was made",
+              path=host.display(path))
+    for path, image, tag in docker_refs(host, r"onamae"):
+        r.add("review", "Onamae image", "image reference present", path=host.display(path), version=tag, image=image)
+    if r.present:
+        r.notes.append("Generic GMO product names were not treated as a hit; only Onamae Desktop Cloud host strings")
+
+
 def check_plex(host, r):
     for base in (host.sys("/Applications"), host.h("Applications")):
         plist = os.path.join(base, "Plex Media Server" + APP, "Contents", "Info.plist")
@@ -2256,7 +2709,9 @@ CHECKS = [
                ["bc-litellm", "thn-litellm"], "LiteLLM 1.107.0 on PyPI and Docker was malicious; pin litellm==1.106.2.",
                "If 1.107.0 was installed, rebuild the machine and rotate every key on it; pin 1.106.2.", ALL_OS, check_litellm),
     check_meta("brotli-nodejs", "Node.js Brotli decoder (CVE-2026-111497)", "check_now", "confirmed", "runtime",
-               ["nodejs-oct-2026", "ptp-brotli"], "Fixed in Node 22.23.4, 24.22.1, 26.12.1; Node 20 gets no fix.",
+               ["nodejs-oct-2026", "ptp-brotli", "thn-polyshell-node"],
+               "Fixed in Node 22.23.4, 24.22.1, 26.12.1; Node 20 gets no fix. Also reads .nvmrc, engines.node and "
+               "CI setup-node. In-the-wild use against 24.22.0 is unverified as a Node.js/NVD claim.",
                "Upgrade Node; until then turn off Brotli (br) content-encoding. Rebuild Docker images.", ALL_OS,
                check_brotli_node, uses_walk=False),
     check_meta("brotli-python", "Python Brotli / brotlicffi (CVE-2026-111497)", "check_now", "confirmed", "dependency",
@@ -2340,6 +2795,32 @@ CHECKS = [
     check_meta("plex-media-server", "Plex Media Server below 1.43.3.10861", "awareness", "confirmed", "runtime", [],
                "4 Plex bugs on the CISA list; fixed in 1.43.3.10861 (briefing gives the domain thehackernews.com, no URL).",
                "Update Plex.", ALL_OS, check_plex, uses_walk=False),
+    check_meta("tailscale-ssh-1104", "Tailscale SSH forwarding (TS-2026-014, fixed in 1.104.4)", "check_if_used",
+               "confirmed", "runtime", ["tailscale-ssh-blog", "tailscale-bulletins"],
+               "A trusted node could reach root-only Unix sockets on SSH targets via forwarding. Fixed in 1.104.4. "
+               "No CVE id. Mitigation if a host cannot update: TS_SSH_DISABLE_FORWARDING=1 and restart tailscaled "
+               "(reported only; this check never sets it or restarts).",
+               "Upgrade to 1.104.4. If you cannot, set TS_SSH_DISABLE_FORWARDING=1 on tailscaled and restart. "
+               "This tool never sets the variable or restarts the service.", ALL_OS, check_tailscale_ssh),
+    check_meta("peoplesoft-presence", "Oracle PeopleSoft / PeopleTools footprint (CVE-2026-35273)", "check_if_used",
+               "confirmed", "runtime", ["oracle-cve-2026-35273", "thn-peoplesoft"],
+               "Oracle alert CVE-2026-35273 (PeopleTools 8.61 and 8.62, CVSS 9.8). Public reporting describes a "
+               "three-flaw chain (PSIGW SSRF, loopback allowedhosts, PSEMHUB RCE) under that one CVE.",
+               "If PeopleSoft is present, apply the Oracle alert patches. Presence is review: a patched host may "
+               "keep the same PeopleTools version. This tool does not probe PIA.", ALL_OS, check_peoplesoft),
+    check_meta("anthropic-ai-chain", "Browser and OS patch level (Anthropic AI-discovered chain, unconfirmed)",
+               "check_if_used", "unconfirmed", "runtime", ["anthropic-ai-chain", "thn-anthropic-chain"],
+               "Anthropic described an AI-discovered exploit chain across Chrome, Safari, Windows, Linux and Android, "
+               "already patched upstream. The chain claim is unconfirmed here. Chrome 156 is a dated floor; Safari, "
+               "Windows and Linux exact fixed builds are unverified.",
+               "Update Chrome to 156 or newer and install current OS/browser updates. Do not treat this check as "
+               "proof the chain exists or is fixed on a given build.", ALL_OS, check_anthropic_chain, uses_walk=False),
+    check_meta("gmo-onamae-presence", "GMO Onamae Desktop Cloud / DNS use (customer-data breach)", "check_if_used",
+               "confirmed", "credential", ["gmo-onamae", "thn-gmo-onamae"],
+               "GMO Internet confirmed unauthorized access to Onamae Desktop Cloud and that customer information "
+               "was published. This check looks only at local zone files and configs (no live DNS).",
+               "If Onamae/GMO DNS or Desktop Cloud is in use, rotate credentials and review exposed customer data. "
+               "This tool never contacts Onamae or queries public DNS.", ALL_OS, check_gmo_onamae),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
@@ -2398,7 +2879,8 @@ def report_fragments(doc, target, collected_on):
         for key in meta["sources"]:
             sid = "src-" + key
             sids.append(sid)
-            sources[sid] = {"id": sid, "title": SRC[key][0], "url": SRC[key][1], "retrieved_on": BRIEFING_DATE,
+            sources[sid] = {"id": sid, "title": SRC[key][0], "url": SRC[key][1],
+                            "retrieved_on": collected_on or BRIEFING_DATE,
                             "kind": "other"}
         counts = {}
         for f in c["findings"]:

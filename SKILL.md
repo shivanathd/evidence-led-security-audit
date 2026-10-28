@@ -4,7 +4,7 @@ description: "Read-only, evidence-backed security audit of systems you may asses
 license: MIT
 compatibility: "Any agent that reads SKILL.md; no connector, model provider, hook or scheduler needed. Helpers use the Python 3.9+ stdlib with no network; host_checks.py also runs on Windows, other file helpers stop there with BLOCKED."
 metadata:
-  version: "0.3.1"
+  version: "0.4.0"
 ---
 
 # Evidence-Led Security Audit
