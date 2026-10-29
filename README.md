@@ -95,7 +95,7 @@ flowchart TB
 | --- | --- | --- |
 | 0 Preflight | Authorization, scope, approver roles, tools | [phases.md](references/phases.md) |
 | 1 Inventory | `scripts/inventory.py` lists manifests, runtime pins, SBOMs, listeners, hooks, secrets (location only) | [phases.md](references/phases.md) |
-| 2 Advisories | Re-read primary sources this run, with dates | [profiles/](profiles/) |
+| 2 Advisories | Re-read primary sources this run, with dates. Press-only claims are leads, not proof. | [profiles/](profiles/), [phases.md](references/phases.md) |
 | 3 Checks | One target and one layer per check | [scoped-checks.md](references/scoped-checks.md), [saas-identity.md](references/saas-identity.md), [endpoint-fleet.md](references/endpoint-fleet.md) |
 | 4 Credential exposure | Owner, rotation, revocation, misuse review | [scoped-checks.md](references/scoped-checks.md) |
 | 5 Refutation | Try to disprove every finding and every PASS | [orchestration.md](references/orchestration.md) |

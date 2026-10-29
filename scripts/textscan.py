@@ -90,6 +90,7 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     # cited by scripts/host_checks.py and profiles/dev-endpoint-2026-10-27.md
     "www.theregister.com", "thehackernews.com", "www.bleepingcomputer.com", "www.aikido.dev", "patchtheplanet.org",
     "unit42.paloaltonetworks.com", "www.securityweek.com", "voidsec.com", "x.com", "www.csoonline.com", "lightning.ai",
+    "www.techradar.com", "techradar.com",  # unconfirmed-claim example in references/phases.md (29 Oct 2026)
     "lightning.ai",  # cited by profiles/lightning-ai-2026-10-16.md
     "unit42.paloaltonetworks.com",  # Unit 42 PHP2Shell retraction note
 })

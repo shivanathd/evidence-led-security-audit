@@ -25,7 +25,7 @@ If you change a dated profile, refresh its primary sources and update its "Last 
 ### Adding an incident profile
 
 1. Copy an existing file in `profiles/` and name it `<topic>-<yyyy-mm-dd>.md`, using the disclosure date.
-2. Cite primary sources only: the project or vendor advisory, the CVE record, the provider's own incident notice. News coverage can point you to them but is not cited.
+2. Cite primary sources only: the project or vendor advisory, the CVE record, the provider's own incident notice. News coverage can point you to them but is not a primary source. A single-source or press-only claim may be cited as an **unconfirmed lead** (URL and retrieval date). It cannot back a confirmed finding or a dated profile until a primary source exists. See Phase 2 in [references/phases.md](references/phases.md).
 3. Say what is unknown at the time of writing, and how a finding is closed under the skill's evidence rules.
 4. Cited hosts must be on the reviewed list in `scripts/textscan.py` (`REVIEWED_PUBLIC_HOSTS`). Adding one is a reviewed code change.
 5. Add a row to the profiles table in `README.md`. Never edit a profile into a "latest" list that is meant to stay current indefinitely. Add a new dated profile instead.
