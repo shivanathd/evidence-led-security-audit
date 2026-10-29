@@ -20,7 +20,7 @@
 - Reviewed public hosts: `www.oracle.com`, `oracle.com`, `www.anthropic.com`, `anthropic.com`, `internet.gmo`.
 - `check_public_package.py` compact file-count target raised from 40 to 50 for the new dated profiles.
 - Host-check report fragments stamp `retrieved_on` with `--collected-on` (this run does not fetch advisories).
-- VALIDATION.md records CI failure modes for the unchanged test workflow (bytecode cache, macOS temp symlinks, Windows BLOCKED helpers, expected INCOMPLETE after-fix example, host-check smoke bounds).
+- VALIDATION.md and `references/ci-failure-modes.md` record CI failure modes for the unchanged test workflow (bytecode cache, macOS temp symlinks, Windows BLOCKED helpers, expected INCOMPLETE after-fix example, host-check smoke bounds).
 
 ## 0.3.1 - 2026-10-29
 
