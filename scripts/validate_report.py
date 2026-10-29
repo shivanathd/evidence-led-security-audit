@@ -643,7 +643,9 @@ def _check_findings(ctx):
                 ctx.err("DANGLING_REF", "%s.source_ids[%d]" % (p, j), "source %r not found" % sid)
             elif sid in ctx.stale_sources and st in ("fixed", "refuted"):
                 ctx.err("STALE_SOURCE", "%s.source_ids[%d]" % (p, j), "a %s claim cannot rest on a stale source" % st)
-        if f["category"] == "vulnerable_component" and ctx.require_component_primary:
+        if f["category"] == "vulnerable_component" and not f["source_ids"]:
+            ctx.err("SOURCE_MISSING", p, "component findings need a primary advisory source")
+        elif f["category"] == "vulnerable_component" and ctx.require_component_primary:
             fresh_primary, stale_primary = [], []
             for sid in f["source_ids"]:
                 src = ctx.sources.get(sid)
@@ -896,6 +898,7 @@ def validate(report, baseline=None, public=False, host_policy=None, require_comp
     every component finding. Nested baseline checks pass False so a historical
     baseline that only cited non-primary sources is not made BASELINE_INVALID;
     the after-fix report still uses the default and must refresh primaries.
+    Empty ``source_ids`` on a component finding is always SOURCE_MISSING.
     """
     issues = []
     try:

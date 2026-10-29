@@ -9,7 +9,7 @@
 ### Changed
 
 - Phase 2, SaaS/identity, scoped-checks, reporting and contributing notes: treat single-source and press-only reports as unconfirmed leads. They can set identity and messaging-tenant checks to `BLOCKED` and open related findings as `unknown`; they cannot confirm a breach or clear one. Example: the TechRadar report published 28 Oct 2026 (retrieved 29 Oct 2026).
-- `validate_report.py` rejects `vulnerable_component` findings that cite only a non-primary or stale source. After-fix reports also reject a primary advisory retrieved before the baseline (`retrieved_on` must be on or after the baseline `generated_on`). Same-day retrievals count as this run. The refresh rule applies only to primary advisory kinds. Nested baseline checks skip the new primary-source rule so a historical baseline that only cited non-primary sources is not made invalid.
+- `validate_report.py` rejects `vulnerable_component` findings that cite only a non-primary or stale source. After-fix reports also reject a primary advisory retrieved before the baseline (`retrieved_on` must be on or after the baseline `generated_on`). Same-day retrievals count as this run. The refresh rule applies only to primary advisory kinds. Nested baseline checks skip the new primary-source rule so a historical baseline that only cited non-primary sources is not made invalid; empty `source_ids` on a component finding is still `SOURCE_MISSING`.
 
 ## 0.3.0 - 2026-10-27
 

@@ -131,6 +131,16 @@ class BaselineContract(unittest.TestCase):
         self.assertNotIn("BASELINE_INVALID", codes(issues))
         self.assertNotIn("SOURCE_MISSING", codes(issues))
 
+    def test_historical_baseline_with_empty_source_ids_is_invalid(self):
+        historical = copy.deepcopy(self.base)
+        for finding in historical["findings"]:
+            if finding["category"] == "vulnerable_component":
+                finding["source_ids"] = []
+        self.assertIn("SOURCE_MISSING", codes(vr.validate(historical)))
+        issues = vr.validate(self.after, historical)
+        self.assertIn("BASELINE_INVALID", codes(issues))
+        self.assertTrue(any("SOURCE_MISSING" in i.message for i in issues if i.code == "BASELINE_INVALID"))
+
     def test_after_fix_still_requires_primary_on_its_own_findings(self):
         after = copy.deepcopy(self.after)
         for src in after["sources"]:
