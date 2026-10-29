@@ -2,6 +2,10 @@
 
 ## 0.3.1 - 2026-10-29
 
+### Added
+
+- `references/ci-failure-modes.md`: troubleshooting notes for the public test workflow (bytecode cache, macOS temp symlinks, Windows BLOCKED helpers, expected INCOMPLETE after-fix example).
+
 ### Changed
 
 - Phase 2, SaaS/identity, scoped-checks, reporting and contributing notes: treat single-source and press-only reports as unconfirmed leads. They can set identity and messaging-tenant checks to `BLOCKED` and open related findings as `unknown`; they cannot confirm a breach or clear one. Example: the TechRadar report published 28 Oct 2026 (retrieved 29 Oct 2026).

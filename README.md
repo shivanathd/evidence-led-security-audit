@@ -209,7 +209,7 @@ Host policy format (the same file works for `validate_report.py --public --host-
 | Path | Purpose |
 | --- | --- |
 | `SKILL.md` | Hub the agent loads first |
-| `references/` | Phases and gates, layered checks, SaaS and identity, endpoints and fleets (macOS, Linux, Windows), orchestration, tooling, reporting |
+| `references/` | Phases and gates, layered checks, SaaS and identity, endpoints and fleets (macOS, Linux, Windows), orchestration, tooling, reporting, CI failure modes |
 | `profiles/` | Dated incident profiles |
 | `assets/report.schema.json` | Report structure |
 | `assets/examples/` | Synthetic baseline and after-fix reports (`service-a`, `example.invalid`) |

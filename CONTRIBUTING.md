@@ -18,6 +18,8 @@ python3 scripts/check_public_package.py . --denylist /path/to/your/private-terms
 agentskills validate "$PWD"
 ```
 
+If a CI job fails, read [references/ci-failure-modes.md](references/ci-failure-modes.md) before changing the workflow. Expected skips (Windows package check) and an `INCOMPLETE` after-fix example are not failures.
+
 If you change a validator rule, add a case to `tests/corpus/adversarial_cases.json` that the old rule would have let through.
 
 If you change a dated profile, refresh its primary sources and update its "Last checked" date.
