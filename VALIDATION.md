@@ -47,3 +47,18 @@ macOS note: `/tmp` and `/var` are symlinks to `/private/...`, and the helpers re
 The schema checks submitted structure and consistency, not evidence authenticity, owner authority or actual sandbox controls. The deployed-fix chain is currently image-oriented; do not invent image/provenance fields for bare-metal or managed services. Review the limits in README.md before applying the workflow.
 
 This is a release candidate, not a certification or a published service. A maintainer must review licensing and attribution, enable GitHub private vulnerability reporting, approve publication and rerun these checks after any change.
+
+## CI failure modes
+
+`.github/workflows/test.yml` did not change in this release. The new host checks, inventory hints, examples and tests still run through the same matrix (Ubuntu 3.9/3.14, macOS 3.14, Windows 3.9/3.14, `fail-fast: false`). These notes record how that workflow fails so a script-only change is not shipped without failure-mode evidence.
+
+| Step | Expected | Treat as a failure |
+| --- | --- | --- |
+| Unit tests | PASS or SKIP | A new check id without a simulated-host fixture |
+| Public package check | No ERROR on Ubuntu and macOS | `__pycache__`, a worktree not named `evidence-led-security-audit`, or an unreviewed host |
+| Example reports | `STRUCTURE_OK`; after-fix stays `INCOMPLETE` | A new required check dropped from the after-fix compare |
+| Host-checks smoke | Exit 0 into `$RUNNER_TEMP` | A traceback, hang, write outside `--out`, or network/subprocess beyond the two read-only listings |
+
+Windows skips the package-check step because those helpers exit BLOCKED. Individual smoke-run checks may be `NOT_APPLICABLE` or `BLOCKED` on a clean runner. A GitHub App "Check publication was denied" message is an app Checks permission gap, not a job failure.
+
+macOS `/tmp` is a symlink; use a canonical temp path. Keep `PYTHONDONTWRITEBYTECODE=1` and `python -B` so bytecode files do not fail the package check. Do not raise `--time-budget` or `--max-entries` to hide a hang.
