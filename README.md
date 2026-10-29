@@ -95,7 +95,7 @@ flowchart TB
 | --- | --- | --- |
 | 0 Preflight | Authorization, scope, approver roles, tools | [phases.md](references/phases.md) |
 | 1 Inventory | `scripts/inventory.py` lists manifests, runtime pins, SBOMs, listeners, hooks, secrets (location only) | [phases.md](references/phases.md) |
-| 2 Advisories | Re-read primary sources this run, with dates | [profiles/](profiles/) |
+| 2 Advisories | Re-read primary sources this run, with dates. Single-source and press-only claims are leads, not proof. | [profiles/](profiles/), [phases.md](references/phases.md) |
 | 3 Checks | One target and one layer per check | [scoped-checks.md](references/scoped-checks.md), [saas-identity.md](references/saas-identity.md), [endpoint-fleet.md](references/endpoint-fleet.md) |
 | 4 Credential exposure | Owner, rotation, revocation, misuse review | [scoped-checks.md](references/scoped-checks.md) |
 | 5 Refutation | Try to disprove every finding and every PASS | [orchestration.md](references/orchestration.md) |
@@ -209,12 +209,12 @@ Host policy format (the same file works for `validate_report.py --public --host-
 | Path | Purpose |
 | --- | --- |
 | `SKILL.md` | Hub the agent loads first |
-| `references/` | Phases and gates, layered checks, SaaS and identity, endpoints and fleets (macOS, Linux, Windows), orchestration, tooling, reporting |
+| `references/` | Phases and gates, layered checks, SaaS and identity, endpoints and fleets (macOS, Linux, Windows), orchestration, tooling, reporting, CI failure modes |
 | `profiles/` | Dated incident profiles |
 | `assets/report.schema.json` | Report structure |
 | `assets/examples/` | Synthetic baseline and after-fix reports (`service-a`, `example.invalid`) |
 | `scripts/` | `inventory.py`, `validate_report.py`, `render_report.py`, `check_public_package.py`, `host_checks.py` (with `hostscan.py`) |
-| `tests/` | Standard-library unit tests, simulated-host fixtures for every host check, and an adversarial corpus of 69 bad reports |
+| `tests/` | Standard-library unit tests, simulated-host fixtures for every host check, and an adversarial corpus of 72 bad reports |
 | `CHANGELOG.md` | Release notes |
 
 ## Contributing and security

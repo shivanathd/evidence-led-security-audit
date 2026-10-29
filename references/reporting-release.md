@@ -73,7 +73,7 @@ Other rules for fixed findings:
   - a deployment-relevant fix is undeployed
 - `CLEAR_WITHIN_COVERED_SCOPE` applies otherwise. It covers only the listed targets and checks.
 
-Primary sources older than seven days cannot support a clearing claim. Neither can evidence older than 30 days. Refresh them, or leave the item open.
+Primary sources older than seven days cannot support a clearing claim. Neither can evidence older than 30 days. Refresh them, or leave the item open. A press-only or single-source claim cannot support a clearing claim; treat it as a lead (Phase 2) and leave the item open or `unknown`.
 
 ## Sanitization and release
 

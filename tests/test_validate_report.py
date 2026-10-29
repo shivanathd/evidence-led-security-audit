@@ -1,6 +1,8 @@
+import copy
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 import support
@@ -68,6 +70,83 @@ class BaselineContract(unittest.TestCase):
         self.assertIn("BASELINE_INVALID", codes(vr.validate(self.after, bad)))
         self.assertIn("BASELINE_MISMATCH", codes(vr.validate(self.after, self.after)))
 
+    def test_after_fix_accepts_primary_retrieved_on_baseline_date(self):
+        """A primary retrieved on the baseline date is this run, not stale."""
+        after = support.apply_ops(self.after, [
+            {"op": "set", "path": "sources[id=SRC-PHP-ARCHIVE].retrieved_on", "value": "2026-10-22"},
+            {"op": "set", "path": "sources[id=SRC-GHSA-OOM].retrieved_on", "value": "2026-10-22"},
+            {"op": "set", "path": "sources[id=SRC-GHSA-STATE].retrieved_on", "value": "2026-10-22"},
+        ])
+        age = (date.fromisoformat(after["generated_on"]) - date.fromisoformat("2026-10-22")).days
+        self.assertLessEqual(age, vr.STALE_SOURCE_DAYS)
+        self.assertNotIn("STALE_SOURCE", codes(vr.validate(after, self.base)))
+
+    def test_after_fix_rejects_primary_retrieved_before_baseline(self):
+        """A primary older than the baseline is stale even inside the seven-day window."""
+        after = clip_dates(self.after, "2026-10-27")
+        for sid in ("SRC-PHP-ARCHIVE", "SRC-GHSA-OOM", "SRC-GHSA-STATE"):
+            for src in after["sources"]:
+                if src["id"] == sid:
+                    src["retrieved_on"] = "2026-10-21"
+        age = (date.fromisoformat(after["generated_on"]) - date.fromisoformat("2026-10-21")).days
+        self.assertLessEqual(age, vr.STALE_SOURCE_DAYS)
+        self.assertLess(date.fromisoformat("2026-10-21"), date.fromisoformat(self.base["generated_on"]))
+        self.assertIn("STALE_SOURCE", codes(vr.validate(after, self.base)))
+
+    def test_refresh_rule_skips_documentation_and_other_kinds(self):
+        after = clip_dates(self.after, "2026-10-27")
+        after["sources"].append({
+            "id": "SRC-DOCS", "title": "Synthetic PHP runtime notes",
+            "url": "https://docs.example.invalid/php-fpm",
+            "retrieved_on": "2026-10-21", "kind": "documentation"})
+        after["sources"].append({
+            "id": "SRC-PRESS", "title": "Synthetic press mention",
+            "url": "https://news.example.invalid/php",
+            "retrieved_on": "2026-10-21", "kind": "other"})
+        ctx = vr.Ctx(after, [])
+        age_docs = (ctx.generated - date.fromisoformat("2026-10-21")).days
+        self.assertLessEqual(age_docs, vr.STALE_SOURCE_DAYS)
+        self.assertNotIn("SRC-DOCS", ctx.stale_sources)
+        self.assertNotIn("SRC-PRESS", ctx.stale_sources)
+        ctx.mark_run_start(date.fromisoformat(self.base["generated_on"]))
+        self.assertNotIn("SRC-DOCS", ctx.stale_sources)
+        self.assertNotIn("SRC-PRESS", ctx.stale_sources)
+
+    def test_same_day_documentation_on_pass_evidence_is_not_stale(self):
+        after = support.apply_ops(self.after, CLEAR_OPS + [
+            {"op": "append", "path": "sources", "value": {
+                "id": "SRC-DOCS", "title": "Synthetic PHP runtime notes",
+                "url": "https://docs.example.invalid/php-fpm",
+                "retrieved_on": "2026-10-22", "kind": "documentation"}},
+            {"op": "append", "path": "evidence[id=EV-102].source_ids", "value": "SRC-DOCS"},
+        ])
+        self.assertEqual(codes(vr.validate(after, self.base)), set())
+
+    def test_historical_baseline_without_primaries_does_not_invalidate_after_fix(self):
+        historical = copy.deepcopy(self.base)
+        for src in historical["sources"]:
+            src["kind"] = "other"
+        self.assertIn("SOURCE_MISSING", codes(vr.validate(historical)))
+        issues = vr.validate(self.after, historical)
+        self.assertNotIn("BASELINE_INVALID", codes(issues))
+        self.assertNotIn("SOURCE_MISSING", codes(issues))
+
+    def test_historical_baseline_with_empty_source_ids_is_invalid(self):
+        historical = copy.deepcopy(self.base)
+        for finding in historical["findings"]:
+            if finding["category"] == "vulnerable_component":
+                finding["source_ids"] = []
+        self.assertIn("SOURCE_MISSING", codes(vr.validate(historical)))
+        issues = vr.validate(self.after, historical)
+        self.assertIn("BASELINE_INVALID", codes(issues))
+        self.assertTrue(any("SOURCE_MISSING" in i.message for i in issues if i.code == "BASELINE_INVALID"))
+
+    def test_after_fix_still_requires_primary_on_its_own_findings(self):
+        after = copy.deepcopy(self.after)
+        for src in after["sources"]:
+            src["kind"] = "other"
+        self.assertIn("SOURCE_MISSING", codes(vr.validate(after, self.base)))
+
     def test_cli_rejects_missing_or_scalar_baseline(self):
         res = support.run_script("validate_report.py", support.EXAMPLES / "after-fix-report.json")
         self.assertEqual(res.returncode, 1)
@@ -76,6 +155,45 @@ class BaselineContract(unittest.TestCase):
         (d / "b.json").write_text("5", encoding="utf-8")
         res = support.run_script("validate_report.py", support.EXAMPLES / "after-fix-report.json", "--baseline", d / "b.json")
         self.assertEqual(res.returncode, 2)
+
+
+def clip_dates(doc, generated_on):
+    """Move generated_on earlier and clip later collected/retrieved dates so DATE_ORDER stays clean."""
+    doc = copy.deepcopy(doc)
+    doc["generated_on"] = generated_on
+    for evidence in doc["evidence"]:
+        if evidence.get("collected_on") and evidence["collected_on"] > generated_on:
+            evidence["collected_on"] = generated_on
+    for src in doc["sources"]:
+        if src.get("retrieved_on") and src["retrieved_on"] > generated_on:
+            src["retrieved_on"] = generated_on
+    return doc
+
+
+class RunStartFreshness(unittest.TestCase):
+    def test_same_day_primary_is_fresh(self):
+        after = support.load_example("after_fix")
+        start = date.fromisoformat("2026-10-22")
+        for src in after["sources"]:
+            src["retrieved_on"] = "2026-10-22"
+        ctx = vr.Ctx(after, [])
+        ctx.mark_run_start(start)
+        primaries = {src["id"] for src in after["sources"] if src["kind"] in vr.PRIMARY_ADVISORY_KINDS}
+        self.assertTrue(primaries)
+        self.assertFalse(primaries & ctx.stale_sources)
+
+    def test_before_start_primary_is_stale_without_seven_day_age(self):
+        after = clip_dates(support.load_example("after_fix"), "2026-10-27")
+        for src in after["sources"]:
+            if src["kind"] in vr.PRIMARY_ADVISORY_KINDS:
+                src["retrieved_on"] = "2026-10-21"
+        ctx = vr.Ctx(after, [])
+        already = set(ctx.stale_sources)
+        ctx.mark_run_start(date.fromisoformat("2026-10-22"))
+        primaries = {src["id"] for src in after["sources"] if src["kind"] in vr.PRIMARY_ADVISORY_KINDS}
+        self.assertTrue(primaries)
+        self.assertFalse(primaries & already)
+        self.assertTrue(primaries <= ctx.stale_sources)
 
 
 class PublicScan(unittest.TestCase):

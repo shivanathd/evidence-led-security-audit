@@ -44,7 +44,16 @@ Run `scripts/inventory.py` on local checkouts or unpacked artifacts. Then do the
 - Record the exact affected versions, the fixed builds, and the conditions under which each variant applies: which SAPI or component, which configuration, which path. Mark any condition you could not verify as UNKNOWN.
 - Optional profiles (`profiles/`) are dated starting points. Do not use one as a replacement for refreshing the sources.
 
-**G2 passes** when every component finding cites at least one primary source retrieved this run.
+**Unconfirmed and single-source claims.** A news report, a researcher's draft, or a statement attributed to a vendor in the press is a **lead**, not a primary source. One outlet repeating another is still one source. Do not record a confirmed breach, a FAIL, or a clearance from it. Do not skip the related checks because no vendor advisory exists yet.
+
+- Open or keep the matching identity, SaaS-tenant or credential checks. Until a primary source or owner evidence exists, those findings stay `unknown` and the checks stay BLOCKED or leave the run INCOMPLETE. They are never PASS.
+- If the claim names an AI vendor or other SaaS, plus third-party business software, internal messaging or identity data, list the in-scope tenants that hold that class of data. See [saas-identity.md](saas-identity.md).
+- How fast an alleged agent-driven attack ran is not a check class. It does not change authorization, read-only mode, or the need for layer evidence.
+- Do not add a dated profile until a primary source exists ([CONTRIBUTING.md](../CONTRIBUTING.md)). News can point you to one.
+
+Example of a lead, not a finding (unconfirmed claim, published 28 Oct 2026, retrieved 29 Oct 2026): [TechRadar](https://www.techradar.com/pro/security/ai-startup-claims-it-hacked-anthropic-in-12-hours-gains-access-to-employee-details-and-internal-messages) reported that an AI startup claimed it reached an AI vendor's employee details and internal messages through third-party business software in about 12 hours. This update did not retrieve a vendor advisory on the vendor's own site. Treat it as above.
+
+**G2 passes** when every **component** finding cites at least one primary source retrieved this run. A lead with no primary source must not become a component finding.
 
 ## Phase 3: Layered checks (Gate G3)
 

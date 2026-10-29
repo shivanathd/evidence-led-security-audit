@@ -85,5 +85,17 @@ class BadPackage(unittest.TestCase):
         self.assertIn("PACKAGE_BLOCKED", res.stdout)
 
 
+class CiFailureModesDoc(unittest.TestCase):
+    def test_documents_workflow_exit_contracts(self):
+        text = (support.ROOT / "references" / "ci-failure-modes.md").read_text(encoding="utf-8")
+        self.assertIn("NO_RULE_MATCHED", text)
+        self.assertIn("NEEDS_REVIEW", text)
+        self.assertRegex(text, r"exits 3")
+        self.assertIn("--strict", text)
+        self.assertIn("FAIL", text)
+        self.assertRegex(text, r"still exits 0")
+        self.assertIn("$OUT/host-checks.json", text)
+
+
 if __name__ == "__main__":
     unittest.main()

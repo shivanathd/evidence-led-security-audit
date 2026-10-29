@@ -4,7 +4,7 @@ Contributions are welcome. Keep them small and testable.
 
 ## Ground rules
 
-- **Synthetic audit data only.** Examples and tests use `service-a`, `*.example.invalid`, documentation IP ranges and made-up IDs. Never include real people, private organizations or repositories, internal domains, account IDs, incidents or audit findings. Reviewed citations to public vendor documentation and open-source projects are allowed.
+- **Synthetic audit data only.** Examples and tests use `service-a`, `*.example.invalid`, documentation IP ranges and made-up IDs. Never include real people (other than the repository owner's name already used here), private organizations or repositories, internal domains, account IDs, or unpublished audit findings. Reviewed citations to public vendor documentation, open-source projects, and public incident notices are allowed, including press-only leads labeled unconfirmed.
 - **Original work.** Do not copy prompts or code from other skill collections. This applies especially to share-alike licensed ones. If a project inspired your idea, link to it.
 - **Standard library only** for scripts and tests. Do not add install hooks, network calls or background jobs.
 - **Defensive scope.** No exploit payloads, no scanning recipes for third-party targets, no automatic remediation or publication.
@@ -18,6 +18,8 @@ python3 scripts/check_public_package.py . --denylist /path/to/your/private-terms
 agentskills validate "$PWD"
 ```
 
+If a CI job fails, read [references/ci-failure-modes.md](references/ci-failure-modes.md) before changing the workflow. Expected skips (Windows package check) and an `INCOMPLETE` after-fix example are not failures.
+
 If you change a validator rule, add a case to `tests/corpus/adversarial_cases.json` that the old rule would have let through.
 
 If you change a dated profile, refresh its primary sources and update its "Last checked" date.
@@ -25,7 +27,7 @@ If you change a dated profile, refresh its primary sources and update its "Last 
 ### Adding an incident profile
 
 1. Copy an existing file in `profiles/` and name it `<topic>-<yyyy-mm-dd>.md`, using the disclosure date.
-2. Cite primary sources only: the project or vendor advisory, the CVE record, the provider's own incident notice. News coverage can point you to them but is not cited.
+2. Cite primary sources only: the project or vendor advisory, the CVE record, the provider's own incident notice. News coverage can point you to them but is not a primary source. A single-source or press-only claim may be cited as an **unconfirmed lead** (URL and retrieval date). It cannot back a confirmed finding or a dated profile until a primary source exists. See Phase 2 in [references/phases.md](references/phases.md).
 3. Say what is unknown at the time of writing, and how a finding is closed under the skill's evidence rules.
 4. Cited hosts must be on the reviewed list in `scripts/textscan.py` (`REVIEWED_PUBLIC_HOSTS`). Adding one is a reviewed code change.
 5. Add a row to the profiles table in `README.md`. Never edit a profile into a "latest" list that is meant to stay current indefinitely. Add a new dated profile instead.
