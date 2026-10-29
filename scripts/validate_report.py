@@ -241,7 +241,8 @@ class Ctx:
         self.findings = {f["id"]: f for f in report["findings"]}
         self.generated = _date(report["generated_on"])
         self.current_from = None  # set to the baseline date for after-fix reports
-        self.run_start = None  # after-fix: sources must be retrieved after the baseline
+        self.run_start = None  # after-fix: primary advisories must be retrieved this run
+        self.require_component_primary = True
         self.stale_sources = set()
         for s in report["sources"]:
             d = _date(s["retrieved_on"])
@@ -251,16 +252,20 @@ class Ctx:
     def mark_run_start(self, start):
         """Record when this run started and treat older primary retrievals as stale.
 
-        For after-fix reports ``start`` is the baseline ``generated_on``. A source
-        retrieved on or before that date belongs to the baseline run, not this one.
+        For after-fix reports ``start`` is the baseline ``generated_on``. A primary
+        advisory retrieved before that date belongs to the baseline run, not this
+        one. A retrieval on the same date is this run. Documentation and other
+        non-primary kinds are not marked here.
         """
         self.current_from = start
         self.run_start = start
         if start is None:
             return
         for s in self.r["sources"]:
+            if s.get("kind") not in PRIMARY_ADVISORY_KINDS:
+                continue
             d = _date(s["retrieved_on"])
-            if d is not None and d <= start:
+            if d is not None and d < start:
                 self.stale_sources.add(s["id"])
 
     def err(self, code, path, msg):
@@ -638,7 +643,7 @@ def _check_findings(ctx):
                 ctx.err("DANGLING_REF", "%s.source_ids[%d]" % (p, j), "source %r not found" % sid)
             elif sid in ctx.stale_sources and st in ("fixed", "refuted"):
                 ctx.err("STALE_SOURCE", "%s.source_ids[%d]" % (p, j), "a %s claim cannot rest on a stale source" % st)
-        if f["category"] == "vulnerable_component":
+        if f["category"] == "vulnerable_component" and ctx.require_component_primary:
             fresh_primary, stale_primary = [], []
             for sid in f["source_ids"]:
                 src = ctx.sources.get(sid)
@@ -884,8 +889,14 @@ def _load_schema():
     return schema
 
 
-def validate(report, baseline=None, public=False, host_policy=None):
-    """host_policy: records from textscan.parse_host_policy (reviewed, never from the report)."""
+def validate(report, baseline=None, public=False, host_policy=None, require_component_primary=True):
+    """host_policy: records from textscan.parse_host_policy (reviewed, never from the report).
+
+    require_component_primary: standalone reports need a fresh primary advisory on
+    every component finding. Nested baseline checks pass False so a historical
+    baseline that only cited non-primary sources is not made BASELINE_INVALID;
+    the after-fix report still uses the default and must refresh primaries.
+    """
     issues = []
     try:
         schema = _load_schema()
@@ -895,6 +906,7 @@ def validate(report, baseline=None, public=False, host_policy=None):
     if issues:
         return issues  # semantics need a well-formed document
     ctx = Ctx(report, issues)
+    ctx.require_component_primary = require_component_primary
     kind = report["report_kind"]
     base_ok = False
     if kind == "baseline":
@@ -914,7 +926,8 @@ def validate(report, baseline=None, public=False, host_policy=None):
         elif baseline.get("report_kind") != "baseline":
             ctx.err("BASELINE_MISMATCH", "--baseline", "comparison file is not a baseline report")
         else:
-            base_errors = sorted({i.code for i in validate(baseline) if i.level == "ERROR"})
+            base_errors = sorted({i.code for i in validate(baseline, require_component_primary=False)
+                                  if i.level == "ERROR"})
             if base_errors:
                 ctx.err("BASELINE_INVALID", "--baseline", "baseline fails validation (%s); fix it first"
                         % ", ".join(base_errors[:8]))
