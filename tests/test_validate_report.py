@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 import support
@@ -67,6 +68,17 @@ class BaselineContract(unittest.TestCase):
         bad = support.apply_ops(self.base, [{"op": "set", "path": "verdict.overall", "value": "CLEAR_WITHIN_COVERED_SCOPE"}])
         self.assertIn("BASELINE_INVALID", codes(vr.validate(self.after, bad)))
         self.assertIn("BASELINE_MISMATCH", codes(vr.validate(self.after, self.after)))
+
+    def test_after_fix_rejects_primary_source_from_baseline_run(self):
+        """Seven-day age is not enough: after-fix must re-retrieve after the baseline."""
+        after = support.apply_ops(self.after, [
+            {"op": "set", "path": "sources[id=SRC-PHP-ARCHIVE].retrieved_on", "value": "2026-10-22"},
+            {"op": "set", "path": "sources[id=SRC-GHSA-OOM].retrieved_on", "value": "2026-10-22"},
+            {"op": "set", "path": "sources[id=SRC-GHSA-STATE].retrieved_on", "value": "2026-10-22"},
+        ])
+        age = (date.fromisoformat(after["generated_on"]) - date.fromisoformat("2026-10-22")).days
+        self.assertLessEqual(age, vr.STALE_SOURCE_DAYS)
+        self.assertIn("STALE_SOURCE", codes(vr.validate(after, self.base)))
 
     def test_cli_rejects_missing_or_scalar_baseline(self):
         res = support.run_script("validate_report.py", support.EXAMPLES / "after-fix-report.json")

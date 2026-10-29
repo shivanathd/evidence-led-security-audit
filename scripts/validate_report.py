@@ -241,10 +241,26 @@ class Ctx:
         self.findings = {f["id"]: f for f in report["findings"]}
         self.generated = _date(report["generated_on"])
         self.current_from = None  # set to the baseline date for after-fix reports
+        self.run_start = None  # after-fix: sources must be retrieved after the baseline
         self.stale_sources = set()
         for s in report["sources"]:
             d = _date(s["retrieved_on"])
             if d and self.generated and (self.generated - d).days > STALE_SOURCE_DAYS:
+                self.stale_sources.add(s["id"])
+
+    def mark_run_start(self, start):
+        """Record when this run started and treat older primary retrievals as stale.
+
+        For after-fix reports ``start`` is the baseline ``generated_on``. A source
+        retrieved on or before that date belongs to the baseline run, not this one.
+        """
+        self.current_from = start
+        self.run_start = start
+        if start is None:
+            return
+        for s in self.r["sources"]:
+            d = _date(s["retrieved_on"])
+            if d is not None and d <= start:
                 self.stale_sources.add(s["id"])
 
     def err(self, code, path, msg):
@@ -904,7 +920,7 @@ def validate(report, baseline=None, public=False, host_policy=None):
                         % ", ".join(base_errors[:8]))
             else:
                 base_ok = True
-                ctx.current_from = _date(baseline["generated_on"])
+                ctx.mark_run_start(_date(baseline["generated_on"]))
     if ctx.generated is None:
         ctx.err("SCHEMA", "$.generated_on", "invalid date")
     for fn in (_check_ids_unique, _check_authorization, _check_scope, _check_evidence, _check_sources, _check_inventory_coverage,

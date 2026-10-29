@@ -7,9 +7,9 @@
 | Step | Expected | Not a failure |
 | --- | --- | --- |
 | Unit tests | Every method PASS or SKIP | POSIX-only helpers SKIP on Windows |
-| Public package check | No ERROR on Ubuntu and macOS | The step is skipped on Windows (`check_public_package.py` exits BLOCKED there) |
+| Public package check | Status `NO_RULE_MATCHED` (exit 0) on Ubuntu and macOS | The step is skipped on Windows (`check_public_package.py` exits BLOCKED there). `NEEDS_REVIEW` prints no `ERROR` but exits 3 and fails the matrix cell |
 | Example reports | `STRUCTURE_OK` | The after-fix example stays `INCOMPLETE` because a required check is blocked |
-| Host-checks smoke | Process exits 0; JSON written to `$RUNNER_TEMP` | Individual checks may be `NOT_APPLICABLE` or `BLOCKED` on a clean runner; the report is never uploaded |
+| Host-checks smoke | Process exits 0; JSON written to `$RUNNER_TEMP` | Individual checks may be `NOT_APPLICABLE`, `BLOCKED`, or `FAIL`. CI does not pass `--strict`, so `FAIL` or `PARTIAL` coverage still exits 0. The report is never uploaded |
 
 A GitHub App message that **Check publication was denied** is not a workflow failure. It means the app lacks Checks: read and write. An owner must enable that permission. Do not change this repository to work around it.
 
@@ -25,7 +25,7 @@ A GitHub App message that **Check publication was denied** is not a workflow fai
 
 **Windows `BLOCKED` on inventory, package check, or render `--out`.** Those helpers need POSIX `openat`. CI skips the package-check step on Windows. The unit suite and `validate_report.py` / `host_checks.py` still run.
 
-**`host_checks.py` smoke FAIL or crash.** The smoke run is read-only against the runner, bounded (`--time-budget 120 --max-entries 200000`), and writes only under `$RUNNER_TEMP`. A FAIL or traceback is a real job failure. Re-run the same command locally; do not raise the bounds to hide a hang.
+**`host_checks.py` smoke crash or write error.** The smoke run is read-only against the runner, bounded (`--time-budget 120 --max-entries 200000`), and writes only under `$RUNNER_TEMP`. CI does not pass `--strict`, so a completed run exits 0 even when a check is `FAIL` or coverage is `PARTIAL`; those are findings in the JSON, not a red cell. A traceback, hang, or nonzero exit (usage or `--out` failure) is a real job failure. Reproduce with the local `OUT` path below; do not raise the bounds to hide a hang.
 
 **`validate_report.py` rejects the examples.** The after-fix file is supposed to remain `INCOMPLETE`. A `STRUCTURE` or `SOURCE` error is a real failure. If you changed a validator rule, add a case to `tests/corpus/adversarial_cases.json`.
 

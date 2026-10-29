@@ -214,7 +214,7 @@ Host policy format (the same file works for `validate_report.py --public --host-
 | `assets/report.schema.json` | Report structure |
 | `assets/examples/` | Synthetic baseline and after-fix reports (`service-a`, `example.invalid`) |
 | `scripts/` | `inventory.py`, `validate_report.py`, `render_report.py`, `check_public_package.py`, `host_checks.py` (with `hostscan.py`) |
-| `tests/` | Standard-library unit tests, simulated-host fixtures for every host check, and an adversarial corpus of 71 bad reports |
+| `tests/` | Standard-library unit tests, simulated-host fixtures for every host check, and an adversarial corpus of 72 bad reports |
 | `CHANGELOG.md` | Release notes |
 
 ## Contributing and security

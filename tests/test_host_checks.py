@@ -866,6 +866,14 @@ class Cli(SimCase):
         self.assertTrue(doc["host"]["simulated"])
         self.assertEqual(self.cli("--only", "brotli-dotnet", "--strict").returncode, 0)
 
+    def test_fail_without_strict_exits_zero(self):
+        """CI omits --strict; FAIL is a finding, not a job failure."""
+        self.s.repo("~/code/app")
+        self.s.write("~/code/app/.cursor/hooks/x.sh", "echo\n")
+        res = self.cli("--only", "testmetest-ai-hooks")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["checks"][0]["status"], "FAIL")
+
     def test_out_file_and_force(self):
         out = os.path.join(self.s.base, "report.json")
         self.assertEqual(self.cli("--only", "chrome-156", "--out", out).returncode, 0)
