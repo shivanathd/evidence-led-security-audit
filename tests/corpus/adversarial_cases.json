@@ -1411,6 +1411,29 @@
      "value": {"accepted_by_role": "risk owner", "reference": "APP-SYNTHETIC", "expires_on": "2026-99-99"}}
    ],
    "expect_codes": ["RISK_ACCEPTANCE_DATE_INVALID"]
+  },
+  {
+   "name": "component_finding_non_primary_source",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "A press-only or other source cannot back a component finding.",
+   "ops": [
+    {"op": "set", "path": "findings[id=F-001].source_ids", "value": ["SRC-PHP-ARCHIVE"]},
+    {"op": "set", "path": "sources[id=SRC-PHP-ARCHIVE].kind", "value": "other"}
+   ],
+   "expect_codes": ["SOURCE_MISSING"]
+  },
+  {
+   "name": "component_finding_stale_primary_source",
+   "base": "baseline",
+   "compare_baseline": false,
+   "why": "Open component findings still need a primary source retrieved this run.",
+   "ops": [
+    {"op": "set", "path": "sources[id=SRC-PHP-ARCHIVE].retrieved_on", "value": "2026-10-01"},
+    {"op": "set", "path": "sources[id=SRC-GHSA-OOM].retrieved_on", "value": "2026-10-01"},
+    {"op": "set", "path": "sources[id=SRC-GHSA-STATE].retrieved_on", "value": "2026-10-01"}
+   ],
+   "expect_codes": ["STALE_SOURCE"]
   }
  ]
 }

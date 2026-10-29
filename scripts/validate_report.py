@@ -67,7 +67,7 @@ SUPPORTING_LAYERS = {
     "process": {"process", "source"},
 }
 NON_DEPLOYED_KINDS = {"repository", "ci", "agent_config"}
-PRIMARY_ADVISORY_KINDS = {"project_advisory", "vendor_advisory", "distro_advisory", "package_advisory"}
+PRIMARY_ADVISORY_KINDS = {"project_advisory", "vendor_advisory", "distro_advisory", "package_advisory", "cve_record"}
 SUPPORTED_SCHEMA_KEYWORDS = {"type", "required", "properties", "additionalProperties", "enum", "items",
                              "$ref", "minItems", "minLength", "pattern"}
 SCHEMA_ANNOTATIONS = {"$schema", "title", "description", "$defs"}
@@ -622,8 +622,21 @@ def _check_findings(ctx):
                 ctx.err("DANGLING_REF", "%s.source_ids[%d]" % (p, j), "source %r not found" % sid)
             elif sid in ctx.stale_sources and st in ("fixed", "refuted"):
                 ctx.err("STALE_SOURCE", "%s.source_ids[%d]" % (p, j), "a %s claim cannot rest on a stale source" % st)
-        if f["category"] == "vulnerable_component" and not f["source_ids"]:
-            ctx.err("SOURCE_MISSING", p, "component findings need a primary advisory source")
+        if f["category"] == "vulnerable_component":
+            fresh_primary, stale_primary = [], []
+            for sid in f["source_ids"]:
+                src = ctx.sources.get(sid)
+                if src is None or src.get("kind") not in PRIMARY_ADVISORY_KINDS:
+                    continue
+                if sid in ctx.stale_sources:
+                    stale_primary.append(sid)
+                else:
+                    fresh_primary.append(sid)
+            if not fresh_primary:
+                if stale_primary:
+                    ctx.err("STALE_SOURCE", p, "component findings need a primary advisory source retrieved this run")
+                else:
+                    ctx.err("SOURCE_MISSING", p, "component findings need a primary advisory source")
         if kind == "after_fix" and not f.get("baseline_finding_id"):
             ctx.err("REPORT_KIND_MIXING", p, "after-fix findings need baseline_finding_id (or 'NEW')")
         if kind == "baseline" and (st == "fixed" or f.get("fix_evidence")):

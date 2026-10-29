@@ -51,7 +51,7 @@ Run `scripts/inventory.py` on local checkouts or unpacked artifacts. Then do the
 - How fast an alleged agent-driven attack ran is not a check class. It does not change authorization, read-only mode, or the need for layer evidence.
 - Do not add a dated profile until a primary source exists ([CONTRIBUTING.md](../CONTRIBUTING.md)). News can point you to one.
 
-Example of a lead, not a finding (unconfirmed claim, 29 Oct 2026): [TechRadar](https://www.techradar.com/pro/security/ai-startup-claims-it-hacked-anthropic-in-12-hours-gains-access-to-employee-details-and-internal-messages) reported that an AI startup claimed it reached an AI vendor's employee details and internal messages through third-party business software in about 12 hours. This update did not retrieve a vendor advisory on the vendor's own site. Treat it as above.
+Example of a lead, not a finding (unconfirmed claim, published 28 Oct 2026, retrieved 29 Oct 2026): [TechRadar](https://www.techradar.com/pro/security/ai-startup-claims-it-hacked-anthropic-in-12-hours-gains-access-to-employee-details-and-internal-messages) reported that an AI startup claimed it reached an AI vendor's employee details and internal messages through third-party business software in about 12 hours. This update did not retrieve a vendor advisory on the vendor's own site. Treat it as above.
 
 **G2 passes** when every **component** finding cites at least one primary source retrieved this run. A lead with no primary source must not become a component finding.
 

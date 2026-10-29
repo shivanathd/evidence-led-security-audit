@@ -4,7 +4,8 @@
 
 ### Changed
 
-- Phase 2, SaaS/identity, scoped-checks, reporting and contributing notes: treat single-source and press-only reports as unconfirmed leads. They can open identity and messaging-tenant checks as `unknown`; they cannot confirm a breach or clear one. Example: the 29 Oct 2026 TechRadar report of an AI startup's claim.
+- Phase 2, SaaS/identity, scoped-checks, reporting and contributing notes: treat single-source and press-only reports as unconfirmed leads. They can set identity and messaging-tenant checks to `BLOCKED` and open related findings as `unknown`; they cannot confirm a breach or clear one. Example: the TechRadar report published 28 Oct 2026 (retrieved 29 Oct 2026).
+- `validate_report.py` rejects `vulnerable_component` findings that cite only a non-primary or stale source.
 
 ## 0.3.0 - 2026-10-27
 

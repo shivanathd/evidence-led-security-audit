@@ -4,7 +4,7 @@ Contributions are welcome. Keep them small and testable.
 
 ## Ground rules
 
-- **Synthetic audit data only.** Examples and tests use `service-a`, `*.example.invalid`, documentation IP ranges and made-up IDs. Never include real people, private organizations or repositories, internal domains, account IDs, incidents or audit findings. Reviewed citations to public vendor documentation and open-source projects are allowed.
+- **Synthetic audit data only.** Examples and tests use `service-a`, `*.example.invalid`, documentation IP ranges and made-up IDs. Never include real people (other than the repository owner's name already used here), private organizations or repositories, internal domains, account IDs, or unpublished audit findings. Reviewed citations to public vendor documentation, open-source projects, and public incident notices are allowed, including press-only leads labeled unconfirmed.
 - **Original work.** Do not copy prompts or code from other skill collections. This applies especially to share-alike licensed ones. If a project inspired your idea, link to it.
 - **Standard library only** for scripts and tests. Do not add install hooks, network calls or background jobs.
 - **Defensive scope.** No exploit payloads, no scanning recipes for third-party targets, no automatic remediation or publication.
