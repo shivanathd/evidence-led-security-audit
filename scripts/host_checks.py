@@ -3126,7 +3126,7 @@ def check_plex(host, r):
 _UBUNTU_GENERIC = re.compile(r"^(\d+)\.(\d+)\.0-([1-9]\d{0,3})-generic$")
 _PLAIN_UPSTREAM = re.compile(r"^\d+\.\d+\.\d+$")
 _KERNEL_ABI = re.compile(r"(\d+)\.(\d+)\.(\d+)-(\d+)")
-_UBUNTU_UPLOAD = re.compile(r"#(\d+)-Ubuntu")
+_UBUNTU_UPLOAD = re.compile(r"#(\d+)(?:~[\w.]+)?-Ubuntu")
 # Ubuntu CVE-2026-46300 rows retrieved 2026-10-30: (VERSION_ID, major.minor) -> (fixed ABI, upload, page row).
 FRAGNESIA_UBUNTU_ABI = {
     ("26.04", (7, 0)): (22, 22, "linux 7.0.0-22.22"),
@@ -3270,7 +3270,7 @@ def _teamviewer_scan_portable(host, r):
                     r.add("unknown", _tv_label("portable"),
                           "TeamViewer Portable folder present; version not in metadata (not executed)",
                           path=host.display(inner))
-            elif hs.is_regular(inner):
+            elif hs.is_regular(inner) and name.lower().endswith(".exe"):
                 teamviewer_classify(r, _tv_label("portable"),
                                     hs.pe_file_version(inner) or "unknown",
                                     host.display(inner), host.platform, "portable")
@@ -3388,6 +3388,12 @@ def check_fragnesia(host, r):
             return
         floor_abi, floor_upload, label = row
         upload = ubuntu_upload(host)
+        if running_abi[3] == floor_abi and upload is None and floor_upload != floor_abi:
+            r.add("review", "Linux kernel (Ubuntu)",
+                  "ABI matches Ubuntu fixed build %s but the upload number is unreadable; "
+                  "confirm the package version on the Ubuntu page" % label,
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+            return
         below = running_abi[3] < floor_abi or (
             running_abi[3] == floor_abi and upload is not None and upload < floor_upload)
         if below:

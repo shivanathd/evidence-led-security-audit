@@ -1316,6 +1316,18 @@ class TeamViewer111585(SimCase):
         self.assertEqual(results(c), ["affected"])
         self.assertEqual(c["findings"][0]["component"], "TeamViewer Portable")
 
+    def test_portable_archive_is_ignored(self):
+        w = self.sim("windows")
+        w.write("~/Downloads/TeamViewerPortable.zip", b"PK\x03\x04")
+        self.assertStatus(w.check("teamviewer-111585"), "NOT_APPLICABLE")
+        m = self.sim("darwin")
+        m.write("~/Downloads/TeamViewerPortable.dmg", b"koly")
+        self.assertStatus(m.check("teamviewer-111585"), "NOT_APPLICABLE")
+        exe = self.sim("windows")
+        exe.write("~/Downloads/TeamViewerPortable.exe",
+                  hostfix.pe_with_version(dotted(15, 82, 6, 0)))
+        self.assertEqual(results(exe.check("teamviewer-111585")), ["affected"])
+
     def test_empty_hosts(self):
         for platform in ("linux", "darwin", "windows"):
             self.assertStatus(self.sim(platform).check("teamviewer-111585"), "NOT_APPLICABLE")
@@ -1363,7 +1375,7 @@ class FragnesiaLinux(SimCase):
 
     def test_ubuntu_22_04_generic_and_hwe(self):
         self.assertEqual(results(self._ubuntu("22.04", "5.15.0-180-generic")), ["affected"])
-        self.assertEqual(results(self._ubuntu("22.04", "5.15.0-181-generic")), ["info"])
+        self.assertEqual(results(self._ubuntu("22.04", "5.15.0-181-generic")), ["review"])
         hwe_low = self._ubuntu("22.04", "6.8.0-123-generic")
         self.assertEqual(results(hwe_low), ["affected"])
         self.assertNotIn("181", hwe_low["findings"][0]["detail"])
@@ -1381,7 +1393,7 @@ class FragnesiaLinux(SimCase):
         self.assertEqual(results(low), ["affected"])
         self.assertNotIn("Not affected", json.dumps(low))
         ok = self._ubuntu("20.04", "5.15.0-181-generic")
-        self.assertEqual(results(ok), ["info"])
+        self.assertEqual(results(ok), ["review"])
         self.assertNotIn("Not affected", json.dumps(ok))
 
     def test_ubuntu_26_04_and_25_10_boundaries(self):
@@ -1412,7 +1424,9 @@ class FragnesiaLinux(SimCase):
         self.assertEqual(results(c), ["review"])
 
     def test_ubuntu_upload_from_proc_version(self):
-        low = self._ubuntu("22.04", "5.15.0-181-generic")
+        unknown = self._ubuntu("22.04", "5.15.0-181-generic")
+        self.assertEqual(results(unknown), ["review"])
+        self.assertIn("unreadable", unknown["findings"][0]["detail"])
         low_host = self.sim("linux")
         low_host.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="22.04"\n')
         low_host.write("/proc/sys/kernel/osrelease", "5.15.0-181-generic\n")
@@ -1426,7 +1440,18 @@ class FragnesiaLinux(SimCase):
         ok.write("/proc/version",
                  "Linux version 5.15.0-181-generic (buildd@lcy) (gcc) #191-Ubuntu SMP\n")
         self.assertEqual(results(ok.check("fragnesia-linux")), ["info"])
-        self.assertEqual(results(low), ["info"])
+        hwe_low = self.sim("linux")
+        hwe_low.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="20.04"\n')
+        hwe_low.write("/proc/sys/kernel/osrelease", "5.15.0-181-generic\n")
+        hwe_low.write("/proc/version",
+                      "Linux version 5.15.0-181-generic (buildd@lcy) (gcc) #190~20.04.1-Ubuntu SMP\n")
+        self.assertEqual(results(hwe_low.check("fragnesia-linux")), ["affected"])
+        hwe_ok = self.sim("linux")
+        hwe_ok.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="20.04"\n')
+        hwe_ok.write("/proc/sys/kernel/osrelease", "5.15.0-181-generic\n")
+        hwe_ok.write("/proc/version",
+                     "Linux version 5.15.0-181-generic (buildd@lcy) (gcc) #191~20.04.1-Ubuntu SMP\n")
+        self.assertEqual(results(hwe_ok.check("fragnesia-linux")), ["info"])
 
     def test_unmatched_ubuntu_release_or_series_is_review(self):
         old = self._ubuntu("20.04", "5.4.0-200-generic")
