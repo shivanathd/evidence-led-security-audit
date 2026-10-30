@@ -2740,7 +2740,7 @@ def check_magento(host, r):
 
 
 COMMERCE_8X = re.compile(r"^8\.x-")
-COMMERCE_DEV = re.compile(r"(?:^dev-)|(?:x-dev(?:$|[-.]))")
+COMMERCE_DEV = re.compile(r"(?:^dev-)|(?:x-dev(?:$|[-.]))|(?:-dev$)")
 COMMERCE_FLOORS = ("2.41", "3.3.13")
 COMMERCE_INFO_LIMIT = 64 * 1024
 COMMERCE_INFO_YML = "commerce" + ".info.yml"

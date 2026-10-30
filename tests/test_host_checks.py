@@ -781,7 +781,7 @@ class DrupalCommerce118539(SimCase):
         self.assertIn("cannot read", c["reason"])
 
     def test_dev_builds_are_review(self):
-        for ver in ("3.x-dev", "8.x-2.x-dev", "dev-3.x"):
+        for ver in ("3.x-dev", "8.x-2.x-dev", "dev-3.x", "3.3.14-dev", "3.4.0-dev"):
             s = self.sim("linux")
             self._lock("~/sites/shop/composer.lock", ver, host=s)
             c = self._check(s)

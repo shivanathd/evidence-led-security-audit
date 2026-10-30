@@ -11,7 +11,7 @@
 ### Changed
 
 - Reviewed public hosts: `www.drupal.org`, `drupal.org`.
-- `drupal-commerce-118539` normalises BOM/CRLF in info.yml, pairs an unversioned info.yml only with the deepest enclosing lock/installed.json root when the relative path is a Drupal module layout, reports unpackaged git checkouts as unknown, skips only Composer `vendor/<org>/<pkg>/` and `vendor/composer/` trees, and names blocked-read causes (too large, invalid JSON, cannot read). Inventory uses the same vendor and newline rules.
+- `drupal-commerce-118539` normalises BOM/CRLF in info.yml, pairs an unversioned info.yml only with the deepest enclosing lock/installed.json root when the relative path is a Drupal module layout, reports unpackaged git checkouts as unknown, skips only Composer `vendor/<org>/<pkg>/` and `vendor/composer/` trees, names blocked-read causes (too large, invalid JSON, cannot read), and treats numeric `*-dev` pins as review. Inventory uses the same vendor and newline rules.
 
 ## 0.4.2 - 2026-10-30
 
