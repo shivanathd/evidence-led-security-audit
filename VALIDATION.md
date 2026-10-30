@@ -1,10 +1,10 @@
 # Release-candidate validation
 
-Unreleased (expected 0.4.2). Checked on 30 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
+Version 0.4.2, checked on 30 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
 ## Executed checks
 
-- **Unit suite:** 303 test methods on Linux with Python 3.12. POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
+- **Unit suite:** 302 test methods on Linux with Python 3.12. POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
 - **Skill format:** The candidate passed `agentskills validate` using its absolute directory when that CLI was available. The hub stays under 4,000 characters.
 - **Package inspection:** The public-package checker (run from a directory whose name matches `SKILL.md`) reported no rule match and no unreviewed binary content for this text-only candidate. Reviewed public hosts added for this unreleased change: `www.teamviewer.com`, `teamviewer.com`, `ubuntu.com`, `www.ubuntu.com`, `lists.openwall.net`, `remedio.io`. Onamae product host strings are assembled at runtime so the leak scanner does not treat detection regexes as live hosts. The compact file-count target was raised from 55 to 60 for the new dated profiles.
 - **Secret check:** Pattern checks (`textscan` secret shapes, `check_public_package.py`, a privacy grep of the branch diff) found no leaked values. Pattern checks do not prove that every confidential fact has been detected.
