@@ -16,7 +16,7 @@
 
 - `brotli-nodejs` also classifies `.nvmrc`, `.node-version`, `.tool-versions`, `package.json` `engines.node` and CI `setup-node` pins. In-the-wild use against Node 24.22.0 is labelled unverified (not a Node.js or NVD claim).
 - Mesh-VPN profile last-checked 2026-10-28: Tailscale published bulletins TS-2026-014..017 and named 1.104.4. No CVE id. `TS_SSH_DISABLE_FORWARDING=1` is the vendor-documented mitigation when a host cannot update.
-- Example baseline / after-fix reports include the four checks as `NOT_APPLICABLE` with inventory evidence so an after-fix compare does not drop them.
+- Example baseline / after-fix reports include the four checks as `BLOCKED`: empty inventory hints are not runtime or Onamae-non-use evidence. Tailscale, Anthropic and GMO sources published after the baseline date are omitted from the baseline and kept on the after-fix report.
 - Reviewed public hosts: `www.oracle.com`, `oracle.com`, `www.anthropic.com`, `anthropic.com`, `internet.gmo`.
 - `check_public_package.py` compact file-count target raised from 40 to 50 for the new dated profiles.
 - Host-check report fragments stamp `retrieved_on` with `--collected-on` (this run does not fetch advisories).

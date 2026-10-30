@@ -26,7 +26,8 @@ From the Oracle alert:
 This is a **runtime** (and, when code is on disk, **image**) presence check. A PeopleTools version string is not proof of a patch: Oracle security alerts for PeopleSoft are often applied as patches that keep the same PeopleTools number.
 
 - `review` when a PeopleSoft / PeopleTools path, package, image, `psadmin` binary or config file (`psconfig.sh`, `psappsrv.cfg`, `allowedhosts.properties` under a PeopleSoft path) is present
-- `NOT_APPLICABLE` when inventory and the host walk found none of those, with that empty result as evidence
+- `NOT_APPLICABLE` when the **host walk** of that target found none of those, with that empty result as evidence
+- Empty `peoplesoft_hints` from a repository inventory is not runtime absence. A runtime check without a host walk or package query is `BLOCKED`
 - Never probe a PIA URL, never authenticate, never send a request to PSIGW or PSEMHUB
 
 Targets to list in scope, linked with `related_targets`:
@@ -44,7 +45,7 @@ Use `verification_basis: vendor_patch` only with the Oracle Patch Availability D
 
 - Check title: `Oracle PeopleSoft / PeopleTools footprint (CVE-2026-35273)`.
 - Finding summary: name the path class (tools tree, config file, image tag) without dumping file contents. Use placeholders such as `/opt/oracle/psft` and `example-host`.
-- Absence: `NOT_APPLICABLE` with the inventory / walk evidence, never "clean".
+- Absence: `NOT_APPLICABLE` only with a host-walk empty result, never "clean". Inventory-only absence on a runtime target is `BLOCKED`.
 - Verdict: unchanged.
 
 ## What needs a human

@@ -34,12 +34,14 @@ Unverified, and labelled as such in the check and the report:
 
 ## How this maps to the skill
 
-This is a **runtime** endpoint check. `host_checks.py` never fetches "current stable" (no network). It compares Chrome/Chromium to the dated 156 floor and records other browser and OS versions as info with an unverified note. When any component is present the check is **BLOCKED** with the unconfirmed host-mapping reason, even if Chrome is current. That is intentional: a current Chrome does not prove Safari, Windows or Linux are patched for the other chains.
+This is a **runtime** endpoint check. `host_checks.py` never fetches "current stable" (no network). It compares Chrome/Chromium to the dated 156 floor and records other browser and OS versions as info with an unverified note. **Android is out of scope** for this check: there is no Android collection path.
 
-- Chrome / Chromium below 156 → `review`
-- Chrome 156 or newer → `info` (dated floor only)
-- Safari, other browsers, kernel, Windows build → `info`, detail says **unverified**
-- Nothing installed and no kernel/OS record → `NOT_APPLICABLE`
+Check status when something is present:
+
+- Chrome / Chromium below 156 → finding `review`, check **FAIL** (plus the unconfirmed host-mapping note)
+- Chrome 156 or newer, or only Safari / other browsers / kernel / Windows recorded → finding `info`, check **BLOCKED** with the unconfirmed host-mapping reason. A current Chrome does not prove Safari, Windows or Linux are patched for the other chains.
+- Nothing installed and no kernel/OS record on the walked host → `NOT_APPLICABLE`
+- A report that only has empty repository inventory, or that infers absence from a worker role, is **BLOCKED**, not `NOT_APPLICABLE`
 
 Do not write or run an exploit. Do not treat this check as proof the chain exists on a given build.
 
@@ -48,7 +50,8 @@ Do not write or run an exploit. Do not treat this check as proof the chain exist
 There is no automatic `vendor_patch` close from this check alone.
 
 - Chrome: `vendor_patch` only with a vendor advisory retrieved this run that still names 156 (or a later floor) and evidence that build is running
-- Safari / Windows / Linux / Android: `BLOCKED` / UNKNOWN until a primary vendor bulletin names the exact build and that build is observed
+- Safari / Windows / Linux: `BLOCKED` / UNKNOWN until a primary vendor bulletin names the exact build and that build is observed
+- Android: out of scope for `host_checks.py`. Closing an Android finding stays a human vendor-bulletin task
 - The check confirmation stays **unconfirmed** for host mapping even after Chrome is updated
 
 ## Report wording

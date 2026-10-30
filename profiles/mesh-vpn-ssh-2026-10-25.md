@@ -41,7 +41,7 @@ Targets to list in scope, linked with `related_targets`:
 - the control-plane or policy source (`saas_tenant` or `repository` for an exported policy file)
 - a self-hosted coordinator such as headscale (`runtime`)
 
-The same **check class** applies to similar overlays when they grant remote-shell or privileged forwarding between nodes (Headscale policy, ZeroTier, NetBird). If that overlay is absent on the target, the check is `NOT_APPLICABLE` for that overlay, with evidence.
+The same **check class** applies to similar overlays when they grant remote-shell or privileged forwarding between nodes (Headscale policy, ZeroTier, NetBird). If that overlay is absent **on the walked host or package query for that layer**, the check is `NOT_APPLICABLE` for that overlay, with that evidence. Empty `mesh_vpn_hints` from a repository inventory is not runtime absence: a runtime check without a host walk or package query is `BLOCKED`.
 
 ## Inventory (read-only)
 

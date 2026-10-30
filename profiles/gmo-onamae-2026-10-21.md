@@ -33,7 +33,8 @@ This is a credential-exposure event (Phase 4) when Onamae Desktop Cloud, Onamae 
 `scripts/inventory.py` and `gmo-onamae-presence` look for Onamae host strings in zone files, `named.conf` and DNS-ish configs. A generic mention of "GMO" is not a hit.
 
 - `review` when a local file names an Onamae host (especially in NS / MX / nameserver context)
-- `NOT_APPLICABLE` when those files are absent or contain no Onamae host, with that empty result as evidence
+- `NOT_APPLICABLE` only when the **host walk** of that target found no Onamae host, with that empty result as evidence
+- Empty `gmo_onamae_hints` from a repository inventory is not `NOT_APPLICABLE` without independent non-use evidence (owned-domain NS or registrar). Record that as `BLOCKED`
 
 Targets to list in scope, linked with `related_targets`:
 
@@ -55,7 +56,7 @@ Do not treat "we do not use Desktop Cloud" as `NOT_APPLICABLE` if inventory stil
 
 - Check title: `GMO Onamae Desktop Cloud / DNS use (customer-data breach)`.
 - Finding summary: name the file class (zone, named.conf) without pasting NS hostnames into a public report. Use placeholders such as `ns1.example.com` and `example-host`.
-- Absence: `NOT_APPLICABLE` with the inventory / walk evidence.
+- Absence: `NOT_APPLICABLE` only with a host-walk empty result. Empty inventory hints without owned-domain NS / registrar evidence are `BLOCKED`.
 - Verdict: unchanged.
 
 ## What needs a human

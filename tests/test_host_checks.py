@@ -576,6 +576,37 @@ class TailscaleSsh(SimCase):
         ok.write("~/mesh/Dockerfile", "FROM tailscale/tailscale:v1.104.4\n")
         self.assertStatus(ok.check("tailscale-ssh-1104"), "PASS")
 
+    def test_quoted_environment_equals_is_mitigation(self):
+        self.prefs(self.s, True, "1.104.3")
+        self.s.write("/etc/systemd/system/tailscaled.service.d/override.conf",
+                     '[Service]\nEnvironment="TS_SSH_DISABLE_FORWARDING=1"\n')
+        c = self.s.check("tailscale-ssh-1104")
+        mit = next(f for f in c["findings"] if "mitigation" in f["component"])
+        self.assertEqual(mit["result"], "info")
+        self.assertIn("not a vendor patch", mit["detail"])
+
+    def test_launchd_plist_key_without_equals(self):
+        m = self.sim("darwin")
+        m.plist("/Applications/Tailscale" + APP + "/Contents/Info.plist",
+                {"CFBundleShortVersionString": "1.104.3"})
+        m.write("/Library/LaunchDaemons/com.tailscale.tailscaled.plist",
+                "<dict><key>TS_SSH_DISABLE_FORWARDING</key><string>1</string></dict>\n")
+        m.write("/var/lib/tailscale/prefs.json", '{"RunSSH": true}\n')
+        c = m.check("tailscale-ssh-1104")
+        self.assertTrue(any("mitigation" in f["component"] for f in c["findings"]))
+
+    def test_commented_env_is_not_mitigation(self):
+        self.prefs(self.s, True, "1.104.3")
+        self.s.write("/etc/default/tailscaled", "# TS_SSH_DISABLE_FORWARDING=1\n")
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertFalse(any("mitigation" in f["component"] for f in c["findings"]))
+
+    def test_prefs_without_install_is_unknown(self):
+        self.s.write("/var/lib/tailscale/prefs.json", '{"RunSSH": true}\n')
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertStatus(c, "BLOCKED")
+
 
 class PeopleSoftPresence(SimCase):
     def test_present(self):
@@ -590,6 +621,12 @@ class PeopleSoftPresence(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertTrue(any("allowedhosts.properties" in (f.get("path") or "") for f in c["findings"]))
 
+    def test_explicit_glob_and_index_paths_are_deduped(self):
+        self.s.write("/opt/oracle/peopletools/allowedhosts.properties", "# loopback\n")
+        c = self.s.check("peoplesoft-presence")
+        cfg = [f for f in c["findings"] if "allowedhosts.properties" in (f.get("path") or "")]
+        self.assertEqual(len(cfg), 1)
+
     def test_not_present(self):
         self.s.write("~/notes/oracle.txt", "we do not run PeopleSoft\n")
         self.assertStatus(self.s.check("peoplesoft-presence"), "NOT_APPLICABLE")
@@ -603,6 +640,8 @@ class AnthropicChain(SimCase):
         self.assertEqual(results(c), ["review"])
         self.assertStatus(c, "FAIL")
         self.assertIn("unconfirmed", c["reason"])
+        self.assertIn("five separate", c["briefing_fact"])
+        self.assertIn("Android is out of scope", c["briefing_fact"])
 
     def test_current_chrome_is_blocked_unconfirmed(self):
         self.s.dpkg({"google-chrome-stable": "156.0.7800.1-1"})

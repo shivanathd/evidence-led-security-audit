@@ -2401,6 +2401,32 @@ def tailscale_runssh(host):
     return None, None
 
 
+def _ts_ssh_env_in_text(text):
+    """True when TS_SSH_DISABLE_FORWARDING is set truthy in a service file or plist."""
+    if not text:
+        return False
+    plist = re.search(
+        r"(?is)<key>\s*%s\s*</key>\s*(?:<string>([^<]*)</string>|<true\s*/>|<false\s*/>)"
+        % re.escape(_TS_SSH_ENV),
+        text,
+    )
+    if plist:
+        if plist.group(1) is None:
+            return "<true" in plist.group(0).lower()
+        return _truthy_flag(plist.group(1))
+    line_rx = re.compile(
+        r"(?i)^\s*(?:Environment\s*=\s*[\"']?)?%s\s*=\s*[\"']?([^\"'\s#]+)" % re.escape(_TS_SSH_ENV)
+    )
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith(";"):
+            continue
+        m = line_rx.search(stripped)
+        if m and _truthy_flag(m.group(1)):
+            return True
+    return False
+
+
 def tailscale_forwarding_disabled(host):
     """Whether TS_SSH_DISABLE_FORWARDING is set. Reads files and tailscaled environ only."""
     files = [
@@ -2413,13 +2439,9 @@ def tailscale_forwarding_disabled(host):
         for n in hs.listdir(drop)[:40]:
             if n.endswith(".conf"):
                 files.append(os.path.join(drop, n))
-    rx = re.compile(r"(?m)^\s*(?:Environment(?:File)?\s*=\s*)?%s\s*=\s*[\"']?(\S+)" % re.escape(_TS_SSH_ENV), re.I)
     for path in files:
         text = text_of(host, path, 256 * 1024)
-        if not text:
-            continue
-        m = rx.search(text)
-        if m and _truthy_flag(m.group(1)):
+        if _ts_ssh_env_in_text(text):
             return True, path
     proc = host.sys("/proc")
     if hs.is_plain_dir(proc):
@@ -2506,6 +2528,10 @@ def check_tailscale_ssh(host, r):
                   path=host.display(path), version=tag, image=image)
     if prefs_path is not None:
         r.notes.append("RunSSH read from prefs metadata (command not run): %s" % host.display(prefs_path))
+        if not installs and not images:
+            r.add("unknown", "Tailscale SSH prefs",
+                  "RunSSH was read from prefs metadata but no Tailscale client install, package or image was found",
+                  path=host.display(prefs_path))
     if mit is True:
         r.add("info", "Tailscale SSH forwarding mitigation",
               "%s is set; vendor says this disables forwarding without disabling SSH "
@@ -2528,23 +2554,42 @@ def check_tailscale_ssh(host, r):
               "client present; RunSSH could not be read from disk and tailscale is never run")
 
 
+def _dedupe_host_paths(paths, windows):
+    seen, out = set(), []
+    for path in paths:
+        key = os.path.normcase(path) if windows else path
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
 def check_peoplesoft(host, r):
-    paths = [host.sys(p) for p in ("/opt/oracle/psft", "/opt/oracle/pt8.61", "/opt/oracle/pt8.62",
-                                   "/opt/oracle/peopletools", "/opt/PT8.61", "/opt/PT8.62", "/app/psft")]
-    paths += glob_dirs(host, host.sys("/opt/oracle"), "pt8.*") + glob_dirs(host, host.sys("/opt"), "psft*")
-    paths += glob_dirs(host, host.sys("/opt/oracle"), "peopletools*") + glob_dirs(host, host.sys("/opt/oracle"), "peoplesoft*")
-    paths += glob_dirs(host, host.sys("/opt"), "peopletools*")
+    windows = host.platform == "windows"
+    raw = [host.sys(p) for p in ("/opt/oracle/psft", "/opt/oracle/pt8.61", "/opt/oracle/pt8.62",
+                                 "/opt/oracle/peopletools", "/opt/PT8.61", "/opt/PT8.62", "/app/psft")]
+    raw += glob_dirs(host, host.sys("/opt/oracle"), "pt8.*") + glob_dirs(host, host.sys("/opt"), "psft*")
+    raw += glob_dirs(host, host.sys("/opt/oracle"), "peopletools*") + glob_dirs(host, host.sys("/opt/oracle"), "peoplesoft*")
+    raw += glob_dirs(host, host.sys("/opt"), "peopletools*")
+    for pf in host.program_files():
+        raw += glob_dirs(host, pf, "peoplesoft*") + glob_dirs(host, pf, "peopletools*")
+    paths = _dedupe_host_paths(raw, windows)
     cfg_names = ("allowedhosts.properties", "psconfig.sh", "psappsrv.cfg", "psprcs.cfg")
-    for d in list(paths):
+    cfg_keys = set()
+    for d in paths:
         if not hs.is_plain_dir(d):
             continue
         for fn in cfg_names:
             p = os.path.join(d, fn)
-            if hs.is_regular(p):
-                r.add("review", "Oracle PeopleSoft / PeopleTools",
-                      "PeopleSoft config or tools file on disk (contents not dumped)", path=host.display(p))
-    for pf in host.program_files():
-        paths += glob_dirs(host, pf, "peoplesoft*") + glob_dirs(host, pf, "peopletools*")
+            if not hs.is_regular(p):
+                continue
+            key = os.path.normcase(p) if windows else p
+            if key in cfg_keys:
+                continue
+            cfg_keys.add(key)
+            r.add("review", "Oracle PeopleSoft / PeopleTools",
+                  "PeopleSoft config or tools file on disk (contents not dumped)", path=host.display(p))
     presence_check(host, r, "Oracle PeopleSoft / PeopleTools",
                    paths, binaries=["psadmin"],
                    packages=["peoplesoft", "peopletools"],
@@ -2553,6 +2598,10 @@ def check_peoplesoft(host, r):
                           "(CVSS 9.8). ShinyHunters reporting describes a three-flaw chain under that one CVE. "
                           "A patched host may keep the same PeopleTools version; treat presence as review")
     for path in index(host).peoplesoft:
+        key = os.path.normcase(path) if windows else path
+        if key in cfg_keys:
+            continue
+        cfg_keys.add(key)
         r.add("review", "Oracle PeopleSoft / PeopleTools",
               "PeopleSoft config or tools file on disk (contents not dumped)", path=host.display(path))
     for path, image, tag in docker_refs(host, r"peoplesoft|peopletools"):
@@ -2810,9 +2859,10 @@ CHECKS = [
                "keep the same PeopleTools version. This tool does not probe PIA.", ALL_OS, check_peoplesoft),
     check_meta("anthropic-ai-chain", "Browser and OS patch level (Anthropic AI-discovered chain, unconfirmed)",
                "check_if_used", "unconfirmed", "runtime", ["anthropic-ai-chain", "thn-anthropic-chain"],
-               "Anthropic described an AI-discovered exploit chain across Chrome, Safari, Windows, Linux and Android, "
-               "already patched upstream. The chain claim is unconfirmed here. Chrome 156 is a dated floor; Safari, "
-               "Windows and Linux exact fixed builds are unverified.",
+               "Anthropic described five separate AI-discovered exploit chains (Chrome, Safari, Windows, Linux and "
+               "Android), already patched upstream. Mapping a given host to those chains is unconfirmed here. "
+               "Chrome 156 is a dated floor; Safari, Windows and Linux exact fixed builds are unverified. "
+               "This check has no Android collection path; Android is out of scope.",
                "Update Chrome to 156 or newer and install current OS/browser updates. Do not treat this check as "
                "proof the chain exists or is fixed on a given build.", ALL_OS, check_anthropic_chain, uses_walk=False),
     check_meta("gmo-onamae-presence", "GMO Onamae Desktop Cloud / DNS use (customer-data breach)", "check_if_used",
@@ -2907,9 +2957,9 @@ def report_fragments(doc, target, collected_on):
         checks.append(chk)
     return {
         "note": "Merge into the report. NOT_APPLICABLE needs a human approved_by_role; dependency-layer PASS also needs "
-                "inventory_manifests and covers from inventory.py. Sources are the briefing's links dated "
-                + BRIEFING_DATE + " (this tool does not fetch them); a human must re-read primary "
-                "advisories and correct retrieved_on before closing findings.",
+                "inventory_manifests and covers from inventory.py. Sources stamp retrieved_on from --collected-on "
+                "when supplied, otherwise " + BRIEFING_DATE + " (this tool does not fetch them); a human must "
+                "re-read primary advisories and correct retrieved_on before closing findings.",
         "sources": [sources[k] for k in sorted(sources)], "evidence": evidence, "required_checks": checks}
 
 

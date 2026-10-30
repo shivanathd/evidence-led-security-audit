@@ -160,7 +160,7 @@
       "kind": "command_output",
       "target": "service-a-runtime",
       "layer": "runtime",
-      "summary": "Retest runtime inventory still lists no Tailscale / mesh client, no PeopleSoft or PeopleTools path, and no desktop browser or host-kernel inventory; service-a-runtime remains a PHP-FPM worker",
+      "summary": "Retest inventory still listed no Tailscale / mesh client, no PeopleSoft path, and no desktop browser package. No runtime process, package-db or kernel inventory was collected on service-a-runtime; inventory absence is not runtime absence",
       "collected_on": "2026-10-29",
       "collection_status": "complete",
       "executed": true,
@@ -174,7 +174,7 @@
       "kind": "command_output",
       "target": "service-a-repo",
       "layer": "source",
-      "summary": "Retest inventory still lists no gmo_onamae_hints: no Onamae nameserver, zone or Desktop Cloud config",
+      "summary": "Retest repository walk still listed no gmo_onamae_hints. Owned-domain NS / registrar evidence that Onamae is unused was not collected",
       "collected_on": "2026-10-29",
       "collection_status": "complete",
       "executed": true,
@@ -705,48 +705,44 @@
       "title": "Tailscale SSH forwarding (TS-2026-014, fixed in 1.104.4)",
       "target": "service-a-runtime",
       "layer": "runtime",
-      "status": "NOT_APPLICABLE",
+      "status": "BLOCKED",
       "evidence_ids": [
         "EV-160"
       ],
-      "reason": "Retest inventory still has no mesh VPN client, image or exported ssh policy on the service-a targets",
-      "approved_by_role": "security lead"
+      "reason": "Retest inventory still listed no mesh VPN client, image or exported ssh policy; runtime process or package evidence for Tailscale was not collected"
     },
     {
       "id": "CHK-12",
       "title": "Oracle PeopleSoft / PeopleTools footprint (CVE-2026-35273)",
       "target": "service-a-runtime",
       "layer": "runtime",
-      "status": "NOT_APPLICABLE",
+      "status": "BLOCKED",
       "evidence_ids": [
         "EV-160"
       ],
-      "reason": "Retest inventory still has no PeopleSoft or PeopleTools path, package or image",
-      "approved_by_role": "security lead"
+      "reason": "Retest inventory still listed no PeopleSoft or PeopleTools path, package or image; runtime process or package evidence was not collected"
     },
     {
       "id": "CHK-13",
       "title": "Browser and OS patch level (Anthropic AI-discovered chain, unconfirmed)",
       "target": "service-a-runtime",
       "layer": "runtime",
-      "status": "NOT_APPLICABLE",
+      "status": "BLOCKED",
       "evidence_ids": [
         "EV-160"
       ],
-      "reason": "service-a-runtime remains a PHP-FPM worker image, not a desktop or mobile endpoint",
-      "approved_by_role": "security lead"
+      "reason": "No kernel or browser inventory was collected on service-a-runtime; worker role is not evidence those components are absent"
     },
     {
       "id": "CHK-14",
       "title": "GMO Onamae Desktop Cloud / DNS use (customer-data breach)",
       "target": "service-a-repo",
       "layer": "config",
-      "status": "NOT_APPLICABLE",
+      "status": "BLOCKED",
       "evidence_ids": [
         "EV-161"
       ],
-      "reason": "Retest inventory still has no Onamae nameserver, zone or Desktop Cloud config",
-      "approved_by_role": "security lead"
+      "reason": "Retest walk still listed no Onamae host string; owned-domain NS or registrar evidence that Onamae is unused was not collected"
     }
   ],
   "findings": [
