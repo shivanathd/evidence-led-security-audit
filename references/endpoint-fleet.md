@@ -155,6 +155,8 @@ How to read Tailscale JSON without leaking identity:
 
 osquery leads (not a substitute for the CLI): `processes` where name is `tailscaled` / `zerotier-one` / `netbird`; `listening_ports` joined to those processes.
 
+`scripts/host_checks.py` (`tailscale-ssh-1104`) is stricter than this table: it **never** runs `tailscale`, `zerotier-cli` or `netbird`. It reads package/app metadata, prefs JSON/plist `RunSSH`, service-file and `/proc/<pid>/environ` for the env-var **name** and boolean only (path reported as `/proc/<pid>/environ`), and exported policy filenames. The vendor-fixed build named on 2026-10-28 is **1.104.4** (TS-2026-014 to TS-2026-017). `TS_SSH_DISABLE_FORWARDING=1` is a documented mitigation, not a vendor patch; the check never sets it or restarts the service.
+
 ### Listening services
 
 | OS | Command |

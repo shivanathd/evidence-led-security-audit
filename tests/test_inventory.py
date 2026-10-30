@@ -80,6 +80,8 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual([f["from"][0]["image"] for f in self.doc["containers"]], ["php:8.3-fpm"])
         self.assertEqual(self.doc["dev_server_hints"], [])
         self.assertEqual(self.doc["mesh_vpn_hints"], [])
+        self.assertEqual(self.doc["peoplesoft_hints"], [])
+        self.assertEqual(self.doc["gmo_onamae_hints"], [])
 
     def test_untrusted_instructions_flagged_not_followed(self):
         agent = self.doc["agent_instruction_files"][0]
@@ -488,6 +490,33 @@ class InventoryTests(unittest.TestCase):
         bounded = inventory._hujson_tokens("ssh: [{action, src, dst}]", limit=3)
         self.assertEqual(bounded, [("ident", "ssh")])
         self.assertLessEqual(len(inventory._hujson_tokens("x" * 300000)), 1)
+
+    def test_setup_node_and_peoplesoft_and_onamae_hints(self):
+        root = Path(support.tmpdir()) / "service-a"
+        root.mkdir()
+        (root / ".github" / "workflows").mkdir(parents=True)
+        (root / ".github" / "workflows" / "ci.yml").write_text(
+            "jobs:\n  t:\n    steps:\n      - uses: actions/setup-node@v4\n"
+            "        with:\n          node-version: 24.22.0\n",
+            encoding="utf-8",
+        )
+        (root / "opt" / "oracle" / "peopletools").mkdir(parents=True)
+        (root / "opt" / "oracle" / "peopletools" / "allowedhosts.properties").write_text(
+            "127.0.0.1\n", encoding="utf-8")
+        zone = root / "zones"
+        zone.mkdir()
+        (zone / "example.zone").write_text(
+            "@ IN NS ns1." + "onamae" + ".com.\n", encoding="utf-8")
+        (root / "README.md").write_text("GMO is a vendor we considered.\n", encoding="utf-8")
+        res = support.run_script("inventory.py", root, "--target", "service-a-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        doc = json.loads(res.stdout)
+        hints = " ".join(h["hint"] for h in doc["runtime_hints"])
+        self.assertIn("setup-node", hints)
+        self.assertIn("24.22.0", hints)
+        self.assertTrue(doc["peoplesoft_hints"])
+        self.assertTrue(doc["gmo_onamae_hints"])
+        self.assertFalse(any(h["path"] == "README.md" for h in doc["gmo_onamae_hints"]))
 
     def test_output_overwrite_guard(self):
         out = Path(support.tmpdir()) / "inv.json"

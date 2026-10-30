@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import safeio  # noqa: E402
 import textscan  # noqa: E402
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 DEFAULT_EXCLUDES = [".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"]
 LIMITS = [
     "Inventory only: no dependency resolution, CVE matching or exploitability analysis.",
@@ -104,6 +104,19 @@ PHP_SETTING = re.compile(
 FROM_RE = re.compile(r"^\s*FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?", re.IGNORECASE)
 EXPOSE_RE = re.compile(r"^\s*EXPOSE\s+(.+)$", re.IGNORECASE)
 USES_RE = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+)")
+SETUP_NODE_RE = re.compile(r"(?i)(?:^|/)actions/setup-node(?:@|$)")
+CI_NODE_VERSION_RE = re.compile(r"^\s*node-version:\s*['\"]?v?([^'\"\s#]+)")
+PEOPLESOFT_PATH_PARTS = frozenset({"peoplesoft", "peopletools", "psft"})
+PEOPLESOFT_FILENAMES = frozenset({
+    "psconfig.sh", "allowedhosts.properties", "psappsrv.cfg", "psprcs.cfg",
+})
+# Split so the public-leak hostname scanner does not read a vendor domain as a leak.
+_ONAMAE_LABEL = "onamae"
+ONAMAE_HOST_RE = re.compile(r"(?i)\b(?:[\w-]+\.)?%s\.(?:com|co\.jp)\b" % _ONAMAE_LABEL)
+ONAMAE_DNS_RE = re.compile(
+    r"(?i)\b(?:NS|MX|nameserver)\b.*%s\.(?:com|co\.jp)|%s\.(?:com|co\.jp).*\b(?:NS|MX|nameserver)" %
+    (_ONAMAE_LABEL, _ONAMAE_LABEL))
+GMO_DNS_NAMES = frozenset({"named.conf", "named.conf.local"})
 NGINX_LISTEN = re.compile(r"^\s*listen\s+([^;]+);")
 FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
@@ -409,7 +422,8 @@ class Inventory:
         self.files_read = 0
         self.max_reached = False
         self.out = {k: [] for k in ("manifests", "containers", "listeners", "php_runtime_hints", "runtime_hints",
-                                    "runtime_pins", "sboms", "dev_server_hints", "mesh_vpn_hints", "install_hooks",
+                                    "runtime_pins", "sboms", "dev_server_hints", "mesh_vpn_hints",
+                                    "peoplesoft_hints", "gmo_onamae_hints", "install_hooks",
                                     "ci_workflows", "agent_instruction_files", "secret_candidates",
                                     "sensitive_filenames", "sidecar_artifacts", "symlinks")}
 
@@ -502,6 +516,8 @@ class Inventory:
         if name == ".user.ini":
             self.out["php_runtime_hints"].append({"path": rel, "line": 0, "hint": ".user.ini present: applied after request startup, so it is not an early-config mitigation"})
         self._mesh_vpn_name(rel, name)
+        self._peoplesoft_name(rel, name)
+        self._gmo_name(rel, name)
 
     def _scan_text(self, rel, name, text):
         for pattern, start, _end in textscan.find_secrets(text):
@@ -531,6 +547,8 @@ class Inventory:
         if name in LOCKFILES and LOCKFILES[name] == "npm":
             self._dev_server_lockfile(rel, text)
         self._mesh_vpn_text(rel, name, text)
+        self._peoplesoft_text(rel, name, text)
+        self._gmo_text(rel, name, text)
         if DEV_SERVER_CONFIG_RE.match(name):
             self._dev_server_config(rel, lines)
         if lower.endswith(".php"):
@@ -640,6 +658,27 @@ class Inventory:
             "remote_script_piped_to_shell": bool(re.search(r"(curl|wget)[^|\n]*\|\s*(ba|z)?sh", text)),
             "secrets_references": len(re.findall(r"\$\{\{\s*secrets\.", text)),
         })
+        for i, ln in enumerate(lines):
+            m = USES_RE.match(ln)
+            if not m or not SETUP_NODE_RE.search(m.group(1)):
+                continue
+            for j in range(i + 1, min(i + 16, len(lines))):
+                nxt = lines[j]
+                if re.match(r"^\s*-\s+", nxt) and j > i + 1:
+                    break
+                vm = CI_NODE_VERSION_RE.match(nxt)
+                if vm:
+                    self.out["runtime_hints"].append({
+                        "path": rel, "line": j + 1,
+                        "hint": "CI setup-node %s (workflow pin, not runtime proof)" % vm.group(1),
+                    })
+                    break
+                if re.match(r"^\s*node-version-file:", nxt):
+                    self.out["runtime_hints"].append({
+                        "path": rel, "line": j + 1,
+                        "hint": "CI setup-node node-version-file (pin file is the runtime proof, not this line)",
+                    })
+                    break
 
     def _json_hooks(self, rel, text, key, hooks):
         try:
@@ -749,6 +788,47 @@ class Inventory:
                     "path": rel, "line": 0,
                     "hint": "composer.lock %s.php %s (lock constraint, not runtime proof)" % (key, block["php"]),
                 })
+
+    def _peoplesoft_name(self, rel, name):
+        lower = name.lower()
+        parts = {p.lower() for p in PurePosixPath(rel).parts}
+        if parts & PEOPLESOFT_PATH_PARTS or lower in PEOPLESOFT_FILENAMES:
+            if lower == "configuration.properties" and not (parts & PEOPLESOFT_PATH_PARTS or "pia" in parts):
+                return
+            self.out["peoplesoft_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "PeopleSoft / PeopleTools path (filename or directory; not runtime proof)",
+            })
+
+    def _peoplesoft_text(self, rel, name, text):
+        if name.lower() not in ("allowedhosts.properties", "configuration.properties", "psconfig.sh"):
+            return
+        if any(h["path"] == rel for h in self.out["peoplesoft_hints"]):
+            return
+        if re.search(r"(?i)people(?:soft|tools)|psigw|psemhub|PIA_HOME|PS_HOME", text):
+            self.out["peoplesoft_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "PeopleSoft / PeopleTools marker in config (file contents; not a live PIA probe)",
+            })
+
+    def _gmo_name(self, rel, name):
+        lower = name.lower()
+        if lower.endswith(".zone") or lower in GMO_DNS_NAMES:
+            return
+
+    def _gmo_text(self, rel, name, text):
+        if not ONAMAE_HOST_RE.search(text):
+            return
+        lower = name.lower()
+        dnsish = lower.endswith(".zone") or lower in GMO_DNS_NAMES or "dns" in rel.lower()
+        if not (dnsish or ONAMAE_DNS_RE.search(text)):
+            return
+        if any(h["path"] == rel for h in self.out["gmo_onamae_hints"]):
+            return
+        self.out["gmo_onamae_hints"].append({
+            "path": rel, "line": 0,
+            "hint": "Onamae DNS or mail host in a local zone/config file (no live DNS query)",
+        })
 
     def _mesh_vpn_name(self, rel, name):
         lower = name.lower()

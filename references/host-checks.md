@@ -1,6 +1,6 @@
 # Host checks: one machine, read-only
 
-`scripts/host_checks.py` checks the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 2026-10-27 developer-endpoint briefing. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
+`scripts/host_checks.py` checks the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 16-28 Oct 2026 developer-endpoint briefing. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
 
 It is a metadata reader, not a scanner. It reads files and the Windows registry, and it never runs the programs it checks.
 
@@ -90,6 +90,10 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `gitlab-self-hosted`, `collabora-nextcloud` | Image tags and code on disk | distro packages, image tags and code on disk | image tags and code on disk |
 | `ksmbd-linux` | not applicable | `/sys/module/ksmbd`, `/etc/ksmbd/ksmbd.conf`, `ksmbd-tools` package | not applicable |
 | `wordpress-updraftplus`, `magento-store` | Walk plus web roots: `wp-content/plugins/updraftplus`, Magento `app/etc/env.php` | same | same, plus `C:\inetpub` |
+| `tailscale-ssh-1104` | App bundle `Info.plist`; Homebrew Cellar; prefs JSON/plist `RunSSH`; LaunchDaemon env; exported `ssh` policy filenames. Never runs `tailscale` | dpkg/apk/pacman/rpm `tailscale`; `/var/lib/tailscale/prefs.json`; `/etc/default/tailscaled` and systemd drop-ins; tailscaled `/proc/<pid>/environ` (boolean only, path reported as `/proc/<pid>/environ`); exported policy files | Program Files, uninstall registry, PE version; prefs if present |
+| `peoplesoft-presence` | Walk: `psconfig.sh`, `psappsrv.cfg`, `allowedhosts.properties` under a PeopleSoft/PeopleTools path; `/opt/PT8.*` | same, plus `/opt/oracle/psft`, distro packages, image tags | Program Files `PeopleSoft*` / `PeopleTools*`, uninstall registry |
+| `anthropic-ai-chain` | Chrome/Safari/other browser plists vs dated Chrome 156 floor; macOS `ProductVersion` recorded as unverified | Chrome packages; `/proc/sys/kernel/osrelease` recorded as unverified | Chrome version folders; Windows registry build recorded as unverified |
+| `gmo-onamae-presence` | Local zone files, `named.conf`, DNS-ish tf/conf under a `dns` path. No live DNS. Only Onamae host strings | same, plus `/etc/bind`, `/etc/named`, `/var/named` | same walk of `--root` |
 
 ## Known limits
 
@@ -100,4 +104,6 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 - **Depth and roots.** The walk does not see anything deeper than `--max-depth` or outside `--root`. Depth misses are counted and named in the reason; they do not make the check FAIL. Browser, package, trust-store and binary lookups still use the fixed locations in the table.
 - **Large blobs.** LFS-tracked files in the size band are `info`, not `review`. A payload committed under an LFS pattern is therefore not flagged as `review`; check LFS objects nobody expected by hand.
 - **CVE-2026-40369** is unconfirmed in the briefing. `browser-versions` lists versions only and never says "affected".
+- **Anthropic AI-discovered chains** are a published vendor research post, but mapping a given host to those chains is unconfirmed. `anthropic-ai-chain` uses Chrome 156 as a dated floor (Chrome below 156 is `review` / FAIL) and records Safari / Windows / Linux builds as unverified. Android is out of scope (no collection path). It never says "affected" for those OS/browser pairs.
+- **Tailscale SSH** versions come from package/app metadata. Distro-patched builds that keep an older number, and prereleases of 1.104.4, are not treated as fixed. `TS_SSH_DISABLE_FORWARDING` is a mitigation, not a vendor patch. The check never sets the variable or restarts `tailscaled`.
 - **Not covered here:** anything needing network scanning or admin consoles. See the skipped list in the profile.

@@ -109,6 +109,13 @@
       "url": "https://advisories.example.invalid/EXAMPLE-0001",
       "retrieved_on": "2026-10-22",
       "kind": "package_advisory"
+    },
+    {
+      "id": "SRC-ORACLE-PSFT",
+      "title": "Oracle Security Alert CVE-2026-35273 (PeopleSoft PeopleTools)",
+      "url": "https://www.oracle.com/security-alerts/alert-cve-2026-35273.html",
+      "retrieved_on": "2026-10-22",
+      "kind": "vendor_advisory"
     }
   ],
   "evidence": [
@@ -118,6 +125,34 @@
       "target": "service-a-repo",
       "layer": "source",
       "summary": "scripts/inventory.py walk: 2 manifests, 1 Dockerfile, 2 listeners, 1 secret-pattern hit, CI actions pinned to SHAs; coverage complete for walked files",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa",
+      "command_ref": "CMD-INVENTORY"
+    },
+    {
+      "id": "EV-013",
+      "kind": "command_output",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "summary": "Repository and image inventory listed no Tailscale / mesh client, no PeopleSoft or PeopleTools path, and no desktop browser package. No runtime process, package-db or kernel inventory was collected on service-a-runtime; inventory absence is not runtime absence",
+      "collected_on": "2026-10-22",
+      "collection_status": "complete",
+      "executed": true,
+      "execution_context": "read_only_local",
+      "redaction": "no_sensitive_content",
+      "source_sha": "1111111aaaa",
+      "command_ref": "CMD-INVENTORY"
+    },
+    {
+      "id": "EV-014",
+      "kind": "command_output",
+      "target": "service-a-repo",
+      "layer": "source",
+      "summary": "Repository walk listed no gmo_onamae_hints (no Onamae host string in zone or named configs). Owned-domain NS / registrar evidence that Onamae is unused was not collected",
       "collected_on": "2026-10-22",
       "collection_status": "complete",
       "executed": true,
@@ -384,6 +419,50 @@
       "evidence_ids": [
         "EV-012"
       ]
+    },
+    {
+      "id": "CHK-11",
+      "title": "Tailscale SSH forwarding (TS-2026-014, fixed in 1.104.4)",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "status": "BLOCKED",
+      "evidence_ids": [
+        "EV-013"
+      ],
+      "reason": "Inventory listed no mesh VPN client, image or exported ssh policy; runtime process or package evidence for Tailscale was not collected"
+    },
+    {
+      "id": "CHK-12",
+      "title": "Oracle PeopleSoft / PeopleTools footprint (CVE-2026-35273)",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "status": "BLOCKED",
+      "evidence_ids": [
+        "EV-013"
+      ],
+      "reason": "Inventory listed no PeopleSoft or PeopleTools path, package or image; runtime process or package evidence was not collected"
+    },
+    {
+      "id": "CHK-13",
+      "title": "Browser and OS patch level (Anthropic AI-discovered chain, unconfirmed)",
+      "target": "service-a-runtime",
+      "layer": "runtime",
+      "status": "BLOCKED",
+      "evidence_ids": [
+        "EV-013"
+      ],
+      "reason": "No kernel or browser inventory was collected on service-a-runtime; worker role is not evidence those components are absent"
+    },
+    {
+      "id": "CHK-14",
+      "title": "GMO Onamae Desktop Cloud / DNS use (customer-data breach)",
+      "target": "service-a-repo",
+      "layer": "config",
+      "status": "BLOCKED",
+      "evidence_ids": [
+        "EV-014"
+      ],
+      "reason": "Walk listed no Onamae host string; owned-domain NS or registrar evidence that Onamae is unused was not collected"
     }
   ],
   "findings": [

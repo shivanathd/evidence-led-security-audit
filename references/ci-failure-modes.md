@@ -1,6 +1,6 @@
 # CI failure modes
 
-`.github/workflows/test.yml` is the public test workflow. It is a matrix of Ubuntu (Python 3.9 and 3.14), macOS (3.14) and Windows (3.9 and 3.14). `fail-fast` is false so one OS or version does not hide the others. Checkout does not persist credentials. These notes are for this repository's workflow, not a claim that the skill or a target is verified.
+`.github/workflows/test.yml` is the public test workflow. It is a matrix of Ubuntu (Python 3.9 and 3.14), macOS (3.14) and Windows (3.9 and 3.14). `fail-fast` is false so one OS or version does not hide the others. Checkout does not persist credentials. These notes are for this repository's workflow, not a claim that the skill or a target is verified. See also the **CI failure modes** section in [VALIDATION.md](../VALIDATION.md).
 
 ## Expected outcomes (not failures)
 
@@ -30,6 +30,10 @@ A GitHub App message that **Check publication was denied** is not a workflow fai
 **`validate_report.py` rejects the examples.** The after-fix file is supposed to remain `INCOMPLETE`. A `STRUCTURE` or `SOURCE` error is a real failure. If you changed a validator rule, add a case to `tests/corpus/adversarial_cases.json`.
 
 **One matrix cell red, others green.** Read that cell's log. Ubuntu 3.9 and Windows 3.9 catch syntax the newer interpreters accept.
+
+**After-fix compare drops a required check.** New host-check ids that are added to the example reports must stay in both baseline and after-fix so the compare does not treat them as missing.
+
+**New check id without a fixture.** `tests/test_host_checks.py` must include a simulated-host case for each added id. Coverage does not have to be every OS for every check: Tailscale SSH has macOS, Linux and Windows fixtures; other late-Oct checks use the default simulated host plus any OS-specific cases that exist. Do not treat a missing unused-OS fixture as a red cell if the check is `NOT_APPLICABLE` there.
 
 ## Reproduce locally
 

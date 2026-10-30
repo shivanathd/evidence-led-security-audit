@@ -489,6 +489,199 @@ class NodeRuntime(SimCase):
         c = self.s.check("brotli-nodejs")
         self.assertEqual(sorted(results(c)), ["affected", "info"])
 
+    def test_nvmrc_engines_and_setup_node_pins(self):
+        self.s.write("~/.nvmrc", "24.22.0\n")
+        self.s.write("~/app/package.json", json.dumps({"engines": {"node": ">=24"}}))
+        self.s.write("~/app/.github/workflows/ci.yml",
+                     "jobs:\n  t:\n    steps:\n      - uses: actions/setup-node@v4\n"
+                     "        with:\n          node-version: 24.22.0\n")
+        c = self.s.check("brotli-nodejs")
+        by = {f["component"]: f["result"] for f in c["findings"]}
+        self.assertEqual(by["Node.js pin (.nvmrc)"], "affected")
+        self.assertEqual(by["package.json engines.node"], "info")
+        self.assertEqual(by["CI setup-node"], "affected")
+        ok = self.sim("linux")
+        ok.write("~/.nvmrc", "24.22.1\n")
+        ok.write("~/app/.node-version", "22.23.4\n")
+        ok.write("~/app/.github/workflows/ci.yml",
+                 "jobs:\n  t:\n    steps:\n      - uses: actions/setup-node@v4\n"
+                 "        with:\n          node-version: '24.22.1'\n")
+        c2 = ok.check("brotli-nodejs")
+        self.assertEqual(set(results(c2)), {"info"})
+        self.assertStatus(c2, "PASS")
+
+
+class TailscaleSsh(SimCase):
+    def prefs(self, sim, run_ssh, version="1.104.3"):
+        sim.dpkg({"tailscale": version})
+        sim.write("/var/lib/tailscale/prefs.json", json.dumps({"RunSSH": run_ssh, "WantRunning": True}))
+
+    def test_affected_1104_3_with_ssh_on(self):
+        self.prefs(self.s, True, "1.104.3")
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("1.104.4", c["findings"][0]["detail"])
+        self.assertIn("RunSSH true", c["findings"][0]["detail"])
+
+    def test_fixed_1104_4(self):
+        self.prefs(self.s, True, "1.104.4")
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertEqual(results(c), ["info"])
+        self.assertStatus(c, "PASS")
+
+    def test_prerelease_of_fixed_is_affected(self):
+        self.prefs(self.s, True, "1.104.4-pre")
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("prerelease", c["findings"][0]["detail"])
+
+    def test_old_version_ssh_off_is_info(self):
+        self.prefs(self.s, False, "1.104.3")
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("RunSSH false", c["findings"][0]["detail"])
+        self.assertStatus(c, "PASS")
+
+    def test_mitigation_env_and_acl_review(self):
+        self.prefs(self.s, True, "1.104.3")
+        self.s.write("/etc/default/tailscaled", "TS_SSH_DISABLE_FORWARDING=1\n")
+        self.s.write("~/tailscale-acl.json", '{"ssh": [{"action": "accept", "src": ["autogroup:member"]}]}\n')
+        c = self.s.check("tailscale-ssh-1104")
+        kinds = {f["result"] for f in c["findings"]}
+        self.assertIn("affected", kinds)
+        self.assertIn("review", kinds)
+        self.assertIn("info", kinds)
+        acl = next(f for f in c["findings"] if f["component"].startswith("exported"))
+        self.assertNotIn("autogroup:member", json.dumps(acl))
+        mit = next(f for f in c["findings"] if "mitigation" in f["component"])
+        self.assertIn("not a vendor patch", mit["detail"])
+
+    def test_not_present(self):
+        self.assertStatus(self.s.check("tailscale-ssh-1104"), "NOT_APPLICABLE")
+
+    def test_macos_app_and_windows_registry(self):
+        m = self.sim("darwin")
+        m.plist("/Applications/Tailscale" + APP + "/Contents/Info.plist",
+                {"CFBundleShortVersionString": "1.104.3"})
+        m.write("/var/lib/tailscale/prefs.json", '{"RunSSH": true}\n')
+        self.assertEqual(results(m.check("tailscale-ssh-1104")), ["affected"])
+        w = self.sim("windows")
+        c = w.check("tailscale-ssh-1104", registry=[{"name": "Tailscale", "version": "1.104.4"}])
+        self.assertStatus(c, "PASS")
+
+    def test_docker_image_boundary(self):
+        self.s.write("~/mesh/Dockerfile", "FROM tailscale/tailscale:v1.104.3\n")
+        self.assertEqual(results(self.s.check("tailscale-ssh-1104")), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/mesh/Dockerfile", "FROM tailscale/tailscale:v1.104.4\n")
+        self.assertStatus(ok.check("tailscale-ssh-1104"), "PASS")
+
+    def test_quoted_environment_equals_is_mitigation(self):
+        self.prefs(self.s, True, "1.104.3")
+        self.s.write("/etc/systemd/system/tailscaled.service.d/override.conf",
+                     '[Service]\nEnvironment="TS_SSH_DISABLE_FORWARDING=1"\n')
+        c = self.s.check("tailscale-ssh-1104")
+        mit = next(f for f in c["findings"] if "mitigation" in f["component"])
+        self.assertEqual(mit["result"], "info")
+        self.assertIn("not a vendor patch", mit["detail"])
+
+    def test_launchd_plist_key_without_equals(self):
+        m = self.sim("darwin")
+        m.plist("/Applications/Tailscale" + APP + "/Contents/Info.plist",
+                {"CFBundleShortVersionString": "1.104.3"})
+        m.write("/Library/LaunchDaemons/com.tailscale.tailscaled.plist",
+                "<dict><key>TS_SSH_DISABLE_FORWARDING</key><string>1</string></dict>\n")
+        m.write("/var/lib/tailscale/prefs.json", '{"RunSSH": true}\n')
+        c = m.check("tailscale-ssh-1104")
+        self.assertTrue(any("mitigation" in f["component"] for f in c["findings"]))
+
+    def test_commented_env_is_not_mitigation(self):
+        self.prefs(self.s, True, "1.104.3")
+        self.s.write("/etc/default/tailscaled", "# TS_SSH_DISABLE_FORWARDING=1\n")
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertFalse(any("mitigation" in f["component"] for f in c["findings"]))
+
+    def test_prefs_without_install_is_unknown(self):
+        self.s.write("/var/lib/tailscale/prefs.json", '{"RunSSH": true}\n')
+        c = self.s.check("tailscale-ssh-1104")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertStatus(c, "BLOCKED")
+
+
+class PeopleSoftPresence(SimCase):
+    def test_present(self):
+        self.s.mkdir("/opt/oracle/psft")
+        c = self.s.check("peoplesoft-presence")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_config_file_in_tools_tree(self):
+        self.s.write("/opt/oracle/peopletools/allowedhosts.properties", "# loopback\n")
+        c = self.s.check("peoplesoft-presence")
+        self.assertStatus(c, "FAIL")
+        self.assertTrue(any("allowedhosts.properties" in (f.get("path") or "") for f in c["findings"]))
+
+    def test_explicit_glob_and_index_paths_are_deduped(self):
+        self.s.write("/opt/oracle/peopletools/allowedhosts.properties", "# loopback\n")
+        c = self.s.check("peoplesoft-presence")
+        cfg = [f for f in c["findings"] if "allowedhosts.properties" in (f.get("path") or "")]
+        self.assertEqual(len(cfg), 1)
+
+    def test_not_present(self):
+        self.s.write("~/notes/oracle.txt", "we do not run PeopleSoft\n")
+        self.assertStatus(self.s.check("peoplesoft-presence"), "NOT_APPLICABLE")
+
+
+class AnthropicChain(SimCase):
+    def test_stale_chrome_is_review(self):
+        self.s.dpkg({"google-chrome-stable": "155.0.7700.10-1"})
+        c = self.s.check("anthropic-ai-chain")
+        self.assertEqual(c["confirmation"], "unconfirmed")
+        self.assertEqual(results(c), ["review"])
+        self.assertStatus(c, "FAIL")
+        self.assertIn("unconfirmed", c["reason"])
+        self.assertIn("five separate", c["briefing_fact"])
+        self.assertIn("Android is out of scope", c["briefing_fact"])
+
+    def test_current_chrome_is_blocked_unconfirmed(self):
+        self.s.dpkg({"google-chrome-stable": "156.0.7800.1-1"})
+        self.s.write("/proc/sys/kernel/osrelease", "6.17.4-generic\n")
+        c = self.s.check("anthropic-ai-chain")
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unconfirmed", c["reason"])
+        self.assertEqual(sorted(results(c)), ["info", "info"])
+
+    def test_not_present(self):
+        self.assertStatus(self.s.check("anthropic-ai-chain"), "NOT_APPLICABLE")
+
+    def test_macos_safari_version_recorded_unverified(self):
+        m = self.sim("darwin")
+        m.plist("/Applications/Safari" + APP + "/Contents/Info.plist",
+                {"CFBundleShortVersionString": "26.1"})
+        m.plist("/System/Library/CoreServices/SystemVersion.plist", {"ProductVersion": "26.1"})
+        c = m.check("anthropic-ai-chain")
+        self.assertEqual(c["confirmation"], "unconfirmed")
+        self.assertStatus(c, "BLOCKED")
+        self.assertTrue(any("unverified" in f["detail"] for f in c["findings"]))
+
+
+class GmoOnamae(SimCase):
+    def test_zone_ns_is_review(self):
+        host = "onamae" + ".com"
+        self.s.write("~/zones/example.zone",
+                     "@ IN NS ns1.%s.\n@ IN MX 10 mail.%s.\n" % (host, host))
+        c = self.s.check("gmo-onamae-presence")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("No live DNS", c["findings"][0]["detail"])
+
+    def test_generic_gmo_is_not_a_hit(self):
+        self.s.write("~/docs/vendors.txt", "we use another GMO product, not Desktop Cloud\n")
+        self.assertStatus(self.s.check("gmo-onamae-presence"), "NOT_APPLICABLE")
+
+    def test_not_present(self):
+        self.assertStatus(self.s.check("gmo-onamae-presence"), "NOT_APPLICABLE")
+
 
 class DotnetRuntime(SimCase):
     def test_linux_and_windows_runtimes(self):
@@ -814,7 +1007,8 @@ class WholeRun(SimCase):
 
     def test_metadata_sources_and_confirmation(self):
         unconfirmed = {m["id"] for m in hc.CHECKS if m["confirmation"] == "unconfirmed"}
-        self.assertEqual(unconfirmed, {"browser-versions", "warp-terminal", "lightning-ai-client"})
+        self.assertEqual(unconfirmed, {"browser-versions", "warp-terminal", "lightning-ai-client",
+                                      "anthropic-ai-chain"})
         for m in hc.CHECKS:
             for key in m["sources"]:
                 self.assertTrue(hc.SRC[key][1].startswith("https://"), key)
