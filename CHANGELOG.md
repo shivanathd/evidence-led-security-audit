@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1 - 2026-10-30
+
+### Added
+
+- `scripts/host_checks.py`: four read-only checks from the 29–30 Oct 2026 briefing (41 checks total). `claude-code-vsx-21313` looks for Anthropic.claude-code 2.1.313 and the vendor-named persistence indicators (key comment only; no key material). `yoba-fake-ai-apps` looks for the Check Point Yoba sideload layout. `huggingface-qwen2-tiny` lists named cache paths as `unknown` (unconfirmed lead). `go-mptcp-linux` records Go 1.24+ on Linux and `godebug multipathtcp=0`; it does not invent a kernel version for CVE-2026-98432.
+- `scripts/inventory.py`: `untrusted_run_interpolations` on GitHub workflow files when untrusted `github.event` / `github.head_ref` text is interpolated into a `run:` step. Numeric fields and `env:` assignments are not listed.
+- Dated profiles: `dev-endpoint-2026-10-30.md`, `claude-code-vsx-2026-10-29.md`, `golang-mptcp-2026-10-29.md`, `freebsd-wireguard-2026-07-29.md`.
+
+### Changed
+
+- `gitlab-self-hosted` now classifies CE/EE 19.2 / 19.3 / 19.4 against the NVD floors for CVE-2026-97229 (CISA KEV, 29 Oct 2026). Versions outside that range stay `review`.
+- Briefing date stamped on host-check fragments is 2026-10-30. A human must still re-read primary sources before closing findings.
+- Host-check review fixes: crontab `.smt` uses a word-boundary match; `HF_HOME` is resolved to its `hub` subdirectory; Go `VERSION` is the first line only; standalone `go.mod` files are indexed. Inventory `untrusted_run_interpolations` flags untrusted github refs anywhere in an expression and ends a `- run:` block at the `run` key so a same-level `env:` is not treated as script.
+
 ## 0.4.0 - 2026-10-30
 
 ### Added

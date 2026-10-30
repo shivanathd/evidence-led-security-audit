@@ -1,6 +1,6 @@
 # Host checks: one machine, read-only
 
-`scripts/host_checks.py` checks the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 16-28 Oct 2026 developer-endpoint briefing. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
+`scripts/host_checks.py` checks the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 16-30 Oct 2026 developer-endpoint briefings. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md) and [profiles/dev-endpoint-2026-10-30.md](../profiles/dev-endpoint-2026-10-30.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
 
 It is a metadata reader, not a scanner. It reads files and the Windows registry, and it never runs the programs it checks.
 
@@ -94,6 +94,10 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `peoplesoft-presence` | Walk: `psconfig.sh`, `psappsrv.cfg`, `allowedhosts.properties` under a PeopleSoft/PeopleTools path; `/opt/PT8.*` | same, plus `/opt/oracle/psft`, distro packages, image tags | Program Files `PeopleSoft*` / `PeopleTools*`, uninstall registry |
 | `anthropic-ai-chain` | Chrome/Safari/other browser plists vs dated Chrome 156 floor; macOS `ProductVersion` recorded as unverified | Chrome packages; `/proc/sys/kernel/osrelease` recorded as unverified | Chrome version folders; Windows registry build recorded as unverified |
 | `gmo-onamae-presence` | Local zone files, `named.conf`, DNS-ish tf/conf under a `dns` path. No live DNS. Only Onamae host strings | same, plus `/etc/bind`, `/etc/named`, `/var/named` | same walk of `--root` |
+| `claude-code-vsx-21313` | `~/.cursor/extensions` and editor extension folders (targeted, not a full extensions walk); `~/.ssh/authorized_keys` comment only; `~/Library/LaunchAgents/com.apple.sysmond.plist`; `~/.config/.smt` / `.smtk`; `$TMPDIR/.stk_*` | same, plus user crontab files if readable | same, plus `%USERPROFILE%\.ssh`, `administrators_authorized_keys`, Startup `sysmon.cmd`, `Tasks\SysMon` |
+| `yoba-fake-ai-apps` | Downloads/Desktop folder names and `Setup.exe`+`winmm.dll` pairs | same | same, plus `C:\ProgramData\WMProcess` |
+| `huggingface-qwen2-tiny` | `~/.cache/huggingface` names and `/tmp/.cch` (unconfirmed; findings are `unknown`) | same | same |
+| `go-mptcp-linux` | indexed `go.mod` (with or without `go.sum` / `.git`), toolchain VERSION, Homebrew `go` (recorded only) | same plus distro `golang*`, `/usr/local/go/VERSION`, `/proc/version` note | toolchain if present (MPTCP default is Linux-only) |
 
 ## Known limits
 

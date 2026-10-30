@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import safeio  # noqa: E402
 import textscan  # noqa: E402
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 DEFAULT_EXCLUDES = [".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"]
 LIMITS = [
     "Inventory only: no dependency resolution, CVE matching or exploitability analysis.",
@@ -117,6 +117,35 @@ ONAMAE_DNS_RE = re.compile(
     r"(?i)\b(?:NS|MX|nameserver)\b.*%s\.(?:com|co\.jp)|%s\.(?:com|co\.jp).*\b(?:NS|MX|nameserver)" %
     (_ONAMAE_LABEL, _ONAMAE_LABEL))
 GMO_DNS_NAMES = frozenset({"named.conf", "named.conf.local"})
+# ${{ ... }} blocks, then github.event / head_ref / ref_name refs inside them.
+# Safe leaf fields (.number / .id / .state / .draft) are excluded per-reference so
+# `github.event.issue.number && github.event.issue.title` still flags the title.
+GHA_INTERP = re.compile(r"\$\{\{(.+?)\}\}", re.DOTALL)
+GHA_UNTRUSTED_REF = re.compile(
+    r"github\.(?:head_ref|ref_name|event\.(?:issue|comment|pull_request|"
+    r"review|discussion|review_comment|discussion_comment|commits?|head_commit|"
+    r"release|client_payload)(?:\.[A-Za-z_][\w]*|\[['\"][^'\"]+['\"]])*)",
+    re.IGNORECASE)
+GHA_SAFE_LEAF = frozenset({"number", "id", "state", "draft"})
+
+
+def _gha_ref_leaf(ref):
+    br = re.search(r"\[['\"]([^'\"]+)['\"]\]\s*$", ref)
+    if br:
+        return br.group(1)
+    return ref.rsplit(".", 1)[-1]
+
+
+def untrusted_gha_refs(text):
+    """Return untrusted github.* refs interpolated inside ${{ }} expressions."""
+    hits = []
+    for block in GHA_INTERP.finditer(text or ""):
+        for m in GHA_UNTRUSTED_REF.finditer(block.group(1)):
+            ref = m.group(0)
+            if _gha_ref_leaf(ref).lower() in GHA_SAFE_LEAF:
+                continue
+            hits.append(ref)
+    return hits
 NGINX_LISTEN = re.compile(r"^\s*listen\s+([^;]+);")
 FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
@@ -641,6 +670,34 @@ class Inventory:
                 self.out["php_runtime_hints"].append({"path": rel, "line": i + 1,
                                                       "hint": "setting %s = %s (file value; effective runtime value may differ)" % (m.group(1), m.group(2))})
 
+    def _ci_untrusted_run(self, lines):
+        """Flag github.event / head_ref interpolations that sit in a run: script.
+
+        env: BODY: ${{ github.event.issue.body }} is the documented safer pattern and is
+        not listed. Numeric fields (.number, .id, .state, .draft) are not listed.
+        """
+        hits = []
+        run_indent = None
+        for i, ln in enumerate(lines):
+            if not ln.strip() or ln.lstrip().startswith("#"):
+                continue
+            indent = len(ln) - len(ln.lstrip())
+            if run_indent is not None and indent <= run_indent:
+                run_indent = None
+            m = re.match(r"^(\s*)(- )?run:\s*(.*)$", ln)
+            if m:
+                rest = m.group(3)
+                # Key indent includes the "- " prefix so a same-level env: ends the block.
+                run_indent = len(m.group(1)) + (2 if m.group(2) else 0)
+                if rest and rest not in ("|", ">", ">-", "|-", "|+", ">+"):
+                    for ref in untrusted_gha_refs(rest):
+                        hits.append({"line": i + 1, "expr": ref})
+                continue
+            if run_indent is not None and indent > run_indent:
+                for ref in untrusted_gha_refs(ln):
+                    hits.append({"line": i + 1, "expr": ref})
+        return hits[:50]
+
     def _ci(self, rel, lines, text):
         unpinned = []
         for i, ln in enumerate(lines):
@@ -652,12 +709,15 @@ class Inventory:
                 continue
             if "@" not in ref or not re.fullmatch(r"[0-9a-f]{40}", ref.rsplit("@", 1)[1]):
                 unpinned.append({"line": i + 1, "ref": ref})
-        self.out["ci_workflows"].append({
+        entry = {
             "path": rel, "unpinned_actions": unpinned,
             "pull_request_target": "pull_request_target" in text,
             "remote_script_piped_to_shell": bool(re.search(r"(curl|wget)[^|\n]*\|\s*(ba|z)?sh", text)),
             "secrets_references": len(re.findall(r"\$\{\{\s*secrets\.", text)),
-        })
+        }
+        if rel.startswith(".github/workflows/"):
+            entry["untrusted_run_interpolations"] = self._ci_untrusted_run(lines)
+        self.out["ci_workflows"].append(entry)
         for i, ln in enumerate(lines):
             m = USES_RE.match(ln)
             if not m or not SETUP_NODE_RE.search(m.group(1)):

@@ -40,7 +40,7 @@ HOOK_FILES = {"setup.py": "setup.py runs code at install", ".pre-commit-config.y
 LOCAL_PATH = re.compile(r"(/home/[a-z_][a-z0-9_-]*/|/Users/[A-Za-z0-9._-]+/|[A-Za-z]:\\Users\\)")
 # Compact target includes CI config and dated incident profiles. Raise it
 # when a new dated profile is justified. 100 remains the hard error.
-MAX_FILES_ERROR, MAX_FILES_TARGET = 100, 50
+MAX_FILES_ERROR, MAX_FILES_TARGET = 100, 55
 HUB_CHAR_TARGET, DESCRIPTION_WORD_LIMIT = 4000, 50
 
 

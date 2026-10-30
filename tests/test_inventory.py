@@ -526,5 +526,76 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(out.read_text(encoding="utf-8"), "keep")
 
 
+@support.POSIX_ONLY
+class UntrustedRunInterpolations(unittest.TestCase):
+    def test_issue_body_in_run_is_listed_env_and_ids_are_not(self):
+        root = Path(support.tmpdir()) / "gha-lint"
+        (root / ".github" / "workflows").mkdir(parents=True)
+        (root / ".github" / "workflows" / "triage.yml").write_text(
+            "\n".join([
+                "name: triage",
+                "on: [issues, pull_request]",
+                "jobs:",
+                "  t:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - run: echo ${{ github.event.issue.body }}",
+                "      - run: echo ${{ github.event.issue.title }}",
+                "      - run: echo ${{ github.head_ref }}",
+                "      - run: echo ${{ github.head_ref || github.ref_name }}",
+                "      - run: echo ${{ github.event.issue['title'] }}",
+                "      - run: echo ${{ github.event.issue.number && github.event.issue.title }}",
+                "      - run: echo ${{ github.event.issue.number }}",
+                "      - run: echo ${{ github.event.pull_request.id }}",
+                "      - run: echo ${{ github.event.issue.state }}",
+                "      - run: echo ${{ github.event.pull_request.draft }}",
+                "      - name: safer",
+                "        env:",
+                "          BODY: ${{ github.event.issue.body }}",
+                "        run: echo \"$BODY\"",
+                "      - run: |",
+                "          echo hello",
+                "        env:",
+                "          BODY: ${{ github.event.issue.body }}",
+                "      - run: |",
+                "          echo ${{ github.event.comment.body }}",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+        (root / ".gitlab-ci.yml").write_text(
+            "script:\n  - echo ${{ github.event.issue.body }}\n", encoding="utf-8"
+        )
+        res = support.run_script("inventory.py", root, "--target", "gha-lint-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        doc = json.loads(res.stdout)
+        by_path = {w["path"]: w for w in doc["ci_workflows"]}
+        hits = by_path[".github/workflows/triage.yml"]["untrusted_run_interpolations"]
+        exprs = [h["expr"] for h in hits]
+        self.assertIn("github.event.issue.body", exprs)
+        self.assertIn("github.event.issue.title", exprs)
+        self.assertIn("github.head_ref", exprs)
+        self.assertIn("github.ref_name", exprs)
+        self.assertTrue(any(e.replace("\"", "'") == "github.event.issue['title']" or e == "github.event.issue.title" for e in exprs))
+        self.assertIn("github.event.comment.body", exprs)
+        self.assertNotIn("github.event.issue.number", exprs)
+        self.assertNotIn("github.event.pull_request.id", exprs)
+        self.assertNotIn("github.event.issue.state", exprs)
+        self.assertNotIn("github.event.pull_request.draft", exprs)
+        self.assertEqual(exprs.count("github.event.issue.body"), 1)
+        self.assertNotIn("untrusted_run_interpolations", by_path[".gitlab-ci.yml"])
+
+    def test_clean_workflow_lists_empty(self):
+        root = Path(support.tmpdir()) / "gha-clean"
+        (root / ".github" / "workflows").mkdir(parents=True)
+        (root / ".github" / "workflows" / "ci.yml").write_text(
+            "steps:\n  - uses: actions/checkout@v4\n  - run: echo ok\n", encoding="utf-8"
+        )
+        res = support.run_script("inventory.py", root, "--target", "gha-clean-repo")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        wf = json.loads(res.stdout)["ci_workflows"][0]
+        self.assertEqual(wf["untrusted_run_interpolations"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -892,6 +892,23 @@ class PresenceChecks(SimCase):
         updraft = next(c for c in doc["checks"] if c["id"] == "wordpress-updraftplus")
         self.assertEqual(updraft["findings"][0]["version"], "1.24.1")
 
+    def test_gitlab_kev_floors(self):
+        affected = self.sim("linux")
+        affected.write("/opt/gitlab/version-manifest.txt", "gitlab-ee 19.3.0\n")
+        c = affected.check("gitlab-self-hosted")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("19.3.5", c["findings"][0]["detail"])
+        patched = self.sim("linux")
+        patched.write("/opt/gitlab/version-manifest.txt", "gitlab-ce 19.3.5\n")
+        self.assertStatus(patched.check("gitlab-self-hosted"), "PASS")
+        self.assertEqual(results(patched.check("gitlab-self-hosted")), ["info"])
+        older_minor = self.sim("linux")
+        older_minor.write("/opt/gitlab/version-manifest.txt", "gitlab-ee 19.2.7\n")
+        self.assertEqual(results(older_minor.check("gitlab-self-hosted")), ["affected"])
+        floor_192 = self.sim("linux")
+        floor_192.write("/opt/gitlab/version-manifest.txt", "gitlab-ee 19.2.8\n")
+        self.assertEqual(results(floor_192.check("gitlab-self-hosted")), ["info"])
+
     def test_windows_presence(self):
         w = self.sim("windows")
         w.mkdir("C:/Windows/LTSvc")
@@ -905,6 +922,184 @@ class PresenceChecks(SimCase):
         m = self.sim("darwin")
         m.mkdir("/Applications/Warp" + APP)
         self.assertStatus(m.check("warp-terminal"), "FAIL")
+
+
+# --------------------------------------------------------------------------
+# 29–30 Oct 2026 briefing additions
+# --------------------------------------------------------------------------
+
+class ClaudeCodeVsx(SimCase):
+    KEY_BLOB = "AAAAEXAMPLEKEYMATERIALDONOTCOPY"
+
+    def test_bad_extension_version_is_affected(self):
+        self.s.mkdir("~/.cursor/extensions/anthropic.claude-code-2.1.313")
+        c = self.s.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(c["findings"][0]["result"], "affected")
+        self.assertEqual(c["findings"][0]["version"], "2.1.313")
+
+    def test_later_extension_version_is_info(self):
+        self.s.mkdir("~/.cursor/extensions/anthropic.claude-code-2.1.400")
+        c = self.s.check("claude-code-vsx-21313")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_key_comment_without_copying_material(self):
+        self.s.write("~/.ssh/authorized_keys",
+                     "ssh-ed25519 %s svc-telemetry\n" % self.KEY_BLOB)
+        c = self.s.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        text = hostfix.dumps(c)
+        self.assertNotIn(self.KEY_BLOB, text)
+        self.assertNotIn("ssh-ed25519", text)
+        self.assertEqual(c["findings"][0]["path"], "~/.ssh/authorized_keys")
+        self.assertIn("comment", c["findings"][0]["detail"])
+
+    def test_authorized_keys_without_comment_passes(self):
+        self.s.write("~/.ssh/authorized_keys", "ssh-ed25519 %s laptop\n" % self.KEY_BLOB)
+        self.assertStatus(self.s.check("claude-code-vsx-21313"), "PASS")
+
+    def test_macos_sysmond_and_persistence(self):
+        m = self.sim("darwin")
+        m.plist("~/Library/LaunchAgents/com.apple.sysmond.plist",
+                {"Label": "com.apple.sysmond", "ProgramArguments": ["/bin/sh", "-c", "true"]})
+        m.write("~/.config/.smt", "placeholder\n")
+        m.write("/tmp/.stk_abcdef0123", "placeholder\n")
+        c = m.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        kinds = {f["component"] for f in c["findings"]}
+        self.assertIn("LaunchAgent", kinds)
+        self.assertIn("persistence script", kinds)
+        self.assertIn("tunnel key tempfile", kinds)
+        self.assertTrue(all("placeholder" not in (f.get("detail") or "") for f in c["findings"]))
+
+    def test_linux_crontab_redacts_account_name(self):
+        self.s.write("/var/spool/cron/crontabs/example", "@reboot ~/.config/.smt\n")
+        c = self.s.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        path = c["findings"][0]["path"]
+        self.assertTrue(path.endswith("/<user>"), path)
+        self.assertNotIn("example", path)
+
+    def test_linux_crontab_smtp_hostname_is_not_a_hit(self):
+        self.s.write("/var/spool/cron/crontabs/example", "MAILTO=ops@mail.smtp.example.com\n0 * * * * true\n")
+        self.assertStatus(self.s.check("claude-code-vsx-21313"), "PASS")
+
+    def test_windows_sysmon_task_without_smt_is_review(self):
+        w = self.sim("windows")
+        w.write("C:/Windows/System32/Tasks/SysMon", "<Task><Actions>Sysinternals</Actions></Task>\n")
+        c = w.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        w2 = self.sim("windows")
+        w2.write("C:/Windows/System32/Tasks/SysMon", "<Task><Command>.config\\smt.cmd</Command></Task>\n")
+        self.assertEqual(results(w2.check("claude-code-vsx-21313")), ["affected"])
+
+    def test_empty_host_passes(self):
+        self.assertStatus(self.s.check("claude-code-vsx-21313"), "PASS")
+
+
+class YobaFakeApps(SimCase):
+    def test_themed_sideload_pair_is_affected(self):
+        self.s.write("~/Downloads/gpt-5-6-sol-free-desktop/Setup.exe", b"MZ")
+        self.s.write("~/Downloads/gpt-5-6-sol-free-desktop/winmm.dll", b"MZ")
+        c = self.s.check("yoba-fake-ai-apps")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(c["findings"][0]["result"], "affected")
+
+    def test_unthemed_pair_is_review(self):
+        self.s.write("~/Downloads/extract/Setup.exe", b"MZ")
+        self.s.write("~/Downloads/extract/winmm.dll", b"MZ")
+        c = self.s.check("yoba-fake-ai-apps")
+        self.assertEqual(results(c), ["review"])
+
+    def test_themed_folder_without_pair_is_review(self):
+        self.s.mkdir("~/Downloads/claude-opus")
+        self.assertEqual(results(self.s.check("yoba-fake-ai-apps")), ["review"])
+
+    def test_wmprocess_on_windows(self):
+        w = self.sim("windows")
+        w.mkdir("C:/ProgramData/WMProcess")
+        c = w.check("yoba-fake-ai-apps")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(c["findings"][0]["result"], "affected")
+
+    def test_empty_host_passes(self):
+        self.assertStatus(self.s.check("yoba-fake-ai-apps"), "PASS")
+
+
+class HuggingFaceLead(SimCase):
+    def test_named_cache_is_unknown_never_affected(self):
+        self.s.mkdir("~/.cache/huggingface/hub/models--MENXIANGYU--qwen2-tiny")
+        c = self.s.check("huggingface-qwen2-tiny")
+        self.assertEqual(c["confirmation"], "unconfirmed")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("affected", results(c))
+
+    def test_tmp_watchdog_is_unknown(self):
+        self.s.write("/tmp/.cch", "x")
+        c = self.s.check("huggingface-qwen2-tiny")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_empty_is_not_applicable(self):
+        self.assertStatus(self.s.check("huggingface-qwen2-tiny"), "NOT_APPLICABLE")
+
+    def test_hf_home_uses_hub_subdirectory(self):
+        self.s.env["HF_HOME"] = self.s.path("~/custom-hf")
+        self.s.mkdir("~/custom-hf/hub/models--MENXIANGYU--qwen2-tiny")
+        c = self.s.check("huggingface-qwen2-tiny")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertTrue(any("custom-hf" in (f.get("path") or "") for f in c["findings"]))
+
+
+class GoMptcp(SimCase):
+    def _mod(self, s, body):
+        s.repo("~/code/app")
+        s.write("~/code/app/go.mod", body)
+
+    def test_go124_on_linux_is_review(self):
+        self._mod(self.s, "module example.com/app\n\ngo 1.24.0\n")
+        c = self.s.check("go-mptcp-linux")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertNotIn("6.", c["findings"][0]["detail"])
+
+    def test_godebug_mitigation_is_info(self):
+        self._mod(self.s, "module example.com/app\n\ngo 1.24.0\n\ngodebug multipathtcp=0\n")
+        c = self.s.check("go-mptcp-linux")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_go123_is_info(self):
+        self._mod(self.s, "module example.com/app\n\ngo 1.23.0\n")
+        self.assertEqual(results(self.s.check("go-mptcp-linux")), ["info"])
+
+    def test_toolchain_124(self):
+        self.s.write("/usr/local/go/VERSION", "go1.24.2\n")
+        c = self.s.check("go-mptcp-linux")
+        self.assertEqual(results(c), ["review"])
+
+    def test_toolchain_version_uses_first_line_only(self):
+        self.s.write("/usr/local/go/VERSION", "go1.24.2\ntime 2025-04-01T00:00:00Z\n")
+        c = self.s.check("go-mptcp-linux")
+        self.assertEqual(results(c), ["review"])
+        self.assertEqual(c["findings"][0]["version"], "1.24.2")
+
+    def test_standalone_gomod_without_gosum_or_git_is_reviewed(self):
+        self.s.write("~/code/orphan/go.mod", "module example.com/app\n\ngo 1.24.0\n")
+        c = self.s.check("go-mptcp-linux")
+        self.assertEqual(results(c), ["review"])
+
+    def test_macos_records_only(self):
+        m = self.sim("darwin")
+        self._mod(m, "module example.com/app\n\ngo 1.24.0\n")
+        c = m.check("go-mptcp-linux")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_empty_linux_is_not_applicable(self):
+        self.assertStatus(self.s.check("go-mptcp-linux"), "NOT_APPLICABLE")
 
 
 # --------------------------------------------------------------------------
@@ -1008,7 +1203,7 @@ class WholeRun(SimCase):
     def test_metadata_sources_and_confirmation(self):
         unconfirmed = {m["id"] for m in hc.CHECKS if m["confirmation"] == "unconfirmed"}
         self.assertEqual(unconfirmed, {"browser-versions", "warp-terminal", "lightning-ai-client",
-                                      "anthropic-ai-chain"})
+                                      "anthropic-ai-chain", "huggingface-qwen2-tiny"})
         for m in hc.CHECKS:
             for key in m["sources"]:
                 self.assertTrue(hc.SRC[key][1].startswith("https://"), key)
@@ -1019,10 +1214,10 @@ class WholeRun(SimCase):
 
     def test_report_fragments_validate_in_a_report(self):
         self.populate(self.s)
-        doc = self.s.doc(target="CHK-HOST", collected_on="2026-10-27")
+        doc = self.s.doc(target="CHK-HOST", collected_on="2026-10-30")
         frag = doc["report_fragments"]
         report = support.load_example("baseline")
-        report["generated_on"] = "2026-10-27"
+        report["generated_on"] = "2026-10-30"
         before = {(i.code, i.path) for i in vr.validate(report) if i.level == "ERROR"}
         report["scope"]["targets"].append({"id": "CHK-HOST", "kind": "other", "locator": "simulated endpoint"})
         report["sources"] += frag["sources"]
