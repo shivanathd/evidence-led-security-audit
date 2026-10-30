@@ -57,7 +57,7 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 BRIEFING = "Security briefings, 16-30 Oct 2026 (public reports; dated 2026-10-27, 2026-10-28 and 2026-10-30)"
 BRIEFING_DATE = "2026-10-30"
 APP = ".app"

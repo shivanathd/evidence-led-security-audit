@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.3 - 2026-10-30
 
 ### Added
 
@@ -12,6 +12,14 @@
 
 - Reviewed public hosts: `www.drupal.org`, `drupal.org`.
 - `drupal-commerce-118539` normalises BOM/CRLF in info.yml; pairs an unversioned or unpackaged info.yml only with the deepest enclosing lock/installed.json root when the relative path is a Drupal module layout (case-insensitive); reports unpackaged git checkouts as unknown unless that pairing holds; treats a lock mention as `drupal/commerce` only when a package is named `drupal/commerce`; skips a `vendor` directory only when it contains `autoload.php` or `composer/installed.json`; names blocked-read causes (too large, invalid JSON, cannot read); treats numeric `*-dev` pins (including `-dev+build`, `-dev1`, `-DEV`) as review; treats a `#` remainder (`3.3.13-rc1#local`) as review; treats an unreadable nonempty `version:` line as unknown rather than pairing it; reviews differing `version:` lines and a packaged Commerce info.yml that names another project. The info.yml `version:` matcher is linear-time and still reads padded quoted values. Inventory uses the same vendor, name, and newline rules.
+
+### Known limits
+
+- The Composer vendor-tree marker walk can look above the scan root.
+- A git checkout paired with a fixed lock can hide an older commit (compare `.git/HEAD` with the lock's `source.reference` later).
+- `host_checks` and `inventory` Commerce helpers are duplicated.
+- Inventory gives no hint for an invalid-JSON lock that names `drupal/commerce`.
+- An unreadable second `version:` line next to a readable one is ignored.
 
 ## 0.4.2 - 2026-10-30
 

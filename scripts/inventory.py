@@ -43,7 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import safeio  # noqa: E402
 import textscan  # noqa: E402
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 DEFAULT_EXCLUDES = [".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"]
 LIMITS = [
     "Inventory only: no dependency resolution, CVE matching or exploitability analysis.",
