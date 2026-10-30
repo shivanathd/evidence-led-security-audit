@@ -542,6 +542,9 @@ class UntrustedRunInterpolations(unittest.TestCase):
                 "      - run: echo ${{ github.event.issue.body }}",
                 "      - run: echo ${{ github.event.issue.title }}",
                 "      - run: echo ${{ github.head_ref }}",
+                "      - run: echo ${{ github.head_ref || github.ref_name }}",
+                "      - run: echo ${{ github.event.issue['title'] }}",
+                "      - run: echo ${{ github.event.issue.number && github.event.issue.title }}",
                 "      - run: echo ${{ github.event.issue.number }}",
                 "      - run: echo ${{ github.event.pull_request.id }}",
                 "      - run: echo ${{ github.event.issue.state }}",
@@ -550,6 +553,10 @@ class UntrustedRunInterpolations(unittest.TestCase):
                 "        env:",
                 "          BODY: ${{ github.event.issue.body }}",
                 "        run: echo \"$BODY\"",
+                "      - run: |",
+                "          echo hello",
+                "        env:",
+                "          BODY: ${{ github.event.issue.body }}",
                 "      - run: |",
                 "          echo ${{ github.event.comment.body }}",
                 "",
@@ -568,6 +575,8 @@ class UntrustedRunInterpolations(unittest.TestCase):
         self.assertIn("github.event.issue.body", exprs)
         self.assertIn("github.event.issue.title", exprs)
         self.assertIn("github.head_ref", exprs)
+        self.assertIn("github.ref_name", exprs)
+        self.assertTrue(any(e.replace("\"", "'") == "github.event.issue['title']" or e == "github.event.issue.title" for e in exprs))
         self.assertIn("github.event.comment.body", exprs)
         self.assertNotIn("github.event.issue.number", exprs)
         self.assertNotIn("github.event.pull_request.id", exprs)

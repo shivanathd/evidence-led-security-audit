@@ -117,12 +117,35 @@ ONAMAE_DNS_RE = re.compile(
     r"(?i)\b(?:NS|MX|nameserver)\b.*%s\.(?:com|co\.jp)|%s\.(?:com|co\.jp).*\b(?:NS|MX|nameserver)" %
     (_ONAMAE_LABEL, _ONAMAE_LABEL))
 GMO_DNS_NAMES = frozenset({"named.conf", "named.conf.local"})
-# github.event string fields (not .number / .id / .state / .draft) interpolated into run: steps.
-UNTRUSTED_GHA_EXPR = re.compile(
-    r"\$\{\{\s*(github\.(?:head_ref|ref_name|event\.(?:issue|comment|pull_request|"
+# ${{ ... }} blocks, then github.event / head_ref / ref_name refs inside them.
+# Safe leaf fields (.number / .id / .state / .draft) are excluded per-reference so
+# `github.event.issue.number && github.event.issue.title` still flags the title.
+GHA_INTERP = re.compile(r"\$\{\{(.+?)\}\}", re.DOTALL)
+GHA_UNTRUSTED_REF = re.compile(
+    r"github\.(?:head_ref|ref_name|event\.(?:issue|comment|pull_request|"
     r"review|discussion|review_comment|discussion_comment|commits?|head_commit|"
-    r"release|client_payload)\.(?!number\b|id\b|state\b|draft\b)[^}]+))\s*\}\}",
+    r"release|client_payload)(?:\.[A-Za-z_][\w]*|\[['\"][^'\"]+['\"]])*)",
     re.IGNORECASE)
+GHA_SAFE_LEAF = frozenset({"number", "id", "state", "draft"})
+
+
+def _gha_ref_leaf(ref):
+    br = re.search(r"\[['\"]([^'\"]+)['\"]\]\s*$", ref)
+    if br:
+        return br.group(1)
+    return ref.rsplit(".", 1)[-1]
+
+
+def untrusted_gha_refs(text):
+    """Return untrusted github.* refs interpolated inside ${{ }} expressions."""
+    hits = []
+    for block in GHA_INTERP.finditer(text or ""):
+        for m in GHA_UNTRUSTED_REF.finditer(block.group(1)):
+            ref = m.group(0)
+            if _gha_ref_leaf(ref).lower() in GHA_SAFE_LEAF:
+                continue
+            hits.append(ref)
+    return hits
 NGINX_LISTEN = re.compile(r"^\s*listen\s+([^;]+);")
 FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
@@ -661,17 +684,18 @@ class Inventory:
             indent = len(ln) - len(ln.lstrip())
             if run_indent is not None and indent <= run_indent:
                 run_indent = None
-            m = re.match(r"^(\s*)(?:-\s+)?run:\s*(.*)$", ln)
+            m = re.match(r"^(\s*)(- )?run:\s*(.*)$", ln)
             if m:
-                rest = m.group(2)
-                run_indent = len(m.group(1))
+                rest = m.group(3)
+                # Key indent includes the "- " prefix so a same-level env: ends the block.
+                run_indent = len(m.group(1)) + (2 if m.group(2) else 0)
                 if rest and rest not in ("|", ">", ">-", "|-", "|+", ">+"):
-                    for um in UNTRUSTED_GHA_EXPR.finditer(rest):
-                        hits.append({"line": i + 1, "expr": um.group(1).strip()})
+                    for ref in untrusted_gha_refs(rest):
+                        hits.append({"line": i + 1, "expr": ref})
                 continue
             if run_indent is not None and indent > run_indent:
-                for um in UNTRUSTED_GHA_EXPR.finditer(ln):
-                    hits.append({"line": i + 1, "expr": um.group(1).strip()})
+                for ref in untrusted_gha_refs(ln):
+                    hits.append({"line": i + 1, "expr": ref})
         return hits[:50]
 
     def _ci(self, rel, lines, text):

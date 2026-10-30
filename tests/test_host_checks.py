@@ -981,6 +981,10 @@ class ClaudeCodeVsx(SimCase):
         self.assertTrue(path.endswith("/<user>"), path)
         self.assertNotIn("example", path)
 
+    def test_linux_crontab_smtp_hostname_is_not_a_hit(self):
+        self.s.write("/var/spool/cron/crontabs/example", "MAILTO=ops@mail.smtp.example.com\n0 * * * * true\n")
+        self.assertStatus(self.s.check("claude-code-vsx-21313"), "PASS")
+
     def test_windows_sysmon_task_without_smt_is_review(self):
         w = self.sim("windows")
         w.write("C:/Windows/System32/Tasks/SysMon", "<Task><Actions>Sysinternals</Actions></Task>\n")
@@ -1041,6 +1045,13 @@ class HuggingFaceLead(SimCase):
     def test_empty_is_not_applicable(self):
         self.assertStatus(self.s.check("huggingface-qwen2-tiny"), "NOT_APPLICABLE")
 
+    def test_hf_home_uses_hub_subdirectory(self):
+        self.s.env["HF_HOME"] = self.s.path("~/custom-hf")
+        self.s.mkdir("~/custom-hf/hub/models--MENXIANGYU--qwen2-tiny")
+        c = self.s.check("huggingface-qwen2-tiny")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertTrue(any("custom-hf" in (f.get("path") or "") for f in c["findings"]))
+
 
 class GoMptcp(SimCase):
     def _mod(self, s, body):
@@ -1066,6 +1077,17 @@ class GoMptcp(SimCase):
 
     def test_toolchain_124(self):
         self.s.write("/usr/local/go/VERSION", "go1.24.2\n")
+        c = self.s.check("go-mptcp-linux")
+        self.assertEqual(results(c), ["review"])
+
+    def test_toolchain_version_uses_first_line_only(self):
+        self.s.write("/usr/local/go/VERSION", "go1.24.2\ntime 2025-04-01T00:00:00Z\n")
+        c = self.s.check("go-mptcp-linux")
+        self.assertEqual(results(c), ["review"])
+        self.assertEqual(c["findings"][0]["version"], "1.24.2")
+
+    def test_standalone_gomod_without_gosum_or_git_is_reviewed(self):
+        self.s.write("~/code/orphan/go.mod", "module example.com/app\n\ngo 1.24.0\n")
         c = self.s.check("go-mptcp-linux")
         self.assertEqual(results(c), ["review"])
 

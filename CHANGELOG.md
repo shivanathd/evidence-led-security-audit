@@ -12,6 +12,7 @@
 
 - `gitlab-self-hosted` now classifies CE/EE 19.2 / 19.3 / 19.4 against the NVD floors for CVE-2026-97229 (CISA KEV, 29 Oct 2026). Versions outside that range stay `review`.
 - Briefing date stamped on host-check fragments is 2026-10-30. A human must still re-read primary sources before closing findings.
+- Host-check review fixes: crontab `.smt` uses a word-boundary match; `HF_HOME` is resolved to its `hub` subdirectory; Go `VERSION` is the first line only; standalone `go.mod` files are indexed. Inventory `untrusted_run_interpolations` flags untrusted github refs anywhere in an expression and ends a `- run:` block at the `run` key so a same-level `env:` is not treated as script.
 
 ## 0.4.0 - 2026-10-30
 

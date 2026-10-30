@@ -97,7 +97,7 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `claude-code-vsx-21313` | `~/.cursor/extensions` and editor extension folders (targeted, not a full extensions walk); `~/.ssh/authorized_keys` comment only; `~/Library/LaunchAgents/com.apple.sysmond.plist`; `~/.config/.smt` / `.smtk`; `$TMPDIR/.stk_*` | same, plus user crontab files if readable | same, plus `%USERPROFILE%\.ssh`, `administrators_authorized_keys`, Startup `sysmon.cmd`, `Tasks\SysMon` |
 | `yoba-fake-ai-apps` | Downloads/Desktop folder names and `Setup.exe`+`winmm.dll` pairs | same | same, plus `C:\ProgramData\WMProcess` |
 | `huggingface-qwen2-tiny` | `~/.cache/huggingface` names and `/tmp/.cch` (unconfirmed; findings are `unknown`) | same | same |
-| `go-mptcp-linux` | `go.mod` / toolchain VERSION / Homebrew `go` (recorded only) | `go.mod`, distro `golang*`, `/usr/local/go/VERSION`, `/proc/version` note | toolchain if present (MPTCP default is Linux-only) |
+| `go-mptcp-linux` | indexed `go.mod` (with or without `go.sum` / `.git`), toolchain VERSION, Homebrew `go` (recorded only) | same plus distro `golang*`, `/usr/local/go/VERSION`, `/proc/version` note | toolchain if present (MPTCP default is Linux-only) |
 
 ## Known limits
 

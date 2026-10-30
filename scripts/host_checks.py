@@ -453,6 +453,7 @@ class Index:
         self.docker = []
         self.cargo = []
         self.gosum = []
+        self.gomod = []
         self.nuget = []
         self.node_modules = []
         self.venvs = []
@@ -571,6 +572,8 @@ def build_index(host):
             idx.cargo.append(path)
         if low == "go.sum":
             idx.gosum.append(path)
+        if low == "go.mod":
+            idx.gomod.append(path)
         if low in ("packages.lock.json", "directory.packages.props") or low.endswith((".csproj", ".fsproj")):
             idx.nuget.append(path)
         if low in ("config.yaml", "production.yaml", "development.yaml") and any("qdrant" in p for p in plow):
@@ -2399,7 +2402,7 @@ def check_claude_code_vsx(host, r):
                 if text is None:
                     r.blocked.append("crontab unreadable")
                     continue
-                if ".smt" in text:
+                if re.search(r"(?<!\w)\.smtk?\b", text):
                     # Spool filenames are account names; do not copy them.
                     r.add("affected", "user crontab",
                           "crontab references the vendor-named persistence script",
@@ -2456,7 +2459,7 @@ def check_hf_qwen2(host, r):
     for key in ("HF_HOME", "HUGGINGFACE_HUB_CACHE"):
         val = host.env.get(key)
         if val:
-            caches.append(val)
+            caches.append(os.path.join(val, "hub") if key == "HF_HOME" else val)
     seen = set()
     for cache in caches:
         key = os.path.normcase(os.path.abspath(cache))
@@ -2490,16 +2493,23 @@ def _go_mod_facts(text):
 
 
 def check_go_mptcp(host, r):
-    # Sibling of go.sum, plus go.mod at a repository root, plus toolchain metadata.
+    # Indexed go.mod files, plus go.sum siblings and repository-root go.mod as fallbacks.
     mods = []
+    seen_mods = set()
+    for gomod in index(host).gomod:
+        if hs.is_regular(gomod) and gomod not in seen_mods:
+            mods.append(gomod)
+            seen_mods.add(gomod)
     for gosum in index(host).gosum:
         gomod = os.path.join(os.path.dirname(gosum), "go.mod")
-        if hs.is_regular(gomod):
+        if hs.is_regular(gomod) and gomod not in seen_mods:
             mods.append(gomod)
+            seen_mods.add(gomod)
     for repo in index(host).repos:
         gomod = os.path.join(repo, "go.mod")
-        if hs.is_regular(gomod) and gomod not in mods:
+        if hs.is_regular(gomod) and gomod not in seen_mods:
             mods.append(gomod)
+            seen_mods.add(gomod)
     for path in mods:
         ver, mitigated = _go_mod_facts(hs.read_text(path, MIB) or "")
         if ver is None and not mitigated:
@@ -2523,7 +2533,8 @@ def check_go_mptcp(host, r):
     for label, path in ((" /usr/local/go", host.sys("/usr/local/go/VERSION")),
                         (" /usr/lib/go", host.sys("/usr/lib/go/VERSION"))):
         if hs.is_regular(path):
-            raw = (hs.read_text(path, 256) or "").strip()
+            lines = (hs.read_text(path, 256) or "").strip().splitlines()
+            raw = lines[0].strip() if lines else ""
             ver = raw[2:] if raw.lower().startswith("go") else raw
             v = hs.parse_version(ver)
             if host.platform == "linux" and v and not hs.below(v, "1.24.0"):
