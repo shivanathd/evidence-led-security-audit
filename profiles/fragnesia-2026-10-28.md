@@ -18,7 +18,7 @@ Do not use press "kernels released before 13 May 2026" as a version rule. Do not
 
 CVE record: introduced in 3.9; fixed in 5.10.257, 5.15.208, 6.1.174, 6.6.141, 6.12.91, 6.18.33, 7.0.10; 7.1 and later unaffected.
 
-Ubuntu official `x.y.0-N-generic` osrelease only (`N` is 1–9999, no leading zero), keyed on `(VERSION_ID, major.minor)` (HWE kernels report a plain `-generic` string). When `/proc/version` has `#NNN-Ubuntu` or `#NNN~YY.MM.R-Ubuntu`, the check also compares the upload number. Equal ABI with an unreadable upload is `review` when the floor needs the upload. Mainline-PPA and other strings are `review`.
+Ubuntu official `x.y.0-N-generic` osrelease only (`N` is 1–999, no leading zero), keyed on `(VERSION_ID, major.minor)` (HWE kernels report a plain `-generic` string). When `/proc/version` has `#NNN-Ubuntu`, `#NNN.N-Ubuntu`, or `#NNN[~YY.MM.R]-Ubuntu`, the check also compares the upload number. A `~YY.MM` suffix that does not match `VERSION_ID` is `review`. Equal ABI with an unreadable upload is `review` when the floor needs the upload. Mainline-PPA, `N >= 1000`, and other strings are `review`.
 
 | Release | Series | Fixed ABI | Page row |
 | --- | --- | --- | --- |

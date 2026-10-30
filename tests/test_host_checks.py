@@ -1260,10 +1260,12 @@ class TeamViewer111585(SimCase):
         w = self.sim("windows")
         c = w.check("teamviewer-111585", registry=[{"name": "TeamViewer", "version": "15.64.9"}])
         self.assertEqual(results(c), ["affected"])
-        ok = self.sim("windows").check("teamviewer-111585",
-                                       registry=[{"name": "TeamViewer", "version": "15.64.10"}])
-        self.assertEqual(results(ok), ["info"])
-        self.assertStatus(ok, "PASS")
+        review = self.sim("windows").check("teamviewer-111585",
+                                          registry=[{"name": "TeamViewer", "version": "15.64.10"}])
+        self.assertEqual(results(review), ["review"])
+        self.assertStatus(review, "FAIL")
+        self.assertIn("fixed build for Windows 7 and 8 only", review["findings"][0]["detail"])
+        self.assertIn("confirm OS or update to 15.83", review["findings"][0]["detail"])
         addin = self.sim("windows").check(
             "teamviewer-111585",
             registry=[{"name": "TeamViewer Meeting Add-In", "version": "15.10"}])
@@ -1299,6 +1301,11 @@ class TeamViewer111585(SimCase):
             "teamviewer-111585",
             registry=[{"name": "TeamViewer 13", "version": "13.2.36231"}])
         self.assertEqual(results(ok13), ["info"])
+        host14 = self.sim("windows").check(
+            "teamviewer-111585",
+            registry=[{"name": "TeamViewer 14 Host", "version": "14.7.48867"}])
+        self.assertEqual(results(host14), ["affected"])
+        self.assertEqual(host14["findings"][0]["component"], "TeamViewer Host")
 
     def test_windows_service_only_dir_is_unknown(self):
         w = self.sim("windows")
@@ -1327,6 +1334,55 @@ class TeamViewer111585(SimCase):
         exe.write("~/Downloads/TeamViewerPortable.exe",
                   hostfix.pe_with_version(dotted(15, 82, 6, 0)))
         self.assertEqual(results(exe.check("teamviewer-111585")), ["affected"])
+
+    def test_empty_portable_folder_is_unknown(self):
+        w = self.sim("windows")
+        w.mkdir("~/Downloads/TeamViewerPortable")
+        w.write("~/Downloads/TeamViewerPortable/readme.txt", "notes\n")
+        c = w.check("teamviewer-111585")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_portable_exe_under_public_downloads(self):
+        w = self.sim("windows")
+        w.write("C:/" + "Users/Public/Downloads/TeamViewerPortable.exe",
+                hostfix.pe_with_version(dotted(15, 82, 6, 0)))
+        c = w.check("teamviewer-111585")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["component"], "TeamViewer Portable")
+
+    def test_portable_info_plist(self):
+        m = self.sim("darwin")
+        m.plist("~/Downloads/TeamViewerPortable/Contents/Info.plist",
+                {"CFBundleShortVersionString": "15.82"})
+        c = m.check("teamviewer-111585")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["component"], "TeamViewer Portable")
+
+    def test_portable_space_and_underscore_names(self):
+        space = self.sim("windows")
+        space.write("~/Downloads/TeamViewer Portable/TeamViewer.exe",
+                    hostfix.pe_with_version(dotted(15, 82, 6, 0)))
+        c = space.check("teamviewer-111585")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["component"], "TeamViewer Portable")
+        under = self.sim("windows")
+        under.write("~/Downloads/TeamViewer_Portable.exe",
+                    hostfix.pe_with_version(dotted(15, 82, 6, 0)))
+        self.assertEqual(results(under.check("teamviewer-111585")), ["affected"])
+
+    def test_empty_host_dir_with_versioned_client_is_unknown(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/TeamViewer/TeamViewer.exe",
+                hostfix.pe_with_version(dotted(15, 83, 0, 0)))
+        w.mkdir("C:/Program Files/TeamViewer Host")
+        c = w.check("teamviewer-111585")
+        kinds = results(c)
+        self.assertIn("unknown", kinds)
+        self.assertTrue(any(f["component"] == "TeamViewer Host" and f["result"] == "unknown"
+                            for f in c["findings"]))
+        self.assertTrue(any(f["component"] == "TeamViewer" and f["result"] == "info"
+                            for f in c["findings"]))
 
     def test_empty_hosts(self):
         for platform in ("linux", "darwin", "windows"):
@@ -1411,6 +1467,7 @@ class FragnesiaLinux(SimCase):
             ("22.04", "5.15.150-051550-generic"),
             ("24.04", "6.8.1-200-generic"),
             ("24.04", "6.8.0-0124-generic"),
+            ("24.04", "6.8.0-1240-generic"),
         ):
             c = self._ubuntu(release, osrelease)
             self.assertEqual(results(c), ["review"], osrelease)
@@ -1452,6 +1509,21 @@ class FragnesiaLinux(SimCase):
         hwe_ok.write("/proc/version",
                      "Linux version 5.15.0-181-generic (buildd@lcy) (gcc) #191~20.04.1-Ubuntu SMP\n")
         self.assertEqual(results(hwe_ok.check("fragnesia-linux")), ["info"])
+        dotted_upload = self.sim("linux")
+        dotted_upload.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="22.04"\n')
+        dotted_upload.write("/proc/sys/kernel/osrelease", "5.15.0-181-generic\n")
+        dotted_upload.write("/proc/version",
+                            "Linux version 5.15.0-181-generic (buildd@lcy) (gcc) #191.1-Ubuntu SMP\n")
+        self.assertEqual(results(dotted_upload.check("fragnesia-linux")), ["info"])
+        mismatch = self.sim("linux")
+        mismatch.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        mismatch.write("/proc/sys/kernel/osrelease", "6.8.0-124-generic\n")
+        mismatch.write("/proc/version",
+                       "Linux version 6.8.0-124-generic (buildd@lcy) (gcc) #124~20.04.1-Ubuntu SMP\n")
+        mis = mismatch.check("fragnesia-linux")
+        self.assertEqual(results(mis), ["review"])
+        self.assertIn("20.04", mis["findings"][0]["detail"])
+        self.assertIn("24.04", mis["findings"][0]["detail"])
 
     def test_unmatched_ubuntu_release_or_series_is_review(self):
         old = self._ubuntu("20.04", "5.4.0-200-generic")
@@ -1480,7 +1552,7 @@ class FragnesiaLinux(SimCase):
         s = self.sim("linux")
         s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
         s.write("/proc/sys/kernel/osrelease", "6.8.0-90-generic\n")
-        s.write("/proc/modules", "xfrm_user 61440 1 - Live 0x0\nesp4 4096 0 - Live 0x0\n")
+        s.write("/proc/modules", "xfrm_user 61440 1 - Live 0x0\n")
         c = s.check("fragnesia-linux")
         self.assertTrue(any("XFRM" in n or "xfrm" in n.lower() for n in c["notes"]))
 
@@ -1502,6 +1574,23 @@ class FragnesiaLinux(SimCase):
         self.assertEqual(results(late), ["info"])
         self.assertIn("7.1", late["findings"][0]["detail"])
         self.assertEqual(results(plain("7.0.9")), ["affected"])
+
+    def test_upstream_floors_minus_one_and_floor(self):
+        def dec_last(ver):
+            parts = ver.split(".")
+            parts[-1] = str(int(parts[-1]) - 1)
+            return ".".join(parts)
+
+        for floor in hc.FRAGNESIA_UPSTREAM:
+            below = dec_last(floor)
+            low = self.sim("linux")
+            low.write("/etc/os-release", "ID=debian\nVERSION_ID=12\n")
+            low.write("/proc/sys/kernel/osrelease", below + "\n")
+            self.assertEqual(results(low.check("fragnesia-linux")), ["affected"], below)
+            ok = self.sim("linux")
+            ok.write("/etc/os-release", "ID=debian\nVERSION_ID=12\n")
+            ok.write("/proc/sys/kernel/osrelease", floor + "\n")
+            self.assertEqual(results(ok.check("fragnesia-linux")), ["info"], floor)
 
     def test_running_kernel_not_package_and_reboot_note(self):
         c = self._ubuntu("24.04", "6.8.0-90-generic",
@@ -1537,6 +1626,7 @@ class LinuxTcpUaf98432(SimCase):
         self.assertIn("24.04", detail)
         self.assertIn("29 Oct 2026", detail)
         self.assertIn("no released fixed build", detail.lower())
+        self.assertIn("15 Oct 2026", detail)
         self.assertIn("30 Oct 2026", detail)
         self.assertTrue("5.10.272" in detail or "cve.org" in detail.lower())
         self.assertIn("not Ubuntu", detail)

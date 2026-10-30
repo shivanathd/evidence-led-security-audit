@@ -1,6 +1,6 @@
 # Optional profile: Go MPTCP default and Linux kernel CVE-2026-98432 (2026-10-29)
 
-Last checked: 2026-10-30. Dated snapshot. Re-read [golang-announce](https://groups.google.com/g/golang-announce/c/PCoQcdxoScw), [Ubuntu CVE-2026-98432](https://ubuntu.com/security/CVE-2026-98432) (last updated 29 Oct 2026), and the [CVE record](https://www.cve.org/CVERecord?id=CVE-2026-98432) (published 30 Oct 2026) on every run.
+Last checked: 2026-10-30. Dated snapshot. Re-read [golang-announce](https://groups.google.com/g/golang-announce/c/PCoQcdxoScw), [Ubuntu CVE-2026-98432](https://ubuntu.com/security/CVE-2026-98432) (last updated 29 Oct 2026), and the [CVE record](https://www.cve.org/CVERecord?id=CVE-2026-98432) (published 15 Oct 2026, updated 30 Oct 2026) on every run.
 
 ## What is confirmed
 
@@ -13,7 +13,7 @@ The Go Security Team (Neal Patel, 29 Oct 2026) wrote:
 - Mitigation in Go (fragile): `GODEBUG=multipathtcp=0` at runtime, or `godebug multipathtcp=0` in the main module's `go.mod`. `net.Dialer.SetMultipathTCP` / `net.ListenConfig.SetMultipathTCP` override the GODEBUG setting.
 - The recommended fix is a **patched kernel**. The announce names **no** patched kernel version and says it is premature to change Go's default.
 - Ubuntu CVE-2026-98432 (last updated 29 Oct 2026) lists current generic `linux` rows as **vulnerable, work in progress**. No released Ubuntu fixed package was retrieved. WIP target builds are not floors.
-- CVE record published 30 Oct 2026 lists upstream floors 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.56, 7.2.10 (7.3+ unaffected; introduced in 4.4). Those are not Ubuntu package floors.
+- CVE record published 15 Oct 2026, updated 30 Oct 2026 lists upstream floors 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.56, 7.2.10 (7.3+ unaffected; introduced in 4.4). Those are not Ubuntu package floors.
 
 ## What this skill will not invent
 

@@ -77,10 +77,10 @@ LIMITS = [
     "Without openat support (Windows) a directory swapped for a link mid-walk is not detected.",
     "Every version fact comes from the dated briefing; re-read the primary advisory before closing a finding.",
     "Ubuntu kernel ABI is compared as (release, major.minor, abi[, upload]). The Ubuntu table applies only to "
-    "official x.y.0-N-generic strings (N = 1-9999, no leading zero). Mainline-PPA and other strings are review. "
+    "official x.y.0-N-generic strings (N = 1-999, no leading zero). Mainline-PPA, N >= 1000, and other strings are review. "
     "parse_version nums ignore the ABI, so 6.8.0-90 and 6.8.0-124 are not treated as equal.",
     "linux-tcp-uaf-98432 records the running kernel as review: no released Ubuntu fixed build was retrieved. "
-    "cve.org floors published 30 Oct 2026 are not Ubuntu package floors. It never claims patched.",
+    "cve.org floors published 15 Oct 2026, updated 30 Oct 2026 are not Ubuntu package floors. It never claims patched.",
 ]
 
 CLEANUP_ORDER = [
@@ -210,7 +210,7 @@ SRC = {
                      "https://ubuntu.com/security/CVE-2026-46300"),
     "ubuntu-98432": ("Ubuntu Security CVE-2026-98432",
                      "https://ubuntu.com/security/CVE-2026-98432"),
-    "cve-98432": ("CVE Record CVE-2026-98432 (published 30 Oct 2026)",
+    "cve-98432": ("CVE Record CVE-2026-98432 (published 15 Oct 2026, updated 30 Oct 2026)",
                   "https://www.cve.org/CVERecord?id=CVE-2026-98432"),
 }
 
@@ -3123,10 +3123,10 @@ def check_plex(host, r):
             classify_version(r, "Plex Media Server", e.get("version") or "unknown", None, ["1.43.3.10861"], 0, (), "registry")
 
 
-_UBUNTU_GENERIC = re.compile(r"^(\d+)\.(\d+)\.0-([1-9]\d{0,3})-generic$")
+_UBUNTU_GENERIC = re.compile(r"^(\d+)\.(\d+)\.0-([1-9]\d{0,2})-generic$")
 _PLAIN_UPSTREAM = re.compile(r"^\d+\.\d+\.\d+$")
 _KERNEL_ABI = re.compile(r"(\d+)\.(\d+)\.(\d+)-(\d+)")
-_UBUNTU_UPLOAD = re.compile(r"#(\d+)(?:~[\w.]+)?-Ubuntu")
+_UBUNTU_UPLOAD = re.compile(r"#(\d+)(?:\.\d+)?(?:~([\w.]+))?-Ubuntu")
 # Ubuntu CVE-2026-46300 rows retrieved 2026-10-30: (VERSION_ID, major.minor) -> (fixed ABI, upload, page row).
 FRAGNESIA_UBUNTU_ABI = {
     ("26.04", (7, 0)): (22, 22, "linux 7.0.0-22.22"),
@@ -3163,10 +3163,16 @@ def running_osrelease(host):
     return (hs.read_text(host.sys("/proc/sys/kernel/osrelease"), 4096, host.gaps) or "").strip()
 
 
-def ubuntu_upload(host):
+def ubuntu_upload_fields(host):
     text = hs.read_text(host.sys("/proc/version"), 4096, host.gaps) or ""
     m = _UBUNTU_UPLOAD.search(text)
-    return int(m.group(1)) if m else None
+    if not m:
+        return None, None
+    series = None
+    if m.group(2):
+        sm = re.match(r"(\d+\.\d+)", m.group(2))
+        series = sm.group(1) if sm else None
+    return int(m.group(1)), series
 
 
 def linux_image_abis(host):
@@ -3207,7 +3213,14 @@ def teamviewer_classify(r, component, raw, path, platform, kind="client"):
     line = v.nums[:2] if len(v.nums) >= 2 else ()
     if line == (15, 64):
         if platform == "windows":
-            classify_version(r, component, raw, path, ["15.64.10"], 2, extra_note="; %s" % cite)
+            if hs.below(v, "15.64.10"):
+                r.add("affected", component,
+                      "below 15.64.10; the 15.64 legacy fix is Windows 7 and 8 only (%s)" % cite,
+                      path=path, version=raw)
+            else:
+                r.add("review", component,
+                      "fixed build for Windows 7 and 8 only; confirm OS or update to 15.83 (%s)" % cite,
+                      path=path, version=raw)
         else:
             r.add("affected", component,
                   "below 15.83; the 15.64 legacy fix is Windows 7 and 8 only (%s)" % cite,
@@ -3232,6 +3245,11 @@ def teamviewer_classify(r, component, raw, path, platform, kind="client"):
     r.add("info", component, "at or above fixed build 15.83 (%s)" % cite, path=path, version=raw)
 
 
+def _is_teamviewer_portable_name(name):
+    compact = name.lower().replace(" ", "").replace("_", "")
+    return compact.startswith("teamviewerportable")
+
+
 def _teamviewer_portable_roots(host):
     roots = list(downloads_dirs(host)) + [host.h("Desktop")]
     if host.platform == "windows":
@@ -3248,7 +3266,7 @@ def _teamviewer_scan_portable(host, r):
             continue
         seen.add(key)
         for name in hs.listdir(root):
-            if not fnmatch.fnmatch(name.lower(), "teamviewerportable*"):
+            if not _is_teamviewer_portable_name(name):
                 continue
             inner = os.path.join(root, name)
             found = False
@@ -3317,12 +3335,18 @@ def check_teamviewer(host, r):
         for d in glob_dirs(host, pf, "TeamViewer*"):
             seen_dir = True
             kind = "host" if re.search(r"host", os.path.basename(d), re.I) else "client"
+            found_pe = False
             for name in ("TeamViewer.exe", "TeamViewer_Desktop.exe"):
                 exe = os.path.join(d, name)
                 if hs.is_regular(exe):
+                    found_pe = True
                     teamviewer_classify(r, _tv_label(kind), hs.pe_file_version(exe) or "unknown",
                                         host.display(exe), "windows", kind)
-    for e in registry_matches(host, r"^TeamViewer( Host)?( \d+)?$"):
+            if kind == "host" and not found_pe:
+                r.add("unknown", _tv_label("host"),
+                      "TeamViewer Host folder present; version not in PE or registry metadata (not executed)",
+                      path=host.display(d))
+    for e in registry_matches(host, r"^TeamViewer(?: \d+)?(?: Host)?$"):
         kind = "host" if re.search(r"\bHost\b", e.get("name", ""), re.I) else "client"
         teamviewer_classify(r, _tv_label(kind), e.get("version") or "unknown", None, "windows", kind)
     if seen_dir and not r.findings:
@@ -3387,7 +3411,13 @@ def check_fragnesia(host, r):
                   path="/proc/sys/kernel/osrelease", version=osrel)
             return
         floor_abi, floor_upload, label = row
-        upload = ubuntu_upload(host)
+        upload, upload_series = ubuntu_upload_fields(host)
+        if upload_series and version_id and upload_series != version_id:
+            r.add("review", "Linux kernel (Ubuntu)",
+                  "upload suffix ~%s does not match VERSION_ID %s; match the package to the Ubuntu page"
+                  % (upload_series, version_id),
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+            return
         if running_abi[3] == floor_abi and upload is None and floor_upload != floor_abi:
             r.add("review", "Linux kernel (Ubuntu)",
                   "ABI matches Ubuntu fixed build %s but the upload number is unreadable; "
@@ -3448,7 +3478,7 @@ def check_linux_tcp_uaf(host, r):
     detail = (
         "%s. Ubuntu CVE-2026-98432 last updated 29 Oct 2026 lists current releases as vulnerable "
         "work in progress; no released fixed build was retrieved this run. WIP targets are not floors. "
-        "cve.org record published 30 Oct 2026 lists upstream floors %s (7.3+ unaffected; introduced 4.4); "
+        "cve.org record published 15 Oct 2026, updated 30 Oct 2026 lists upstream floors %s (7.3+ unaffected; introduced 4.4); "
         "those are not Ubuntu package floors. Do not claim a fix from the string alone."
         % ("; ".join(bits) or "kernel metadata readable", ", ".join(TCP_UAF_UPSTREAM))
     )
@@ -3647,7 +3677,7 @@ CHECKS = [
                ["cisa-kev-46300", "cve-46300", "ubuntu-46300", "kernel-cve-46300", "nvd-46300"],
                "CVE-2026-46300 (Fragnesia): skb_try_coalesce shared-frag marker. Introduced in 3.9; CVE record "
                "floors 5.10.257, 5.15.208, 6.1.174, 6.6.141, 6.12.91, 6.18.33, 7.0.10; 7.1 and later unaffected. "
-               "Ubuntu official x.y.0-N-generic rows from the 29 Oct 2026 page (N = 1-9999). CISA KEV (added 28 Oct "
+               "Ubuntu official x.y.0-N-generic rows from the 29 Oct 2026 page (N = 1-999). CISA KEV (added 28 Oct "
                "2026) describes a chain with CVE-2026-109618 and CVE-2026-109619; also run php2shell. Classification "
                "uses the running osrelease plus Ubuntu VERSION_ID.",
                "Install the Ubuntu fixed ABI for the running (release, series) pair, or the upstream stable floor. "
@@ -3657,7 +3687,7 @@ CHECKS = [
                "check_if_used", "confirmed", "runtime", ["ubuntu-98432", "golang-announce-98432", "cve-98432"],
                "CVE-2026-98432 is a Linux IPv4 TCP use-after-free. Ubuntu last updated 29 Oct 2026 lists current "
                "releases as vulnerable work in progress with no released fixed build. The cve.org record published "
-               "30 Oct 2026 lists upstream floors that are not Ubuntu package floors. This check records the "
+               "15 Oct 2026, updated 30 Oct 2026 lists upstream floors that are not Ubuntu package floors. This check records the "
                "running kernel and distro as review. It does not invent a floor. Go toolchains stay on go-mptcp-linux.",
                "Wait for a released distro build, then confirm the running kernel. WIP targets are not floors. "
                "Do not treat a Go-only change as a kernel fix.",
