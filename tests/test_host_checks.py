@@ -1103,6 +1103,233 @@ class GoMptcp(SimCase):
 
 
 # --------------------------------------------------------------------------
+# TeamViewer CVE-2026-111585, Fragnesia CVE-2026-46300, kernel TCP UAF
+# --------------------------------------------------------------------------
+
+class TeamViewer111585(SimCase):
+    def _linux(self, ver, pkg="teamviewer"):
+        s = self.sim("linux")
+        s.dpkg({pkg: ver})
+        return s.check("teamviewer-111585")
+
+    def test_linux_current_line(self):
+        self.assertEqual(results(self._linux("15.82.6")), ["affected"])
+        self.assertEqual(results(self._linux("15.80.6")), ["affected"])
+        ok = self._linux("15.83")
+        self.assertEqual(results(ok), ["info"])
+        self.assertStatus(ok, "PASS")
+
+    def test_linux_legacy_14_7(self):
+        self.assertEqual(results(self._linux("14.7.48867")), ["affected"])
+        self.assertEqual(results(self._linux("14.7.48868")), ["info"])
+
+    def test_linux_15_64_is_affected_even_at_windows_floor(self):
+        c = self._linux("15.64.10")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("15.83", c["findings"][0]["detail"])
+
+    def test_linux_13_2_floor(self):
+        self.assertEqual(results(self._linux("13.2.154007")), ["affected"])
+        self.assertEqual(results(self._linux("13.2.154008")), ["info"])
+
+    def test_linux_host_package_and_opt_dir_without_package(self):
+        self.assertEqual(results(self._linux("15.82.1", "teamviewer-host")), ["affected"])
+        s = self.sim("linux")
+        s.mkdir("/opt/teamviewer")
+        c = s.check("teamviewer-111585")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("tv_bin", json.dumps(c))
+
+    def test_linux_unparseable_version_is_blocked(self):
+        c = self._linux("unknown-build")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_macos_app_plist(self):
+        def plist_check(ver, bundle="TeamViewer" + APP):
+            m = self.sim("darwin")
+            m.plist("/Applications/%s/Contents/Info.plist" % bundle,
+                    {"CFBundleShortVersionString": ver})
+            return m.check("teamviewer-111585")
+
+        self.assertEqual(results(plist_check("15.82")), ["affected"])
+        ok = plist_check("15.83")
+        self.assertEqual(results(ok), ["info"])
+        self.assertStatus(ok, "PASS")
+        self.assertEqual(results(plist_check("13.2.154006")), ["affected"])
+        self.assertEqual(results(plist_check("13.2.154007")), ["info"])
+        host = plist_check("15.82", "TeamViewerHost" + APP)
+        self.assertEqual(results(host), ["affected"])
+
+    def test_macos_user_applications(self):
+        m = self.sim("darwin")
+        m.plist("~/Applications/TeamViewer" + APP + "/Contents/Info.plist",
+                {"CFBundleShortVersionString": "15.83"})
+        self.assertStatus(m.check("teamviewer-111585"), "PASS")
+
+    def test_windows_pe_and_legacy_lines(self):
+        def pe(ver):
+            w = self.sim("windows")
+            w.write("C:/Program Files/TeamViewer/TeamViewer.exe", hostfix.pe_with_version(ver))
+            return w.check("teamviewer-111585")
+
+        self.assertEqual(results(pe(dotted(15, 82, 6, 0))), ["affected"])
+        ok = pe(dotted(15, 83, 0, 0))
+        self.assertEqual(results(ok), ["info"])
+        self.assertStatus(ok, "PASS")
+        self.assertEqual(results(pe(dotted(14, 6, 4835, 0))), ["affected"])
+        self.assertEqual(results(pe(dotted(13, 2, 36230, 0))), ["affected"])
+        self.assertEqual(results(pe(dotted(13, 2, 36231, 0))), ["info"])
+        sixteen = pe(dotted(16, 0, 1, 0))
+        self.assertEqual(results(sixteen), ["info"])
+        self.assertStatus(sixteen, "PASS")
+
+    def test_windows_registry_15_64_and_addin_ignored(self):
+        w = self.sim("windows")
+        c = w.check("teamviewer-111585", registry=[{"name": "TeamViewer", "version": "15.64.9"}])
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("windows").check("teamviewer-111585",
+                                       registry=[{"name": "TeamViewer", "version": "15.64.10"}])
+        self.assertEqual(results(ok), ["info"])
+        self.assertStatus(ok, "PASS")
+        addin = self.sim("windows").check(
+            "teamviewer-111585",
+            registry=[{"name": "TeamViewer Meeting Add-In", "version": "15.10"}])
+        self.assertStatus(addin, "NOT_APPLICABLE")
+
+    def test_empty_hosts(self):
+        for platform in ("linux", "darwin", "windows"):
+            self.assertStatus(self.sim(platform).check("teamviewer-111585"), "NOT_APPLICABLE")
+
+
+class FragnesiaLinux(SimCase):
+    def _ubuntu(self, release, osrelease, packages=None):
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="%s"\n' % release)
+        s.write("/proc/sys/kernel/osrelease", osrelease + "\n")
+        if packages:
+            s.dpkg(packages)
+        return s.check("fragnesia-linux")
+
+    def test_other_os_not_applicable(self):
+        self.assertStatus(self.sim("darwin").check("fragnesia-linux"), "NOT_APPLICABLE")
+        self.assertStatus(self.sim("windows").check("fragnesia-linux"), "NOT_APPLICABLE")
+
+    def test_empty_linux_not_applicable(self):
+        self.assertStatus(self.s.check("fragnesia-linux"), "NOT_APPLICABLE")
+
+    def test_ubuntu_24_04_generic_6_8(self):
+        low = self._ubuntu("24.04", "6.8.0-90-generic")
+        self.assertEqual(results(low), ["affected"])
+        ok = self._ubuntu("24.04", "6.8.0-124-generic")
+        self.assertEqual(results(ok), ["info"])
+        self.assertStatus(ok, "PASS")
+
+    def test_ubuntu_22_04_generic_and_hwe(self):
+        self.assertEqual(results(self._ubuntu("22.04", "5.15.0-180-generic")), ["affected"])
+        self.assertEqual(results(self._ubuntu("22.04", "5.15.0-181-generic")), ["info"])
+        hwe_low = self._ubuntu("22.04", "6.8.0-123-generic")
+        self.assertEqual(results(hwe_low), ["affected"])
+        self.assertNotIn("181", hwe_low["findings"][0]["detail"])
+        hwe_ok = self._ubuntu("22.04", "6.8.0-124-generic")
+        self.assertEqual(results(hwe_ok), ["info"])
+        self.assertIn("6.8.0-124", hwe_ok["findings"][0]["detail"])
+
+    def test_ubuntu_24_04_hwe_6_17_not_compared_to_124(self):
+        c = self._ubuntu("24.04", "6.17.0-35-generic")
+        self.assertEqual(results(c), ["info"])
+        self.assertNotIn("124", c["findings"][0]["detail"])
+
+    def test_ubuntu_20_04_hwe_must_not_claim_not_affected(self):
+        low = self._ubuntu("20.04", "5.15.0-180-generic")
+        self.assertEqual(results(low), ["affected"])
+        self.assertNotIn("Not affected", json.dumps(low))
+        ok = self._ubuntu("20.04", "5.15.0-181-generic")
+        self.assertEqual(results(ok), ["info"])
+        self.assertNotIn("Not affected", json.dumps(ok))
+
+    def test_unmatched_ubuntu_release_or_series_is_review(self):
+        old = self._ubuntu("20.04", "5.4.0-200-generic")
+        self.assertEqual(results(old), ["review"])
+        self.assertIn("20.04", old["findings"][0]["detail"])
+        questing = self._ubuntu("26.10", "7.3.0-10-generic")
+        self.assertEqual(results(questing), ["review"])
+        self.assertIn("26.10", questing["findings"][0]["detail"])
+        aws = self._ubuntu("22.04", "5.15.0-1070-aws")
+        self.assertEqual(results(aws), ["review"])
+        wsl = self._ubuntu("22.04", dotted(5, 15, 167, 4) + "-microsoft-standard-WSL2")
+        self.assertEqual(results(wsl), ["review"])
+
+    def test_non_ubuntu_plain_upstream_only(self):
+        def plain(osrelease, os_id="debian"):
+            s = self.sim("linux")
+            s.write("/etc/os-release", "ID=%s\nVERSION_ID=12\n" % os_id)
+            s.write("/proc/sys/kernel/osrelease", osrelease + "\n")
+            return s.check("fragnesia-linux")
+
+        deb = plain("6.1.0-28-amd64")
+        self.assertEqual(results(deb), ["review"])
+        arch = plain("6.12.91-arch1-1", "arch")
+        self.assertEqual(results(arch), ["review"])
+        self.assertEqual(results(plain("6.1.173")), ["affected"])
+        self.assertEqual(results(plain("6.1.174")), ["info"])
+        self.assertEqual(results(plain("6.9.12")), ["review"])
+        late = plain("7.1.3")
+        self.assertEqual(results(late), ["info"])
+        self.assertIn("7.1", late["findings"][0]["detail"])
+        self.assertEqual(results(plain("7.0.9")), ["affected"])
+
+    def test_running_kernel_not_package_and_reboot_note(self):
+        c = self._ubuntu("24.04", "6.8.0-90-generic",
+                         {"linux-image-6.8.0-124-generic": "6.8.0-124.124"})
+        self.assertEqual(results(c), ["affected"])
+        joined = " ".join(c["notes"]) + json.dumps(c["findings"])
+        self.assertIn("reboot", joined.lower())
+
+    def test_php2shell_chain_note_and_no_may_13_rule(self):
+        c = self._ubuntu("24.04", "6.8.0-90-generic")
+        blob = json.dumps(c).lower()
+        self.assertTrue("109618" in blob or "109619" in blob or "php2shell" in blob)
+        self.assertNotIn("2026-05-13", blob)
+        self.assertNotIn("before 13 may", blob)
+
+
+class LinuxTcpUaf98432(SimCase):
+    def test_other_os_and_empty_linux(self):
+        self.assertStatus(self.sim("darwin").check("linux-tcp-uaf-98432"), "NOT_APPLICABLE")
+        self.assertStatus(self.sim("windows").check("linux-tcp-uaf-98432"), "NOT_APPLICABLE")
+        self.assertStatus(self.s.check("linux-tcp-uaf-98432"), "NOT_APPLICABLE")
+
+    def test_running_kernel_is_review_only(self):
+        s = self.sim("linux")
+        s.write("/proc/sys/kernel/osrelease", "6.8.0-90-generic\n")
+        s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        c = s.check("linux-tcp-uaf-98432")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        detail = c["findings"][0]["detail"]
+        self.assertIn("6.8.0-90-generic", c["findings"][0].get("version", "") + detail)
+        self.assertIn("ubuntu", detail.lower())
+        self.assertIn("24.04", detail)
+        self.assertIn("29 Oct 2026", detail)
+        self.assertIn("no released fixed build", detail.lower())
+        self.assertNotIn("patched", detail.lower())
+
+    def test_wip_targets_are_not_floors(self):
+        s = self.sim("linux")
+        s.write("/proc/sys/kernel/osrelease", "7.3.0-10-generic\n")
+        s.write("/etc/os-release", "ID=ubuntu\nVERSION_ID=26.10\n")
+        s.dpkg({"linux-image-generic": "6.8.0-149.149"})
+        c = s.check("linux-tcp-uaf-98432")
+        self.assertEqual(results(c), ["review"])
+        blob = json.dumps(c).lower()
+        self.assertNotIn("affected", results(c))
+        self.assertNotIn("patched", blob)
+        self.assertNotIn("at or above", blob)
+
+
+# --------------------------------------------------------------------------
 # Whole-run behaviour: no crash, read only, bounded, redacted
 # --------------------------------------------------------------------------
 
@@ -1115,6 +1342,16 @@ class WholeRun(SimCase):
                                                                "ANTHROPIC_AUTH_TOKEN": GH, "OTHER": AWS}}))
         s.write("~/Downloads/AGENTS.md", "token " + GH + "\n")
         s.venv("~/code/app/.venv", {"litellm": "1.107.0", "certifi": "2024.1.1"})
+        if s.platform == "linux":
+            s.dpkg({"teamviewer": "15.82.6"})
+            s.write("/proc/sys/kernel/osrelease", "6.8.0-90-generic\n")
+            s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        elif s.platform == "darwin":
+            s.plist("/Applications/TeamViewer" + APP + "/Contents/Info.plist",
+                    {"CFBundleShortVersionString": "15.82"})
+        else:
+            s.write("C:/Program Files/TeamViewer/TeamViewer.exe",
+                    hostfix.pe_with_version(dotted(15, 82, 6, 0)))
 
     def test_every_check_runs_on_empty_hosts(self):
         for platform in ("darwin", "linux", "windows"):

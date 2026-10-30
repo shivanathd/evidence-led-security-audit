@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, ruby, git or any audited program,
+- It never starts node, python, pip, php, ruby, git, TeamViewer or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -76,6 +76,10 @@ LIMITS = [
     "Git objects are parsed directly (git is never run). Packs other than index version 2 are a gap.",
     "Without openat support (Windows) a directory swapped for a link mid-walk is not detected.",
     "Every version fact comes from the dated briefing; re-read the primary advisory before closing a finding.",
+    "Ubuntu kernel ABI is compared as (release, major.minor, abi). parse_version nums ignore the ABI, so "
+    "6.8.0-90 and 6.8.0-124 are not treated as equal.",
+    "linux-tcp-uaf-98432 records the running kernel as review: no released Ubuntu fixed build was retrieved. "
+    "It never claims patched.",
 ]
 
 CLEANUP_ORDER = [
@@ -188,6 +192,23 @@ SRC = {
                     "https://www.bleepingcomputer.com/news/security/hugging-face-malware-campaign-returns-to-hijack-gpus-for-crypto-mining/"),
     "theregister-gha-61": ("The Register: GitHub issues used against 61 public repos (Radware; lead)",
                            "https://www.theregister.com/security/2026/10/29/attackers-turn-github-issues-into-supply-chain-campaign-against-61-public-repos-in-less-than-an-hour/5306153"),
+    "tv-2026-1011": ("TeamViewer bulletin TV-2026-1011",
+                     "https://www.teamviewer.com/en/resources/trust-center/security-bulletins/tv-2026-1011/"),
+    "cve-111585": ("CVE Record CVE-2026-111585",
+                   "https://www.cve.org/CVERecord?id=CVE-2026-111585"),
+    "remedio-tv": ("Remedio TeamViewer write-up (lead; not a version floor)",
+                   "https://remedio.io/research/vulnerability-disclosures/remote-code-execution-in-teamviewer/"),
+    "cisa-kev-46300": ("CISA: two vulnerabilities added to the KEV catalog (28 Oct 2026)",
+                       "https://www.cisa.gov/news-events/alerts/2026/10/28/cisa-adds-two-known-exploited-vulnerabilities-catalog"),
+    "cve-46300": ("CVE Record CVE-2026-46300",
+                  "https://www.cve.org/CVERecord?id=CVE-2026-46300"),
+    "nvd-46300": ("NVD: CVE-2026-46300", "https://nvd.nist.gov/vuln/detail/CVE-2026-46300"),
+    "kernel-cve-46300": ("linux-cve-announce: CVE-2026-46300 (23 May 2026; description later revised)",
+                         "https://lists.openwall.net/linux-cve-announce/2026/05/23/1"),
+    "ubuntu-46300": ("Ubuntu Security CVE-2026-46300",
+                     "https://ubuntu.com/security/CVE-2026-46300"),
+    "ubuntu-98432": ("Ubuntu Security CVE-2026-98432",
+                     "https://ubuntu.com/security/CVE-2026-98432"),
 }
 
 SKIPPED = [
@@ -216,6 +237,8 @@ SKIPPED = [
      "No local client or artifact named in the briefing; organisation accounts, not an endpoint check."),
     ("Fake Solana starter kit (Air Security, mentioned alongside the Hugging Face press piece)",
      "Separate GitHub social-engineering lead; no local metadata indicator beyond a README one-liner."),
+    ("DHS staff identity leak", "Government data leak; nothing on the endpoint shows it."),
+    ("Synology NAS ransomware reports", "Appliance; single forum source; no vendor confirmation."),
 ]
 
 
@@ -3097,6 +3120,227 @@ def check_plex(host, r):
             classify_version(r, "Plex Media Server", e.get("version") or "unknown", None, ["1.43.3.10861"], 0, (), "registry")
 
 
+_UBUNTU_GENERIC = re.compile(r"^(\d+)\.(\d+)\.(\d+)-(\d+)-generic$")
+_PLAIN_UPSTREAM = re.compile(r"^\d+\.\d+\.\d+$")
+_KERNEL_ABI = re.compile(r"(\d+)\.(\d+)\.(\d+)-(\d+)")
+# Ubuntu CVE-2026-46300 rows retrieved 2026-10-30: (VERSION_ID, major.minor) -> (fixed ABI, page row).
+FRAGNESIA_UBUNTU_ABI = {
+    ("26.04", (7, 0)): (22, "linux 7.0.0-22.22"),
+    ("25.10", (6, 17)): (35, "linux 6.17.0-35.35"),
+    ("24.04", (6, 8)): (124, "linux 6.8.0-124.124"),
+    ("24.04", (6, 17)): (35, "linux-hwe-6.17 6.17.0-35.35~24.04.1"),
+    ("22.04", (5, 15)): (181, "linux 5.15.0-181.191"),
+    ("22.04", (6, 8)): (124, "linux-hwe-6.8 6.8.0-124.124~22.04.1"),
+    ("20.04", (5, 15)): (181, "linux-hwe-5.15 5.15.0-181.191~20.04.1"),
+}
+FRAGNESIA_UPSTREAM = ["5.10.257", "5.15.208", "6.1.174", "6.6.141", "6.12.91", "6.18.33", "7.0.10"]
+_UBUNTU_GENERIC_NOT_AFFECTED = frozenset({"26.10", "20.04", "18.04", "16.04", "14.04"})
+
+
+def os_release_fields(host):
+    text = hs.read_text(host.sys("/etc/os-release"), 4096) or ""
+    out = {}
+    for line in text.splitlines():
+        if "=" not in line or line.lstrip().startswith("#"):
+            continue
+        key, val = line.split("=", 1)
+        out[key.strip()] = val.strip().strip("\"'")
+    return out
+
+
+def running_osrelease(host):
+    return (hs.read_text(host.sys("/proc/sys/kernel/osrelease"), 4096) or "").strip()
+
+
+def linux_image_abis(host):
+    out = []
+    for name, entries in linux_packages(host).items():
+        if not name.startswith("linux-image"):
+            continue
+        for ver, src in entries:
+            m = _KERNEL_ABI.search(ver) or _KERNEL_ABI.search(name)
+            if not m:
+                continue
+            abi = (int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)))
+            out.append((name, ver, src, abi))
+    return out
+
+
+def teamviewer_classify(r, component, raw, path, platform):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (metadata)", path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if v.nums and v.nums[0] >= 16:
+        r.add("info", component, "16.x and later; at or above 15.83", path=path, version=raw)
+        return
+    if hs.at_least(v, "15.83"):
+        r.add("info", component, "at or above fixed build 15.83", path=path, version=raw)
+        return
+    line = v.nums[:2] if len(v.nums) >= 2 else ()
+    if line == (15, 64):
+        if platform == "windows":
+            classify_version(r, component, raw, path, ["15.64.10"], 2)
+        else:
+            r.add("affected", component,
+                  "below 15.83; the 15.64 legacy fix is Windows 7 and 8 only", path=path, version=raw)
+        return
+    if line == (14, 7):
+        classify_version(r, component, raw, path, ["14.7.48868"], 2)
+        return
+    if line == (13, 2):
+        if platform == "windows":
+            floor = "13.2.36231"
+        elif platform == "linux":
+            floor = "13.2.154008"
+        else:
+            floor = "13.2.154007"
+        classify_version(r, component, raw, path, [floor], 2)
+        return
+    if hs.below(v, "15.83"):
+        r.add("affected", component,
+              "below 15.83; no legacy fix listed for this line in TV-2026-1011", path=path, version=raw)
+        return
+    r.add("info", component, "at or above fixed build 15.83", path=path, version=raw)
+
+
+def check_teamviewer(host, r):
+    if host.platform == "linux":
+        found = False
+        pk = linux_packages(host)
+        for name in ("teamviewer", "teamviewer-host"):
+            for ver, _src in pk.get(name, []):
+                found = True
+                teamviewer_classify(r, "TeamViewer (%s)" % name, ver, None, "linux")
+        if not found and hs.is_plain_dir(host.sys("/opt/teamviewer")):
+            r.add("unknown", "TeamViewer",
+                  "TeamViewer files present; version not in package metadata (not executed)",
+                  path="/opt/teamviewer")
+        return
+    if host.platform == "darwin":
+        for bundle in (host.sys("/Applications/TeamViewer" + APP),
+                       host.sys("/Applications/TeamViewerHost" + APP),
+                       host.h("Applications", "TeamViewer" + APP)):
+            plist = os.path.join(bundle, "Contents", "Info.plist")
+            if hs.is_regular(plist):
+                ver = hs.plist_value(plist, "CFBundleShortVersionString")
+                teamviewer_classify(r, "TeamViewer", ver or "unknown", host.display(plist), "darwin")
+        return
+    for pf in host.program_files():
+        for d in glob_dirs(host, pf, "TeamViewer*"):
+            for name in ("TeamViewer.exe", "TeamViewer_Desktop.exe"):
+                exe = os.path.join(d, name)
+                if hs.is_regular(exe):
+                    teamviewer_classify(r, "TeamViewer", hs.pe_file_version(exe) or "unknown",
+                                        host.display(exe), "windows")
+    for e in registry_matches(host, r"^TeamViewer( Host)?( \d+)?$"):
+        teamviewer_classify(r, "TeamViewer", e.get("version") or "unknown", None, "windows")
+
+
+def check_fragnesia(host, r):
+    if host.platform != "linux":
+        r.notes.append("Fragnesia (CVE-2026-46300) is a Linux kernel issue; not applicable on %s" % host.platform)
+        return
+    r.notes.append(
+        "CISA KEV describes a chain with CVE-2026-109618 and CVE-2026-109619; also run the php2shell check "
+        "on this host. A Fragnesia result does not clear PHP, and the reverse is also false."
+    )
+    osrel = running_osrelease(host)
+    fields = os_release_fields(host)
+    mods = hs.read_text(host.sys("/proc/modules"), 4 * MIB) or ""
+    if re.search(r"(?m)^(esp4|esp6|xfrm)\s", mods):
+        r.notes.append("ESP/XFRM modules listed in /proc/modules (observation only; not a fix)")
+    images = linux_image_abis(host)
+    for name, ver, src, _abi in images:
+        r.notes.append("linux-image package %s %s (%s); classification uses the running osrelease only" %
+                       (name, ver, src))
+    if not osrel:
+        return
+    generic = _UBUNTU_GENERIC.match(osrel)
+    running_abi = None
+    if generic:
+        running_abi = (int(generic.group(1)), int(generic.group(2)), int(generic.group(3)), int(generic.group(4)))
+        newer = [t for t in images if t[3][:3] == running_abi[:3] and t[3][3] > running_abi[3]]
+        if newer:
+            r.notes.append("newer kernel installed; reboot needed")
+    distro_id = fields.get("ID", "")
+    version_id = fields.get("VERSION_ID", "")
+    if distro_id == "ubuntu":
+        if running_abi is None:
+            r.add("review", "Linux kernel (Ubuntu)",
+                  "non-generic or unrecognised Ubuntu kernel; match the package to the Ubuntu page",
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+            return
+        row = FRAGNESIA_UBUNTU_ABI.get((version_id, (running_abi[0], running_abi[1])))
+        if row is None:
+            if version_id in _UBUNTU_GENERIC_NOT_AFFECTED:
+                detail = ("Ubuntu lists generic linux for %s as Not affected; confirm the running kernel "
+                          "is that package." % version_id)
+            else:
+                detail = ("no Ubuntu CVE-2026-46300 row for release %s kernel %s.%s; match the package "
+                          "to the Ubuntu page" % (version_id, running_abi[0], running_abi[1]))
+            r.add("review", "Linux kernel (Ubuntu)", detail,
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+            return
+        floor, label = row
+        if running_abi[3] < floor:
+            r.add("affected", "Linux kernel (Ubuntu)",
+                  "below Ubuntu fixed build %s (ABI %d < %d)" % (label, running_abi[3], floor),
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+        else:
+            r.add("info", "Linux kernel (Ubuntu)",
+                  "at or above Ubuntu fixed build %s" % label,
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    if not _PLAIN_UPSTREAM.match(osrel):
+        r.add("review", "Linux kernel",
+              "distribution or custom kernel build; check the vendor advisory",
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    v = hs.parse_version(osrel)
+    if v is None:
+        r.add("unknown", "Linux kernel", "version string could not be parsed",
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    if not hs.below(v, "7.1.0"):
+        r.add("info", "Linux kernel", "CVE record lists 7.1 and later as unaffected",
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    classify_version(r, "Linux kernel", osrel, "/proc/sys/kernel/osrelease", FRAGNESIA_UPSTREAM, 2)
+
+
+def check_linux_tcp_uaf(host, r):
+    if host.platform != "linux":
+        r.notes.append("CVE-2026-98432 is a Linux kernel TCP use-after-free; not applicable on %s" % host.platform)
+        return
+    osrel = running_osrelease(host)
+    procver = (hs.read_text(host.sys("/proc/version"), 4096) or "").strip()
+    fields = os_release_fields(host)
+    images = []
+    for name, entries in linux_packages(host).items():
+        if name.startswith("linux-image"):
+            images.extend((name, ver, src) for ver, src in entries)
+    if not osrel and not procver and not fields and not images:
+        return
+    bits = []
+    if osrel:
+        bits.append("running osrelease %s" % osrel[:80])
+    if fields.get("ID") or fields.get("VERSION_ID"):
+        bits.append("distro %s %s" % (fields.get("ID", "?"), fields.get("VERSION_ID", "?")))
+    if images:
+        bits.append("package %s %s" % (images[0][0], images[0][1]))
+    detail = (
+        "%s. Ubuntu CVE-2026-98432 last updated 29 Oct 2026 lists current releases as vulnerable "
+        "work in progress; no released fixed build was retrieved this run. WIP targets are not floors. "
+        "Do not claim a fix from the string alone. Upstream e3f33b0 / 6.12.113 are not "
+        "Ubuntu package floors." % ("; ".join(bits) or "kernel metadata readable")
+    )
+    r.add("review", "Linux kernel (CVE-2026-98432)", detail,
+          path="/proc/sys/kernel/osrelease" if osrel else None,
+          version=osrel or None)
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -3274,6 +3518,33 @@ CHECKS = [
                "version was named. godebug multipathtcp=0 is a fragile mitigation.",
                "Upgrade the kernel when a distro advisory names a build. Do not treat a Go-only change as a kernel fix.",
                "Linux (macOS/Windows: recorded only)", check_go_mptcp),
+    check_meta("teamviewer-111585", "TeamViewer below TV-2026-1011 floors (CVE-2026-111585)",
+               "check_if_used", "confirmed", "runtime", ["tv-2026-1011", "cve-111585"],
+               "TeamViewer Full Client / Host / Portable below 15.83 (CVE-2026-111585). Legacy floors: "
+               "15.64.10 on Windows 7/8 only, 14.7.48868, and 13.2.36231 (Windows) / 13.2.154008 (Linux) / "
+               "13.2.154007 (macOS). Other lines below 15.83 are affected. Android is out of scope. "
+               "This check never starts TeamViewer.",
+               "Update to 15.83 or the listed legacy build. Do not start TeamViewer to collect a version.",
+               ALL_OS, check_teamviewer, uses_walk=False),
+    check_meta("fragnesia-linux", "Linux kernel Fragnesia (CVE-2026-46300, CISA KEV)",
+               "check_if_used", "confirmed", "runtime",
+               ["cisa-kev-46300", "cve-46300", "ubuntu-46300", "kernel-cve-46300", "nvd-46300"],
+               "CVE-2026-46300 (Fragnesia): skb_try_coalesce shared-frag marker. Introduced in 3.9; CVE record "
+               "floors 5.10.257, 5.15.208, 6.1.174, 6.6.141, 6.12.91, 6.18.33, 7.0.10; 7.1 and later unaffected. "
+               "Ubuntu generic/HWE rows from the 29 Oct 2026 page. CISA KEV (added 28 Oct 2026) describes a chain "
+               "with CVE-2026-109618 and CVE-2026-109619; also run php2shell. Classification uses the running "
+               "osrelease only.",
+               "Install the Ubuntu fixed ABI for the running (release, series) pair, or the upstream stable floor. "
+               "Also run php2shell. This tool never loads modules or writes sysctl.",
+               "Linux only", check_fragnesia, uses_walk=False),
+    check_meta("linux-tcp-uaf-98432", "Linux kernel TCP UAF CVE-2026-98432 (review only)",
+               "check_if_used", "confirmed", "runtime", ["ubuntu-98432", "golang-announce-98432"],
+               "CVE-2026-98432 is a Linux IPv4 TCP use-after-free. Ubuntu last updated 29 Oct 2026 lists current "
+               "releases as vulnerable work in progress with no released fixed build. This check records the "
+               "running kernel and distro as review. It does not invent a floor. Go toolchains stay on go-mptcp-linux.",
+               "Wait for a released distro build, then confirm the running kernel. WIP targets are not floors. "
+               "Do not treat a Go-only change as a kernel fix.",
+               "Linux only", check_linux_tcp_uaf, uses_walk=False),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

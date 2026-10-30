@@ -1,6 +1,6 @@
 # Optional profile: Go MPTCP default and Linux kernel CVE-2026-98432 (2026-10-29)
 
-Last checked: 2026-10-30. Dated snapshot. Re-read [golang-announce](https://groups.google.com/g/golang-announce/c/PCoQcdxoScw) on every run.
+Last checked: 2026-10-30. Dated snapshot. Re-read [golang-announce](https://groups.google.com/g/golang-announce/c/PCoQcdxoScw) and [Ubuntu CVE-2026-98432](https://ubuntu.com/security/CVE-2026-98432) (last updated 29 Oct 2026) on every run.
 
 ## What is confirmed
 
@@ -12,14 +12,15 @@ The Go Security Team (Neal Patel, 29 Oct 2026) wrote:
 - As of **Go 1.24**, Go programs enable MPTCP by default for listen sockets on Linux.
 - Mitigation in Go (fragile): `GODEBUG=multipathtcp=0` at runtime, or `godebug multipathtcp=0` in the main module's `go.mod`. `net.Dialer.SetMultipathTCP` / `net.ListenConfig.SetMultipathTCP` override the GODEBUG setting.
 - The recommended fix is a **patched kernel**. The announce names **no** patched kernel version and says it is premature to change Go's default.
+- Ubuntu CVE-2026-98432 (last updated 29 Oct 2026) lists current generic `linux` rows as **vulnerable, work in progress**. No released Ubuntu fixed package was retrieved. WIP target builds are not floors.
 
 ## What this skill will not invent
 
-No Linux distro package name, no kernel ABI, and no "fixed in 6.x.y" string appears here. A `go-mptcp-linux` finding of `review` means: Go 1.24+ is present on Linux without the named GODEBUG mitigation. It is not proof the running kernel is vulnerable or patched.
+No Linux distro package name, no kernel ABI, and no "fixed in 6.x.y" string appears in the Go check. A `go-mptcp-linux` finding of `review` means: Go 1.24+ is present on Linux without the named GODEBUG mitigation. It is not proof the running kernel is vulnerable or patched. The running-kernel record is `linux-tcp-uaf-98432` (`review` only). Do not PASS an Ubuntu ABI against upstream e3f33b0 / 6.12.113 / 6.18.56 / 7.2.10.
 
 ## How a finding closes
 
-Closing needs a distro or vendor kernel advisory retrieved this run, plus evidence the **running** kernel is that build. A `godebug` line in `go.mod` is mitigation, not a kernel fix.
+Closing needs a distro or vendor kernel advisory retrieved this run that names a **released** fixed build, plus evidence the **running** kernel is that build. A `godebug` line in `go.mod` is mitigation, not a kernel fix. Ubuntu WIP targets are not that evidence.
 
 ## What needs a human
 

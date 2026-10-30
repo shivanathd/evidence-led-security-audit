@@ -1,6 +1,6 @@
 # Host checks: one machine, read-only
 
-`scripts/host_checks.py` checks the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 16-30 Oct 2026 developer-endpoint briefings. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md) and [profiles/dev-endpoint-2026-10-30.md](../profiles/dev-endpoint-2026-10-30.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
+`scripts/host_checks.py` runs 44 read-only checks of the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 16-30 Oct 2026 developer-endpoint briefings. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md) and [profiles/dev-endpoint-2026-10-30.md](../profiles/dev-endpoint-2026-10-30.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
 
 It is a metadata reader, not a scanner. It reads files and the Windows registry, and it never runs the programs it checks.
 
@@ -98,6 +98,9 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `yoba-fake-ai-apps` | Downloads/Desktop folder names and `Setup.exe`+`winmm.dll` pairs | same | same, plus `C:\ProgramData\WMProcess` |
 | `huggingface-qwen2-tiny` | `~/.cache/huggingface` names and `/tmp/.cch` (unconfirmed; findings are `unknown`) | same | same |
 | `go-mptcp-linux` | indexed `go.mod` (with or without `go.sum` / `.git`), toolchain VERSION, Homebrew `go` (recorded only) | same plus distro `golang*`, `/usr/local/go/VERSION`, `/proc/version` note | toolchain if present (MPTCP default is Linux-only) |
+| `teamviewer-111585` | Info.plist of the TeamViewer and TeamViewer Host application bundles under `/Applications` and `~/Applications` only. Never starts TeamViewer | dpkg/apk/pacman/rpm `teamviewer` / `teamviewer-host`; `/opt/teamviewer` directory without a package is `unknown` (nothing under it is read) | Program Files `TeamViewer*` PE of `TeamViewer.exe` / `TeamViewer_Desktop.exe`; uninstall registry `^TeamViewer( Host)?( \d+)?$` |
+| `fragnesia-linux` | not applicable | running `/proc/sys/kernel/osrelease` plus `/etc/os-release` `ID`/`VERSION_ID`; Ubuntu `(release, major.minor)` ABI table including HWE; plain `x.y.z` upstream floors otherwise | not applicable |
+| `linux-tcp-uaf-98432` | not applicable | running osrelease / `/proc/version` / os-release / `linux-image*` recorded as `review` only | not applicable |
 
 ## Known limits
 
@@ -110,4 +113,7 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 - **CVE-2026-40369** is unconfirmed in the briefing. `browser-versions` lists versions only and never says "affected".
 - **Anthropic AI-discovered chains** are a published vendor research post, but mapping a given host to those chains is unconfirmed. `anthropic-ai-chain` uses Chrome 156 as a dated floor (Chrome below 156 is `review` / FAIL) and records Safari / Windows / Linux builds as unverified. Android is out of scope (no collection path). It never says "affected" for those OS/browser pairs.
 - **Tailscale SSH** versions come from package/app metadata. Distro-patched builds that keep an older number, and prereleases of 1.104.4, are not treated as fixed. `TS_SSH_DISABLE_FORWARDING` is a mitigation, not a vendor patch. The check never sets the variable or restarts `tailscaled`.
+- **Fragnesia Ubuntu ABI.** `parse_version` nums ignore the Ubuntu ABI, so `6.8.0-90-generic` and `6.8.0-124-generic` both parse as `(6, 8, 0)`. `fragnesia-linux` compares `(VERSION_ID, major.minor, abi)` against the Ubuntu page rows, including HWE. It never emits info "Not affected" from `VERSION_ID` alone.
+- **CVE-2026-98432** has no released Ubuntu fixed build (page last updated 29 Oct 2026). `linux-tcp-uaf-98432` is review only and never claims the host is fixed. WIP targets are not floors.
+- **TeamViewer** versions come from package, plist, PE or uninstall-registry metadata. The check never starts TeamViewer and never reads under `/opt/teamviewer`.
 - **Not covered here:** anything needing network scanning or admin consoles. See the skipped list in the profile.

@@ -106,6 +106,10 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "about.gitlab.com",  # GitLab release notes (when cited)
     "docs.gitlab.com",
     "forever.security",  # EMBRACE research blog (unconfirmed lead)
+    "www.teamviewer.com", "teamviewer.com",  # TV-2026-1011
+    "ubuntu.com", "www.ubuntu.com",  # Ubuntu CVE pages
+    "lists.openwall.net",  # linux-cve-announce
+    "remedio.io",  # TeamViewer researcher write-up (lead; not a floor)
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

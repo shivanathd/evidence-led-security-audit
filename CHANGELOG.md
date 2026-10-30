@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: three read-only checks (44 checks total). `teamviewer-111585` classifies TeamViewer metadata against TV-2026-1011 / CVE-2026-111585 (15.83; 15.64.10 on Windows only; 14.7.48868; platform 13.2 floors). It never starts TeamViewer and does not read under `/opt/teamviewer`. `fragnesia-linux` classifies the running Linux kernel for CVE-2026-46300 from the CVE record floors and the Ubuntu release + kernel-series table (including HWE rows). It never emits info "Not affected" from `VERSION_ID` alone. `linux-tcp-uaf-98432` records the running kernel and distro as review: Ubuntu last updated 29 Oct 2026 had no released fixed build.
+- Dated profiles: `teamviewer-2026-10-27.md`, `fragnesia-2026-10-28.md`. Skipped-list rows for the DHS staff identity leak and Synology NAS ransomware reports.
+
+### Changed
+
+- `profiles/golang-mptcp-2026-10-29.md` cites Ubuntu CVE-2026-98432 (last updated 29 Oct 2026): no released Ubuntu fixed package; WIP targets are not floors; the running-kernel record is `linux-tcp-uaf-98432`.
+- Reviewed public hosts: `www.teamviewer.com`, `teamviewer.com`, `ubuntu.com`, `www.ubuntu.com`, `lists.openwall.net`, `remedio.io`.
+- `check_public_package.py` compact file-count target raised from 55 to 60.
+
 ## 0.4.1 - 2026-10-30
 
 ### Added
