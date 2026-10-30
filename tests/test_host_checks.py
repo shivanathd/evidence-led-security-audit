@@ -1384,6 +1384,15 @@ class TeamViewer111585(SimCase):
         self.assertTrue(any(f["component"] == "TeamViewer" and f["result"] == "info"
                             for f in c["findings"]))
 
+    def test_empty_host_dir_with_registry_host_version_passes(self):
+        w = self.sim("windows")
+        w.mkdir("C:/Program Files/TeamViewer Host")
+        c = w.check("teamviewer-111585",
+                    registry=[{"name": "TeamViewer Host", "version": "15.83"}])
+        self.assertEqual(results(c), ["info"])
+        self.assertStatus(c, "PASS")
+        self.assertNotIn("unknown", results(c))
+
     def test_empty_hosts(self):
         for platform in ("linux", "darwin", "windows"):
             self.assertStatus(self.sim(platform).check("teamviewer-111585"), "NOT_APPLICABLE")

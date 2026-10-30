@@ -3331,6 +3331,7 @@ def check_teamviewer(host, r):
         _teamviewer_scan_portable(host, r)
         return
     seen_dir = False
+    host_dirs_without_pe = []
     for pf in host.program_files():
         for d in glob_dirs(host, pf, "TeamViewer*"):
             seen_dir = True
@@ -3343,12 +3344,15 @@ def check_teamviewer(host, r):
                     teamviewer_classify(r, _tv_label(kind), hs.pe_file_version(exe) or "unknown",
                                         host.display(exe), "windows", kind)
             if kind == "host" and not found_pe:
-                r.add("unknown", _tv_label("host"),
-                      "TeamViewer Host folder present; version not in PE or registry metadata (not executed)",
-                      path=host.display(d))
+                host_dirs_without_pe.append(d)
     for e in registry_matches(host, r"^TeamViewer(?: \d+)?(?: Host)?$"):
         kind = "host" if re.search(r"\bHost\b", e.get("name", ""), re.I) else "client"
         teamviewer_classify(r, _tv_label(kind), e.get("version") or "unknown", None, "windows", kind)
+    if not any(f["component"] == "TeamViewer Host" and f["result"] != "unknown" for f in r.findings):
+        for d in host_dirs_without_pe:
+            r.add("unknown", _tv_label("host"),
+                  "TeamViewer Host folder present; version not in PE or registry metadata (not executed)",
+                  path=host.display(d))
     if seen_dir and not r.findings:
         r.add("unknown", "TeamViewer",
               "TeamViewer files present; version not in PE or registry metadata (not executed)")
