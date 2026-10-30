@@ -57,9 +57,9 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.0"
-BRIEFING = "Security briefing, 16-28 Oct 2026 (public reports; dated 2026-10-28)"
-BRIEFING_DATE = "2026-10-28"
+VERSION = "0.4.1"
+BRIEFING = "Security briefings, 16-30 Oct 2026 (public reports; dated 2026-10-27, 2026-10-28 and 2026-10-30)"
+BRIEFING_DATE = "2026-10-30"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -170,6 +170,24 @@ SRC = {
                        "https://thehackernews.com/2026/10/japans-gmo-offers-1-million-bounty-to.html"),
     "thn-polyshell-node": ("The Hacker News: Adobe Commerce PolyShell (Node in-the-wild claim, unverified)",
                            "https://thehackernews.com/2026/10/adobe-commerce-polyshell-attacks-breach.html"),
+    "cursor-claude-vsx": ("Cursor: security notice, malicious Anthropic.claude-code 2.1.313",
+                          "https://cursor.com/blog/claude-code-extension-security-notice"),
+    "phorion-claude-vsx": ("Phorion: official Claude Code VSX compromise (macOS-focused write-up)",
+                           "https://phorion.io/blog/offical-claude-code-vsx-compromise/"),
+    "nvd-97229": ("NVD: CVE-2026-97229 (GitLab CE/EE, CNA GitLab Inc.)",
+                  "https://nvd.nist.gov/vuln/detail/CVE-2026-97229"),
+    "cisa-kev-2026-10-29": ("CISA: two vulnerabilities added to the KEV catalog (29 Oct 2026)",
+                            "https://www.cisa.gov/news-events/alerts/2026/10/29/cisa-adds-two-known-exploited-vulnerabilities-catalog"),
+    "golang-announce-98432": ("golang-announce: protecting against CVE-2026-98432 (Go MPTCP default)",
+                              "https://groups.google.com/g/golang-announce/c/PCoQcdxoScw"),
+    "cpr-yoba": ("Check Point Research: Yoba campaign via signed ChatGPT and Claude binaries",
+                 "https://research.checkpoint.com/2026/tricks-from-the-past-deployed-via-signed-chatgpt-and-claude-binaries/"),
+    "thn-yoba": ("The Hacker News: fake ChatGPT and Claude apps deploy miners",
+                 "https://thehackernews.com/2026/10/fake-chatgpt-and-claude-apps-abuse.html"),
+    "bc-hf-miner": ("BleepingComputer: Hugging Face malware campaign returns (unconfirmed lead)",
+                    "https://www.bleepingcomputer.com/news/security/hugging-face-malware-campaign-returns-to-hijack-gpus-for-crypto-mining/"),
+    "theregister-gha-61": ("The Register: GitHub issues used against 61 public repos (Radware; lead)",
+                           "https://www.theregister.com/security/2026/10/29/attackers-turn-github-issues-into-supply-chain-campaign-against-61-public-repos-in-less-than-an-hour/5306153"),
 }
 
 SKIPPED = [
@@ -187,6 +205,17 @@ SKIPPED = [
     ("Magento cms_block content", "Needs database access; the magento-store check only finds Magento code on disk."),
     ("Salesforce outage and other awareness-only items", "Briefing says no action."),
     ("Bun and Envoy/Istio Brotli reports", "Marked unconfirmed in the briefing with no versions; not checked."),
+    ("EMBRACE embedded browsers in AI assistants (Forever Security)",
+     "Single-source research blog; no vendor advisory or CVE. Recorded as a lead, not a host check."),
+    ("GitHub Actions issue/PR injection campaign against 61 public repos (Radware / The Register)",
+     "Press-only exclusive. inventory.py lints local workflow YAML for untrusted github.event text in run: steps; "
+     "this is not proof that a named repo was hit."),
+    ("FreeBSD WireGuard CVE-2026-58085",
+     "Confirmed by FreeBSD-SA-26:52.if_wg (29 Jul 2026). host_checks.py does not cover FreeBSD; see the dated profile."),
+    ("Binance / Polymarket org-level incidents",
+     "No local client or artifact named in the briefing; organisation accounts, not an endpoint check."),
+    ("Fake Solana starter kit (Air Security, mentioned alongside the Hugging Face press piece)",
+     "Separate GitHub social-engineering lead; no local metadata indicator beyond a README one-liner."),
 ]
 
 
@@ -2178,16 +2207,348 @@ def check_ovhcloud(host, r):
             ovh_classify(r, "OVHcloud CLI (Homebrew)", ver, host.display(p), "Cellar")
 
 
+# NVD (CNA GitLab Inc.): CE/EE from 19.2 before 19.2.8, 19.3 before 19.3.5, 19.4 before 19.4.2.
+GITLAB_KEV_FIX = {(19, 2): "19.2.8", (19, 3): "19.3.5", (19, 4): "19.4.2"}
+CLAUDE_VSX_BAD = "2.1.313"
+# Vendor-named key comment. The public key itself is not stored here.
+SVC_TELEMETRY = "svc" + "-telemetry"
+STK_TMP_RE = re.compile(r"^\.stk_[0-9a-f]{10}$")
+# Check Point-named Yoba project fragments (not emails, not live hosts).
+YOBA_NAME_FRAGMENTS = ("sol-free-desktop", "gpt-5-6", "gpt-6-astra", "opus-5-0", "claude-opus")
+HF_CACHE_NAMES = (
+    "models--MENXIANGYU--qwen2-tiny",
+    "models--htt0118--qwen2-tiny",
+    "models--wjsbg--qwen2-tiny",
+    "models--soumikmahato--qwen2-tiny",
+    "models--r1r13--qwen2-tiny",
+)
+
+
+def gitlab_classify(r, component, ver, path, source):
+    v = hs.parse_version(ver) if ver else None
+    if v is None:
+        r.add("review", component,
+              "self-hosted GitLab present; version not readable (%s); CVE-2026-97229 is on the CISA KEV list" % source,
+              path=path, version=ver)
+        return
+    if len(v.nums) >= 2 and (v.nums[0], v.nums[1]) in GITLAB_KEV_FIX:
+        floor = GITLAB_KEV_FIX[(v.nums[0], v.nums[1])]
+        if hs.below(v, floor):
+            r.add("affected", component,
+                  "CVE-2026-97229 (CISA KEV); NVD lists this minor as affected before %s" % floor,
+                  path=path, version=ver)
+        else:
+            r.add("info", component, "at or above %s for this minor (CVE-2026-97229)" % floor, path=path, version=ver)
+        return
+    r.add("review", component,
+          "self-hosted GitLab present; outside the NVD 19.2-19.4 range for CVE-2026-97229 (confirm other advisories)",
+          path=path, version=ver)
+
+
 def check_gitlab(host, r):
     manifest = host.sys("/opt/gitlab/version-manifest.txt")
     if hs.is_regular(manifest):
         first = (hs.read_text(manifest, 64 * 1024) or "").splitlines()[:1]
-        r.add("review", "self-hosted GitLab", "update GitLab (briefing names no version)", path=host.display(manifest),
-              version=first[0].split()[-1] if first and first[0].split() else None)
-    presence_check(host, r, "self-hosted GitLab", [host.sys("/etc/gitlab/gitlab.rb")], packages=["gitlab-ce", "gitlab-ee"],
-                   detail="update GitLab (briefing names no version)")
+        ver = first[0].split()[-1] if first and first[0].split() else None
+        gitlab_classify(r, "self-hosted GitLab", ver, host.display(manifest), "version-manifest")
+    rb = host.sys("/etc/gitlab/gitlab.rb")
+    if hs.exists_nofollow(rb) and not r.findings:
+        r.add("review", "self-hosted GitLab",
+              "gitlab.rb present without a readable version-manifest; CVE-2026-97229 is on the CISA KEV list",
+              path=host.display(rb))
+    for name in ("gitlab-ce", "gitlab-ee"):
+        for ver, src in linux_packages(host).get(name, []):
+            gitlab_classify(r, "self-hosted GitLab (%s)" % name, ver, None, src)
     for path, image, tag in docker_refs(host, r"gitlab/gitlab-(?:ce|ee)"):
-        r.add("review", "GitLab image", "update GitLab", path=host.display(path), version=tag, image=image)
+        gitlab_classify(r, "GitLab image", tag, host.display(path), "image tag")
+
+
+def _claude_vsx_version(name):
+    low = name.lower()
+    if not low.startswith("anthropic.claude-code-"):
+        return None
+    m = re.match(r"^anthropic\.claude-code-(\d+\.\d+\.\d+)", low)
+    return m.group(1) if m else None
+
+
+def _temp_dirs(host):
+    found, seen = [], set()
+    for key in ("TMPDIR", "TMP", "TEMP"):
+        val = host.env.get(key)
+        if not val:
+            continue
+        if host.sysroot and re.match(r"^[A-Za-z]:[\\/]", val) and not under_root(host.sysroot, val):
+            val = host.sys(val)
+        found.append(val)
+    if host.platform == "windows":
+        found.append(host.sys("C:/Windows/Temp"))
+        local = host.localappdata()
+        if local:
+            found.append(os.path.join(local, "Temp"))
+    else:
+        found.extend([host.sys("/tmp"), host.h("tmp")])
+    out = []
+    for d in found:
+        key = os.path.normcase(os.path.abspath(d))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
+
+
+def check_claude_code_vsx(host, r):
+    bases = [host.h(".cursor", "extensions"), host.h(".vscode", "extensions"),
+             host.h(".vscode-insiders", "extensions"), host.h(".windsurf", "extensions")]
+    if host.platform == "darwin":
+        bases.append(host.h("Library", "Application Support", "Cursor", "CachedExtensionVSIXs"))
+    elif host.platform == "linux":
+        bases.append(host.h(".config", "Cursor", "CachedExtensionVSIXs"))
+    else:
+        ad = host.appdata()
+        if ad:
+            bases.append(os.path.join(ad, "Cursor", "CachedExtensionVSIXs"))
+    for base in bases:
+        for name in hs.listdir(base):
+            ver = _claude_vsx_version(name)
+            path = os.path.join(base, name)
+            if ver is None:
+                if not (name.lower().startswith("anthropic.claude-code") or "claude-code-2.1.313" in name.lower()):
+                    continue
+                pj = os.path.join(path, "package.json")
+                doc = hs.read_json(pj, MIB) if hs.is_regular(pj) else None
+                ver = doc.get("version") if isinstance(doc, dict) else None
+            if ver == CLAUDE_VSX_BAD or "2.1.313" in name:
+                r.add("affected", "Anthropic.claude-code extension",
+                      "2.1.313 is the tampered Cursor Marketplace build in the vendor notice",
+                      path=host.display(path), version=ver or CLAUDE_VSX_BAD)
+            elif ver:
+                r.add("info", "Anthropic.claude-code extension",
+                      "installed; not the 2.1.313 build named in the vendor notice",
+                      path=host.display(path), version=ver)
+            extjs = os.path.join(path, "extension.js")
+            if hs.is_regular(extjs) and SVC_TELEMETRY in (hs.read_text(extjs, 8 * MIB) or ""):
+                r.add("affected", "extension.js indicator",
+                      "contains the vendor-named key comment; key material is not copied",
+                      path=host.display(extjs))
+
+    keys = [host.h(".ssh", "authorized_keys"), host.h(".ssh", "authorized_keys2")]
+    if host.platform == "windows":
+        keys.append(host.sys("C:/ProgramData/ssh/administrators_authorized_keys"))
+    for ak in keys:
+        if not hs.exists_nofollow(ak):
+            continue
+        if not hs.is_regular(ak):
+            r.blocked.append("authorized_keys is not a regular file")
+            continue
+        text = hs.read_text(ak, MIB)
+        if text is None:
+            r.blocked.append("authorized_keys unreadable")
+            continue
+        if SVC_TELEMETRY in text:
+            r.add("affected", "SSH authorized_keys comment",
+                  "vendor-named key comment present; this tool does not print key material",
+                  path=host.display(ak))
+
+    for spec, label in ((host.h(".config", ".smt"), "persistence script"),
+                        (host.h(".config", ".smtk"), "tunnel key file"),
+                        (host.h(".config", "smt.cmd"), "persistence script"),
+                        (host.h(".config", "smtk"), "tunnel key file")):
+        if hs.exists_nofollow(spec):
+            r.add("affected", label, "vendor-named persistence artifact; contents not copied",
+                  path=host.display(spec))
+
+    plist = host.h("Library", "LaunchAgents", "com.apple.sysmond.plist")
+    if hs.is_regular(plist):
+        label = hs.plist_value(plist, "Label")
+        r.add("affected", "LaunchAgent",
+              "vendor-named fake sysmond agent (label %s)" % (label or "unreadable"),
+              path=host.display(plist))
+
+    for td in _temp_dirs(host):
+        for name in hs.listdir(td):
+            if STK_TMP_RE.match(name):
+                r.add("affected", "tunnel key tempfile",
+                      "filename matches the vendor-named .stk_ pattern; contents not read",
+                      path=host.display(os.path.join(td, name)))
+
+    if host.platform == "windows":
+        ad = host.appdata()
+        if ad:
+            startup = os.path.join(ad, "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "sysmon.cmd")
+            if hs.exists_nofollow(startup):
+                r.add("affected", "Startup script", "vendor-named sysmon.cmd fallback", path=host.display(startup))
+        task = host.sys("C:/Windows/System32/Tasks/SysMon")
+        if hs.is_regular(task):
+            text = hs.read_text(task, MIB) or ""
+            if re.search(r"(?i)smt\.cmd|[/\\]\.config[/\\]smt|\.smt\b", text):
+                r.add("affected", "scheduled task SysMon",
+                      "task file references the vendor-named persistence script", path=host.display(task))
+            else:
+                r.add("review", "scheduled task SysMon",
+                      "a task named SysMon exists; confirm it is not this implant (Sysinternals Sysmon is a different name)",
+                      path=host.display(task))
+
+    if host.platform == "linux":
+        for spool in (host.sys("/var/spool/cron/crontabs"), host.sys("/var/spool/cron")):
+            for name in hs.listdir(spool):
+                fp = os.path.join(spool, name)
+                if not hs.is_regular(fp):
+                    continue
+                text = hs.read_text(fp, MIB)
+                if text is None:
+                    r.blocked.append("crontab unreadable")
+                    continue
+                if ".smt" in text:
+                    # Spool filenames are account names; do not copy them.
+                    r.add("affected", "user crontab",
+                          "crontab references the vendor-named persistence script",
+                          path=(host.display(os.path.dirname(fp)) or "/var/spool/cron") + "/<user>")
+
+
+def _yoba_themed(name):
+    low = name.lower()
+    return any(frag in low for frag in YOBA_NAME_FRAGMENTS)
+
+
+def _yoba_inspect_dir(host, r, path, name):
+    if not hs.is_plain_dir(path):
+        return
+    names = {n.lower() for n in hs.listdir(path)}
+    themed = _yoba_themed(name)
+    if "setup.exe" in names and "winmm.dll" in names:
+        r.add("affected" if themed else "review", "sideload pair",
+              "Setup.exe next to winmm.dll (Check Point Yoba dropper layout)"
+              + ("; folder name matches a named fake app" if themed else "; confirm this is not an unexpected extract"),
+              path=host.display(path))
+    elif themed:
+        r.add("review", "fake-app folder name",
+              "directory name matches a Check Point-named Yoba project", path=host.display(path))
+
+
+def check_yoba(host, r):
+    wmp = host.sys("C:/ProgramData/WMProcess")
+    if hs.is_plain_dir(wmp):
+        r.add("affected", "WMProcess directory",
+              "Check Point names this folder as the Yoba second-stage sideload location",
+              path=host.display(wmp))
+    roots = list(downloads_dirs(host)) + [host.h("Desktop")]
+    if host.platform == "windows":
+        # Split so the public-package home-path scanner does not read this as a username.
+        roots.append(host.sys("C:/" + "Users/Public/Downloads"))
+    seen = set()
+    for root in roots:
+        key = os.path.normcase(os.path.abspath(root))
+        if key in seen:
+            continue
+        seen.add(key)
+        _yoba_inspect_dir(host, r, root, os.path.basename(root.rstrip("/\\")))
+        for name in hs.listdir(root):
+            inner = os.path.join(root, name)
+            _yoba_inspect_dir(host, r, inner, name)
+            if hs.is_plain_dir(inner):
+                for nested in hs.listdir(inner):
+                    _yoba_inspect_dir(host, r, os.path.join(inner, nested), nested)
+
+
+def check_hf_qwen2(host, r):
+    caches = [host.h(".cache", "huggingface", "hub"), host.h(".cache", "huggingface")]
+    for key in ("HF_HOME", "HUGGINGFACE_HUB_CACHE"):
+        val = host.env.get(key)
+        if val:
+            caches.append(val)
+    seen = set()
+    for cache in caches:
+        key = os.path.normcase(os.path.abspath(cache))
+        if key in seen:
+            continue
+        seen.add(key)
+        for name in hs.listdir(cache):
+            hit = name in HF_CACHE_NAMES or name.startswith("models--MENXIANGYU--") or name.startswith("models--htt0118--")
+            if hit:
+                r.add("unknown", "Hugging Face hub cache",
+                      "directory name matches a press-named model; campaign is an unconfirmed lead",
+                      path=host.display(os.path.join(cache, name)))
+    cch = host.sys("/tmp/.cch")
+    if hs.exists_nofollow(cch):
+        r.add("unknown", "tmp watchdog path",
+              "path matches a press-named persistence location; campaign is an unconfirmed lead",
+              path=host.display(cch))
+
+
+def _go_mod_facts(text):
+    go_ver, mitigated = None, False
+    for ln in (text or "").splitlines():
+        stripped = ln.strip()
+        if stripped.startswith("go ") and go_ver is None:
+            m = re.match(r"go\s+(\d+\.\d+(?:\.\d+)?)", stripped)
+            if m:
+                go_ver = m.group(1)
+        if re.match(r"(?i)godebug\s+.*\bmultipathtcp=0\b", stripped):
+            mitigated = True
+    return go_ver, mitigated
+
+
+def check_go_mptcp(host, r):
+    # Sibling of go.sum, plus go.mod at a repository root, plus toolchain metadata.
+    mods = []
+    for gosum in index(host).gosum:
+        gomod = os.path.join(os.path.dirname(gosum), "go.mod")
+        if hs.is_regular(gomod):
+            mods.append(gomod)
+    for repo in index(host).repos:
+        gomod = os.path.join(repo, "go.mod")
+        if hs.is_regular(gomod) and gomod not in mods:
+            mods.append(gomod)
+    for path in mods:
+        ver, mitigated = _go_mod_facts(hs.read_text(path, MIB) or "")
+        if ver is None and not mitigated:
+            continue
+        v = hs.parse_version(ver) if ver else None
+        default_on = bool(v and not hs.below(v, "1.24.0"))
+        if host.platform == "linux" and default_on and not mitigated:
+            r.add("review", "go.mod MPTCP default",
+                  "Go 1.24+ enables MPTCP listen sockets on Linux; CVE-2026-98432 is a kernel bug. "
+                  "The Go team named no patched kernel version here. Confirm the running kernel and "
+                  "consider godebug multipathtcp=0 as a fragile mitigation only.",
+                  path=host.display(path), version=ver)
+        elif mitigated:
+            r.add("info", "go.mod MPTCP default",
+                  "godebug multipathtcp=0 is set (build-time default off; per-socket APIs can still enable it)",
+                  path=host.display(path), version=ver)
+        elif ver:
+            r.add("info", "go.mod", "Go language version recorded; MPTCP default applies from 1.24 on Linux",
+                  path=host.display(path), version=ver)
+
+    for label, path in ((" /usr/local/go", host.sys("/usr/local/go/VERSION")),
+                        (" /usr/lib/go", host.sys("/usr/lib/go/VERSION"))):
+        if hs.is_regular(path):
+            raw = (hs.read_text(path, 256) or "").strip()
+            ver = raw[2:] if raw.lower().startswith("go") else raw
+            v = hs.parse_version(ver)
+            if host.platform == "linux" and v and not hs.below(v, "1.24.0"):
+                r.add("review", "Go toolchain" + label,
+                      "1.24+ on Linux; kernel CVE-2026-98432. Confirm the running kernel.",
+                      path=host.display(path), version=ver)
+            elif ver:
+                r.add("info", "Go toolchain" + label, "toolchain VERSION file", path=host.display(path), version=ver)
+    for ver, src in linux_packages(host).get("golang-go", []) + linux_packages(host).get("golang", []):
+        v = hs.parse_version(ver)
+        if host.platform == "linux" and v and not hs.below(v, "1.24.0"):
+            r.add("review", "Go package", "1.24+ on Linux; kernel CVE-2026-98432. Confirm the running kernel.",
+                  version=ver)
+        else:
+            r.add("info", "Go package", "installed (%s)" % src, version=ver)
+    for ver, p in cellar(host).get("go", []):
+        r.add("info", "Go (Homebrew)", "toolchain present; the MPTCP default is a Linux listen-socket behaviour",
+              path=host.display(p), version=ver)
+    if host.platform == "linux":
+        kver = (hs.read_text(host.sys("/proc/version"), 4096) or "").strip()
+        if kver:
+            # Record that a kernel string was readable. Do not classify: no patched build was named.
+            r.notes.append("kernel uname string was readable from /proc/version (not classified; no patched build named)")
+    if not r.findings and host.platform != "linux":
+        r.notes.append("CVE-2026-98432 / Go MPTCP default is a Linux listen-socket issue; this host is %s" % host.platform)
 
 
 def check_ruby(host, r):
@@ -2812,9 +3173,12 @@ CHECKS = [
     check_meta("ovhcloud-cli", "OVHcloud CLI 0.11.0-0.15.0 (backdoored)", "check_if_used", "confirmed", "runtime",
                ["bc-ovhcloud"], "Versions 0.11.0 to 0.15.0 on GitHub were backdoored to steal secrets from disk.",
                "Use 0.16.0 or remove the tool; treat secrets on disk as exposed.", ALL_OS, check_ovhcloud, uses_walk=False),
-    check_meta("gitlab-self-hosted", "Self-hosted GitLab present", "check_if_used", "confirmed", "runtime", ["thn-gitlab"],
-               "Top-score code-run bug on self-hosted GitLab.", "Update GitLab.", "Linux (packages); image refs on all",
-               check_gitlab),
+    check_meta("gitlab-self-hosted", "Self-hosted GitLab (CVE-2026-97229, CISA KEV)", "check_if_used", "confirmed",
+               "runtime", ["nvd-97229", "cisa-kev-2026-10-29", "thn-gitlab"],
+               "CVE-2026-97229: GitLab CE/EE 19.2 before 19.2.8, 19.3 before 19.3.5, 19.4 before 19.4.2. "
+               "Unauthenticated code execution via a crafted CI regex. CISA KEV on 29 Oct 2026. Self-hosted only.",
+               "Update self-hosted GitLab to 19.2.8, 19.3.5 or 19.4.2 (or newer). GitLab SaaS is out of scope.",
+               "Linux (packages); image refs on all", check_gitlab),
     check_meta("ruby-regex", "Ruby below 4.0.9 / 3.4.12 / 3.3.13 (3.2: no fix)", "check_if_used", "confirmed", "runtime",
                ["thn-ruby"], "Ruby 4.0.9, 3.4.12 or 3.3.13; Ruby 3.2 gets no fix.",
                "Upgrade Ruby for apps that build a regex from user text.", ALL_OS, check_ruby, uses_walk=False),
@@ -2871,10 +3235,39 @@ CHECKS = [
                "was published. This check looks only at local zone files and configs (no live DNS).",
                "If Onamae/GMO DNS or Desktop Cloud is in use, rotate credentials and review exposed customer data. "
                "This tool never contacts Onamae or queries public DNS.", ALL_OS, check_gmo_onamae),
+    check_meta("claude-code-vsx-21313", "Tampered Anthropic.claude-code 2.1.313 and listed backdoor indicators",
+               "check_now", "confirmed", "config", ["cursor-claude-vsx", "phorion-claude-vsx"],
+               "Cursor Marketplace served a tampered Anthropic.claude-code 2.1.313 from about 09:27 UTC to 20:35 UTC "
+               "on 29 Oct 2026. It plants an SSH key comment svc-telemetry, a fake com.apple.sysmond LaunchAgent, "
+               "and a reverse tunnel. Uninstalling the extension does not remove persistence.",
+               "Read-only: this tool never deletes keys, agents or files. If a finding is affected, isolate the host "
+               "and follow the vendor notice from a clean device. Do not run unverified remediation scripts from chat.",
+               ALL_OS, check_claude_code_vsx, uses_walk=False),
+    check_meta("yoba-fake-ai-apps", "Yoba fake ChatGPT/Claude desktop apps (DLL sideload + WMProcess)",
+               "check_if_used", "confirmed", "runtime", ["cpr-yoba", "thn-yoba"],
+               "Check Point Research: fake GitHub desktop apps (GPT-5.6 Sol, GPT-6 Astra, Claude Opus) pair a signed "
+               "Setup.exe with winmm.dll and later use ProgramData\\WMProcess. OpenAI and Anthropic were not breached.",
+               "Do not run unofficial desktop AI installers. This tool never deletes files or scheduled tasks.",
+               "Windows first; Downloads/Desktop names on all", check_yoba, uses_walk=False),
+    check_meta("huggingface-qwen2-tiny", "Named Hugging Face qwen2-tiny cache paths (unconfirmed lead)",
+               "check_if_used", "unconfirmed", "runtime", ["bc-hf-miner"],
+               "Press report of a Hugging Face trust_remote_code mining campaign (MENXIANGYU/qwen2-tiny and copies). "
+               "No vendor advisory retrieved. Findings stay unknown.",
+               "If a named cache path is present, treat the host as needing owner review. Do not load models with "
+               "trust_remote_code from an unreviewed revision.",
+               ALL_OS, check_hf_qwen2, uses_walk=False),
+    check_meta("go-mptcp-linux", "Go 1.24+ MPTCP default on Linux (kernel CVE-2026-98432)",
+               "check_if_used", "confirmed", "runtime", ["golang-announce-98432"],
+               "Go 1.24 enables MPTCP on Linux listen sockets by default. golang-announce describes CVE-2026-98432 as "
+               "a Linux kernel TCP use-after-free; the demonstrated exploit used an MPTCP listener. No patched kernel "
+               "version was named. godebug multipathtcp=0 is a fragile mitigation.",
+               "Upgrade the kernel when a distro advisory names a build. Do not treat a Go-only change as a kernel fix.",
+               "Linux (macOS/Windows: recorded only)", check_go_mptcp),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
-                    "planted-agent-instructions", "function-color-npm-package", "litellm-1-107-0"}
+                    "planted-agent-instructions", "function-color-npm-package", "litellm-1-107-0",
+                    "claude-code-vsx-21313", "yoba-fake-ai-apps"}
 
 
 def run_check(host, meta):

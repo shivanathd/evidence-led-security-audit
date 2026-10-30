@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import safeio  # noqa: E402
 import textscan  # noqa: E402
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 DEFAULT_EXCLUDES = [".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"]
 LIMITS = [
     "Inventory only: no dependency resolution, CVE matching or exploitability analysis.",
@@ -117,6 +117,12 @@ ONAMAE_DNS_RE = re.compile(
     r"(?i)\b(?:NS|MX|nameserver)\b.*%s\.(?:com|co\.jp)|%s\.(?:com|co\.jp).*\b(?:NS|MX|nameserver)" %
     (_ONAMAE_LABEL, _ONAMAE_LABEL))
 GMO_DNS_NAMES = frozenset({"named.conf", "named.conf.local"})
+# github.event string fields (not .number / .id / .state / .draft) interpolated into run: steps.
+UNTRUSTED_GHA_EXPR = re.compile(
+    r"\$\{\{\s*(github\.(?:head_ref|ref_name|event\.(?:issue|comment|pull_request|"
+    r"review|discussion|review_comment|discussion_comment|commits?|head_commit|"
+    r"release|client_payload)\.(?!number\b|id\b|state\b|draft\b)[^}]+))\s*\}\}",
+    re.IGNORECASE)
 NGINX_LISTEN = re.compile(r"^\s*listen\s+([^;]+);")
 FPM_LISTEN = re.compile(r"^\s*listen\s*=\s*(\S+)")
 APACHE_LISTEN = re.compile(r"^\s*Listen\s+(\S+)")
@@ -641,6 +647,33 @@ class Inventory:
                 self.out["php_runtime_hints"].append({"path": rel, "line": i + 1,
                                                       "hint": "setting %s = %s (file value; effective runtime value may differ)" % (m.group(1), m.group(2))})
 
+    def _ci_untrusted_run(self, lines):
+        """Flag github.event / head_ref interpolations that sit in a run: script.
+
+        env: BODY: ${{ github.event.issue.body }} is the documented safer pattern and is
+        not listed. Numeric fields (.number, .id, .state, .draft) are not listed.
+        """
+        hits = []
+        run_indent = None
+        for i, ln in enumerate(lines):
+            if not ln.strip() or ln.lstrip().startswith("#"):
+                continue
+            indent = len(ln) - len(ln.lstrip())
+            if run_indent is not None and indent <= run_indent:
+                run_indent = None
+            m = re.match(r"^(\s*)(?:-\s+)?run:\s*(.*)$", ln)
+            if m:
+                rest = m.group(2)
+                run_indent = len(m.group(1))
+                if rest and rest not in ("|", ">", ">-", "|-", "|+", ">+"):
+                    for um in UNTRUSTED_GHA_EXPR.finditer(rest):
+                        hits.append({"line": i + 1, "expr": um.group(1).strip()})
+                continue
+            if run_indent is not None and indent > run_indent:
+                for um in UNTRUSTED_GHA_EXPR.finditer(ln):
+                    hits.append({"line": i + 1, "expr": um.group(1).strip()})
+        return hits[:50]
+
     def _ci(self, rel, lines, text):
         unpinned = []
         for i, ln in enumerate(lines):
@@ -652,12 +685,15 @@ class Inventory:
                 continue
             if "@" not in ref or not re.fullmatch(r"[0-9a-f]{40}", ref.rsplit("@", 1)[1]):
                 unpinned.append({"line": i + 1, "ref": ref})
-        self.out["ci_workflows"].append({
+        entry = {
             "path": rel, "unpinned_actions": unpinned,
             "pull_request_target": "pull_request_target" in text,
             "remote_script_piped_to_shell": bool(re.search(r"(curl|wget)[^|\n]*\|\s*(ba|z)?sh", text)),
             "secrets_references": len(re.findall(r"\$\{\{\s*secrets\.", text)),
-        })
+        }
+        if rel.startswith(".github/workflows/"):
+            entry["untrusted_run_interpolations"] = self._ci_untrusted_run(lines)
+        self.out["ci_workflows"].append(entry)
         for i, ln in enumerate(lines):
             m = USES_RE.match(ln)
             if not m or not SETUP_NODE_RE.search(m.group(1)):

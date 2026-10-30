@@ -96,6 +96,16 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.techradar.com", "techradar.com",  # unconfirmed-claim example in references/phases.md (published 28 Oct 2026)
     "lightning.ai",  # cited by profiles/lightning-ai-2026-10-16.md
     "unit42.paloaltonetworks.com",  # Unit 42 PHP2Shell retraction note
+    "cursor.com",  # cited by profiles/claude-code-vsx-2026-10-29.md
+    "phorion.io",  # cited by profiles/claude-code-vsx-2026-10-29.md
+    "www.cisa.gov",  # CISA KEV notice 29 Oct 2026
+    "groups.google.com",  # golang-announce
+    "go.dev",  # Go issue tracker cited by golang-announce
+    "research.checkpoint.com",  # Yoba primary
+    "security.freebsd.org",  # FreeBSD-SA-26:52.if_wg
+    "about.gitlab.com",  # GitLab release notes (when cited)
+    "docs.gitlab.com",
+    "forever.security",  # EMBRACE research blog (unconfirmed lead)
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
