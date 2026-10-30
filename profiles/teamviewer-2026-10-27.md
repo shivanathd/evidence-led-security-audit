@@ -10,7 +10,7 @@ Last checked: 2026-10-30. Dated snapshot. Re-read [TV-2026-1011](https://www.tea
 - CVE Record CVE-2026-111585 (CNA: TeamViewer): [cve.org](https://www.cve.org/CVERecord?id=CVE-2026-111585)
 - Researcher write-up (lead; not a version floor): [remedio.io](https://remedio.io/research/vulnerability-disclosures/remote-code-execution-in-teamviewer/) (published 29 Oct 2026). Cite the URL and dates only.
 
-The bulletin also lists CVE-2026-92372 and CVE-2026-92374 on the same 15.83 / legacy floors. This check is titled and sourced for 111585. Updating to 15.83 covers the bulletin.
+The bulletin also lists CVE-2026-92372 and CVE-2026-92374 on the same 15.83 / legacy floors. Full Client findings are titled and sourced for CVE-2026-111585. Host findings cite TV-2026-1011 (the Host product is on the bulletin, not labelled as 111585). Updating to 15.83 covers the bulletin. Portable is scanned under Downloads/Desktop as `TeamViewerPortable*` (read-only). A present bundle or Program Files folder without a readable version is `unknown`, not `NOT_APPLICABLE`. The check also reads `~/Applications/TeamViewerHost.app`.
 
 ## Fixed builds (retrieved 2026-10-30)
 

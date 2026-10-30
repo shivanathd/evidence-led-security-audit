@@ -2,7 +2,7 @@
 
 Last checked: 2026-10-30. Dated snapshot. Re-read the primary sources on every run. If a source has changed, the source wins.
 
-`host_checks.py` check id: `fragnesia-linux`. Linux only. Classification uses the running `/proc/sys/kernel/osrelease` only. Package versions are notes. This tool never loads or unloads modules, never writes sysctl, and never exercises ESP-in-TCP.
+`host_checks.py` check id: `fragnesia-linux`. Linux only. Classification uses the running `/proc/sys/kernel/osrelease` together with `/etc/os-release` (or `/usr/lib/os-release` when `/etc/os-release` is a symlink). Ubuntu rows are selected by `VERSION_ID` and kernel major.minor. Package versions are notes. This tool never loads or unloads modules, never writes sysctl, and never exercises ESP-in-TCP.
 
 ## Primary sources
 
@@ -18,7 +18,7 @@ Do not use press "kernels released before 13 May 2026" as a version rule. Do not
 
 CVE record: introduced in 3.9; fixed in 5.10.257, 5.15.208, 6.1.174, 6.6.141, 6.12.91, 6.18.33, 7.0.10; 7.1 and later unaffected.
 
-Ubuntu generic `-generic` osrelease only, keyed on `(VERSION_ID, major.minor)` (HWE kernels report a plain `-generic` string):
+Ubuntu official `x.y.0-N-generic` osrelease only (`N` is 1–9999, no leading zero), keyed on `(VERSION_ID, major.minor)` (HWE kernels report a plain `-generic` string). When `/proc/version` has `#NNN-Ubuntu`, the check also compares the upload number. Mainline-PPA and other strings are `review`.
 
 | Release | Series | Fixed ABI | Page row |
 | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ Ubuntu generic `-generic` osrelease only, keyed on `(VERSION_ID, major.minor)` (
 | 22.04 | 6.8 | 124 | linux-hwe-6.8 6.8.0-124.124~22.04.1 |
 | 20.04 | 5.15 | 181 | linux-hwe-5.15 5.15.0-181.191~20.04.1 (Ubuntu Pro) |
 
-Any other `(release, series)` pair, including 26.10 and 20.04 on 5.4, is `review`. Never emit info "Not affected" from `VERSION_ID` alone. Cloud/FIPS/aws strings that are not `-generic` are `review`. Non-Ubuntu: upstream floors only when osrelease matches `^\d+\.\d+\.\d+$`.
+Any other `(release, series)` pair, including 26.10 and 20.04 on 5.4, is `review`. Never emit info "Not affected" from `VERSION_ID` alone. Cloud/FIPS/aws strings and mainline-PPA kernels that are not official `x.y.0-N-generic` are `review`. Missing `VERSION_ID` is `review`. An unreadable running osrelease when other kernel metadata is present is `unknown`. Non-Ubuntu: upstream floors only when osrelease matches `^\d+\.\d+\.\d+$`.
 
 ## PHP2Shell chain
 
