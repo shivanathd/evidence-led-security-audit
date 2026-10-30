@@ -61,6 +61,7 @@ Classification after an anchored, case-sensitive strip of a leading `8.x-`:
 
 - Stale copies under `releases/` or `*.bak` can FAIL. They are not hidden.
 - The walk does not cover `/opt`, `/data`, other users' `public_html`, container volumes, or roots that were not passed in.
+- Symlinked files and module folders (for example Composer path repos) are not followed.
 - Drupal 7 commerce INI files are out of scope. This check cannot see that product line.
 - `composer.json` ranges are not evidence. A patched lock plus a loose `^3.3` constraint is still PASS when the lock and info.yml are fixed.
 

@@ -718,10 +718,22 @@ class DrupalCommerce118539(SimCase):
         self.assertIn("prerelease", c["findings"][0]["detail"])
 
     def test_unversioned_info_yml_is_unknown(self):
-        self._info(self.YML_PATH)
+        # Realistic git / source checkout: Drupal.org packaging adds project: and version:.
+        self.s.write(self.YML_PATH,
+                     "name: Commerce\n"
+                     "type: module\n"
+                     "description: 'Defines common features for eCommerce features.'\n"
+                     "package: Commerce\n"
+                     "core_version_requirement: ^10.3 || ^11\n"
+                     "configure: entity.commerce_store.collection\n"
+                     "dependencies:\n"
+                     "  - address:address\n"
+                     "  - entity:entity\n")
         c = self._check()
         self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["unknown"])
+        self.assertIn("unpackaged checkout", c["findings"][0]["detail"])
+        self.assertIn("check the commit", c["findings"][0]["detail"])
 
     def test_windows_inetpub_3_3_12_is_affected(self):
         w = self.sim("windows")
@@ -766,8 +778,7 @@ class DrupalCommerce118539(SimCase):
         os.chmod(path, 0)
         c = self._check()
         self.assertStatus(c, "BLOCKED")
-        self.assertTrue(any("unreadable" in x for x in [c["reason"]] + c.get("notes", [])))
-        self.assertIn("unreadable", c["reason"])
+        self.assertIn("cannot read", c["reason"])
 
     def test_dev_builds_are_review(self):
         for ver in ("3.x-dev", "8.x-2.x-dev", "dev-3.x"):
@@ -803,7 +814,7 @@ class DrupalCommerce118539(SimCase):
         self.s.write(self.LOCK, b"{" + b" " * (4 * 1024 * 1024) + b"}")
         c = self._check()
         self.assertStatus(c, "BLOCKED")
-        self.assertIn("unreadable", c["reason"])
+        self.assertIn("too large", c["reason"])
 
     def test_vendored_info_yml_alone_is_not_applicable(self):
         self._info("~/sites/shop/vendor/drupal/commerce/" + self.INFO_YML, "3.3.12")
@@ -828,7 +839,91 @@ class DrupalCommerce118539(SimCase):
         self.assertIn("^10.3", meta["remediation"])
         self.assertIn("^9.3", meta["remediation"])
         self.assertTrue(any(item == "Drupal Commerce order-inconsistency audit" for item, _reason in hc.SKIPPED))
+
+    def test_northflank_is_untouched(self):
         self.assertFalse(any("Northflank" in item for item, _reason in hc.SKIPPED))
+        self.assertFalse(any(m["id"] == "northflank" or "Northflank" in m["title"] for m in hc.CHECKS))
+
+    def test_crlf_info_yml_3_3_12_is_affected(self):
+        self.s.write(self.YML_PATH,
+                     "name: Commerce\r\ntype: module\r\nproject: 'commerce'\r\nversion: '3.3.12'\r\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_crlf_info_yml_3_3_13_is_pass(self):
+        self.s.write(self.YML_PATH,
+                     "name: Commerce\r\ntype: module\r\nproject: commerce\r\nversion: 3.3.13\r\n")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_bom_on_first_line_is_matched(self):
+        self.s.write(self.YML_PATH, b"\xef\xbb\xbfproject: 'commerce'\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_home_lock_does_not_clear_unrelated_site(self):
+        self._lock("~/composer.lock", "3.3.13")
+        self._info("~/sites/other/web/modules/contrib/commerce/" + self.INFO_YML)
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertFalse(any("no version" in n for n in c.get("notes", [])))
+
+    def test_sibling_old_site_is_not_cleared_by_shop_lock(self):
+        self._lock(self.LOCK, "3.3.13")
+        self._info("~/sites/shop/old-site/web/modules/contrib/commerce/" + self.INFO_YML)
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertFalse(any("no version" in n for n in c.get("notes", [])))
+
+    def test_project_key_is_matched_case_insensitively(self):
+        self.s.write(self.YML_PATH, "name: Commerce\ntype: module\nproject: Commerce\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_several_version_lines_are_review(self):
+        self.s.write(self.YML_PATH, "project: commerce\nversion: '3.3.13'\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_indented_version_is_ignored(self):
+        self.s.write(self.YML_PATH,
+                     "project: commerce\nfoo:\n  version: '9.9.9'\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "3.3.12")
+
+    def test_reported_version_is_capped(self):
+        ver = "3.3.12" + ("x" * 200)
+        self._info(self.YML_PATH, ver)
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertLessEqual(len(c["findings"][0]["version"]), 64)
+
+    def test_lock_mentions_commerce_without_readable_version_is_unknown(self):
+        self.s.write(self.LOCK, json.dumps({"packages": {"drupal/commerce": {"version": "3.3.12"}}}))
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_invalid_json_lock_names_cause(self):
+        self.s.write(self.LOCK, "{not json")
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("invalid JSON", c["reason"])
+
+    def test_lock_under_folder_named_vendor_is_not_skipped(self):
+        self._lock("~/clients/vendor/shop/composer.lock", "3.3.12")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
 
 
 class AnthropicChain(SimCase):

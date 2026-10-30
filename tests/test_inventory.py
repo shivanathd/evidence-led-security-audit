@@ -601,6 +601,63 @@ class DrupalCommerceHints(unittest.TestCase):
 
         self.assertEqual(self._run(write)["drupal_commerce_hints"], [])
 
+    def test_crlf_info_yml_is_a_hint(self):
+        def write(root):
+            module = root / "web" / "modules" / "contrib" / "commerce"
+            module.mkdir(parents=True)
+            (module / ("commerce" + ".info.yml")).write_bytes(
+                b"name: Commerce\r\ntype: module\r\nproject: 'commerce'\r\nversion: '3.3.12'\r\n")
+
+        hints = {h["path"] for h in self._run(write)["drupal_commerce_hints"]}
+        self.assertIn("web/modules/contrib/commerce/" + ("commerce" + ".info.yml"), hints)
+
+    def test_bom_info_yml_is_a_hint(self):
+        def write(root):
+            module = root / "web" / "modules" / "contrib" / "commerce"
+            module.mkdir(parents=True)
+            (module / ("commerce" + ".info.yml")).write_bytes(
+                b"\xef\xbb\xbfproject: 'commerce'\nversion: '3.3.12'\n")
+
+        hints = {h["path"] for h in self._run(write)["drupal_commerce_hints"]}
+        self.assertIn("web/modules/contrib/commerce/" + ("commerce" + ".info.yml"), hints)
+
+    def test_unpackaged_checkout_is_a_hint(self):
+        def write(root):
+            module = root / "commerce"
+            module.mkdir()
+            (module / ("commerce" + ".info.yml")).write_text(
+                "name: Commerce\n"
+                "type: module\n"
+                "package: Commerce\n"
+                "core_version_requirement: ^10.3 || ^11\n",
+                encoding="utf-8")
+
+        hints = {h["path"]: h["hint"] for h in self._run(write)["drupal_commerce_hints"]}
+        yml = "commerce/" + ("commerce" + ".info.yml")
+        self.assertIn(yml, hints)
+        self.assertIn("unpackaged", hints[yml])
+
+    def test_lock_under_folder_named_vendor_is_a_hint(self):
+        def write(root):
+            shop = root / "clients" / "vendor" / "shop"
+            shop.mkdir(parents=True)
+            (shop / "composer.lock").write_text(
+                json.dumps({"packages": [{"name": "drupal/commerce", "version": "3.3.12"}]}),
+                encoding="utf-8")
+
+        hints = {h["path"] for h in self._run(write)["drupal_commerce_hints"]}
+        self.assertIn("clients/vendor/shop/composer.lock", hints)
+
+    def test_vendored_package_lock_is_empty(self):
+        def write(root):
+            pkg = root / "vendor" / "x" / "y"
+            pkg.mkdir(parents=True)
+            (pkg / "composer.lock").write_text(
+                json.dumps({"packages": [{"name": "drupal/commerce", "version": "3.3.12"}]}),
+                encoding="utf-8")
+
+        self.assertEqual(self._run(write)["drupal_commerce_hints"], [])
+
 
 @support.POSIX_ONLY
 class UntrustedRunInterpolations(unittest.TestCase):

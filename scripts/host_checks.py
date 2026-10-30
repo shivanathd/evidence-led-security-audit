@@ -83,7 +83,8 @@ LIMITS = [
     "cve.org floors published 15 Oct 2026, updated 30 Oct 2026 are not Ubuntu package floors. It never claims patched.",
     "drupal-commerce-118539 reads composer.lock, vendor/composer/installed.json and the packaged Commerce "
     "info.yml (project: commerce). composer.json is not evidence. Stale copies under releases/ or *.bak can FAIL. "
-    "The walk does not cover /opt, /data, other users' public_html, container volumes or symlinked roots. "
+    "The walk does not cover /opt, /data, other users' public_html, container volumes, or roots that were not passed in. "
+    "Symlinked files and module folders (for example Composer path repos) are not followed. "
     "Drupal 7 commerce INI files are out of scope.",
 ]
 
@@ -637,11 +638,11 @@ def build_index(host):
             idx.gmo_cfg.append(path)
         if low in ("acl.hujson", "policy.hujson", "tailscale-acl.json", "tailnet-acl.json", "tailnet-policy.json"):
             idx.mesh_acl.append(path)
-        if low == "composer.lock" and "vendor" not in plow:
+        if low == "composer.lock" and not _in_composer_vendor(plow):
             idx.composer_lock.append(path)
         if low == "installed.json" and len(plow) >= 2 and plow[-2:] == ["vendor", "composer"]:
             idx.composer_installed.append(path)
-        if low == "commerce" + ".info.yml" and "vendor" not in plow:
+        if low == "commerce" + ".info.yml" and not _in_composer_vendor(plow):
             idx.drupal_commerce.append(path)
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
@@ -2744,9 +2745,34 @@ COMMERCE_FLOORS = ("2.41", "3.3.13")
 COMMERCE_INFO_LIMIT = 64 * 1024
 COMMERCE_INFO_YML = "commerce" + ".info.yml"
 COMMERCE_PROJECT_RE = re.compile(
-    r"(?m)^[ \t]*project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
+    r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
+COMMERCE_PROJECT_ANY_RE = re.compile(r"(?m)^project:[ \t]*")
 COMMERCE_VERSION_RE = re.compile(
-    r"(?m)^[ \t]*version:[ \t]*['\"]?([^'\"#\n]+?)['\"]?[ \t]*(?:#.*)?$")
+    r"(?m)^version:[ \t]*['\"]?([^'\"#\n]+?)['\"]?[ \t]*(?:#.*)?$")
+COMMERCE_INFO_REL_RE = re.compile(
+    r"^(?:web/|docroot/|html/|public/)?modules/(?:contrib/)?"
+    r"commerce/" + re.escape(COMMERCE_INFO_YML) + r"$")
+
+
+def _commerce_normalize(text):
+    return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _in_composer_vendor(parts):
+    """True only for Composer vendor/<org>/<pkg>/... and vendor/composer/ trees."""
+    plow = [p.lower() for p in parts]
+    last = -1
+    for i, p in enumerate(plow):
+        if p == "vendor":
+            last = i
+    if last < 0:
+        return False
+    after = plow[last + 1:]
+    if after[:1] == ["composer"]:
+        return True
+    if len(after) >= 2 and after[1] not in ("web", "docroot", "html", "public", "modules", "sites"):
+        return True
+    return False
 
 
 def _commerce_packages(doc):
@@ -2785,55 +2811,111 @@ def _under_site(path, root):
     return path.startswith(root + os.sep)
 
 
+def _commerce_relposix(path, root):
+    path = os.path.normcase(os.path.abspath(path))
+    root = os.path.normcase(os.path.abspath(root))
+    return os.path.relpath(path, root).replace("\\", "/")
+
+
 def classify_commerce(r, component, raw, path, source):
     if raw is None or not str(raw).strip().strip("\"'"):
         r.add("unknown", component, "version string missing (%s)" % source, path=path)
         return "unknown"
     original = str(raw).strip().strip("\"'")
+    reported = textscan.redact(original)[:64]
     stripped = COMMERCE_8X.sub("", original, count=1)
     if COMMERCE_DEV.search(stripped) or COMMERCE_DEV.search(original):
         r.add("review", component, "development build; check commit (%s)" % source,
-              path=path, version=original)
+              path=path, version=reported)
         return "review"
     before = len(r.findings)
     res = classify_version(r, component, stripped, path, COMMERCE_FLOORS, line_len=1, source=source)
     if len(r.findings) > before:
-        r.findings[-1]["version"] = original
+        r.findings[-1]["version"] = reported
     if res == "ok":
         return "info"
     return res
 
 
+def _commerce_blocked_cause(host, path):
+    shown = host.display(path)
+    for item in reversed(host.gaps.examples):
+        if item.get("path") != shown:
+            continue
+        kind = item.get("kind")
+        if kind == "oversized":
+            return "too large"
+        if kind == "unparsed":
+            return "invalid JSON"
+        return "cannot read"
+    return "cannot read"
+
+
 def _commerce_read_needed(host, r, path, reader, limit):
     data = reader(path, limit, host.gaps)
     if data is None and hs.exists_nofollow(path):
-        r.blocked.append("%s unreadable" % host.display(path))
+        r.blocked.append("%s %s" % (host.display(path), _commerce_blocked_cause(host, path)))
         return None
     return data
 
 
+def _commerce_deepest_root(path, roots):
+    enclosing = [root for root in roots if _under_site(path, root)]
+    if not enclosing:
+        return None
+    return max(enclosing, key=lambda item: len(os.path.abspath(item)))
+
+
 def check_drupal_commerce(host, r):
     idx = index(host)
-    fixed_roots = []
+    roots = {}
     for path, source in ([(p, "composer.lock") for p in idx.composer_lock]
                          + [(p, "installed.json") for p in idx.composer_installed]):
-        doc = _commerce_read_needed(host, r, path, hs.read_json, 4 * MIB)
-        if doc is None:
+        text = _commerce_read_needed(host, r, path, hs.read_text, 4 * MIB)
+        if text is None:
             continue
-        for ver in _commerce_packages(doc):
+        text = _commerce_normalize(text)
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            r.blocked.append("%s invalid JSON" % host.display(path))
+            continue
+        root = _commerce_site_root(path)
+        roots.setdefault(root, False)
+        vers = _commerce_packages(doc)
+        if not vers:
+            if "drupal/commerce" in text:
+                r.add("unknown", "Drupal Commerce Core",
+                      "%s mentions drupal/commerce but no version could be read" % source,
+                      path=host.display(path))
+            continue
+        for ver in vers:
             res = classify_commerce(r, "Drupal Commerce Core", ver, host.display(path), source)
             if res == "info":
-                fixed_roots.append(_commerce_site_root(path))
+                roots[root] = True
     for path in idx.drupal_commerce:
         text = _commerce_read_needed(host, r, path, hs.read_text, COMMERCE_INFO_LIMIT)
         if text is None:
             continue
+        text = _commerce_normalize(text)
         if not COMMERCE_PROJECT_RE.search(text):
+            if COMMERCE_PROJECT_ANY_RE.search(text):
+                continue
+            r.add("unknown", "Drupal Commerce Core",
+                  "unpackaged checkout; check the commit",
+                  path=host.display(path))
             continue
-        match = COMMERCE_VERSION_RE.search(text)
-        ver = match.group(1).strip() if match else ""
+        versions = COMMERCE_VERSION_RE.findall(text)
+        if len(versions) > 1:
+            r.add("review", "Drupal Commerce Core",
+                  "several version: lines in " + COMMERCE_INFO_YML,
+                  path=host.display(path))
+            continue
+        ver = versions[0].strip() if versions else ""
         if not ver:
-            if any(_under_site(path, root) for root in fixed_roots):
+            deepest = _commerce_deepest_root(path, roots)
+            if (deepest is not None and roots.get(deepest)
+                    and COMMERCE_INFO_REL_RE.match(_commerce_relposix(path, deepest))):
                 r.notes.append(
                     "%s has no version; a composer.lock or installed.json in the same site root "
                     "is at or above the advisory floor" % host.display(path))

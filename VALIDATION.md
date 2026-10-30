@@ -1,10 +1,10 @@
 # Release-candidate validation
 
-Version 0.4.2, checked on 30 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
+Unreleased, checked on 30 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
 ## Executed checks
 
-- **Unit suite:** 332 test methods on Linux with Python 3.12. POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
+- **Unit suite:** Unreleased: 350 test methods on Linux with Python 3.12 (0.4.2 had 332). POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
 - **Skill format:** The candidate passed `agentskills validate` using its absolute directory when that CLI was available. The hub stays under 4,000 characters.
 - **Package inspection:** The public-package checker (run from a directory whose name matches `SKILL.md`) reported no rule match and no unreviewed binary content for this text-only candidate. Reviewed public hosts added for this unreleased change: `www.drupal.org`, `drupal.org`. Commerce info.yml filenames are assembled at runtime so the leak scanner does not treat the `.info` suffix as a live host. The private denylist was not available in this run; the checker was run without one.
 - **Secret check:** Pattern checks (`textscan` secret shapes, `check_public_package.py`, a privacy grep of the branch diff) found no leaked values. Pattern checks do not prove that every confidential fact has been detected.

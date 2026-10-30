@@ -111,8 +111,30 @@ PEOPLESOFT_FILENAMES = frozenset({
     "psconfig.sh", "allowedhosts.properties", "psappsrv.cfg", "psprcs.cfg",
 })
 COMMERCE_PROJECT_RE = re.compile(
-    r"(?m)^[ \t]*project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
+    r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
+COMMERCE_PROJECT_ANY_RE = re.compile(r"(?m)^project:[ \t]*")
 COMMERCE_INFO_YML = "commerce" + ".info.yml"
+
+
+def _commerce_normalize(text):
+    return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _in_composer_vendor(parts):
+    """True only for Composer vendor/<org>/<pkg>/... and vendor/composer/ trees."""
+    plow = [p.lower() for p in parts]
+    last = -1
+    for i, p in enumerate(plow):
+        if p == "vendor":
+            last = i
+    if last < 0:
+        return False
+    after = plow[last + 1:]
+    if after[:1] == ["composer"]:
+        return True
+    if len(after) >= 2 and after[1] not in ("web", "docroot", "html", "public", "modules", "sites"):
+        return True
+    return False
 # Split so the public-leak hostname scanner does not read a vendor domain as a leak.
 _ONAMAE_LABEL = "onamae"
 ONAMAE_HOST_RE = re.compile(r"(?i)\b(?:[\w-]+\.)?%s\.(?:com|co\.jp)\b" % _ONAMAE_LABEL)
@@ -856,8 +878,10 @@ class Inventory:
                 })
 
     def _composer_lock_commerce(self, rel, text):
+        if _in_composer_vendor(PurePosixPath(rel).parts[:-1]):
+            return
         try:
-            doc = json.loads(text)
+            doc = json.loads(_commerce_normalize(text))
         except ValueError:
             return
         blocks = []
@@ -880,13 +904,20 @@ class Inventory:
     def _commerce_info_yml(self, rel, name, text):
         if name.lower() != COMMERCE_INFO_YML:
             return
-        if "vendor" in {p.lower() for p in PurePosixPath(rel).parts}:
+        if _in_composer_vendor(PurePosixPath(rel).parts[:-1]):
             return
-        if not COMMERCE_PROJECT_RE.search(text):
+        text = _commerce_normalize(text)
+        if COMMERCE_PROJECT_RE.search(text):
+            self.out["drupal_commerce_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "Drupal Commerce Core " + COMMERCE_INFO_YML + " (packaged metadata; not runtime proof)",
+            })
+            return
+        if COMMERCE_PROJECT_ANY_RE.search(text):
             return
         self.out["drupal_commerce_hints"].append({
             "path": rel, "line": 0,
-            "hint": "Drupal Commerce Core " + COMMERCE_INFO_YML + " (packaged metadata; not runtime proof)",
+            "hint": "unpackaged Commerce checkout (no project: key; not runtime proof)",
         })
 
     def _peoplesoft_name(self, rel, name):
