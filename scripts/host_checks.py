@@ -2750,7 +2750,16 @@ COMMERCE_PROJECT_RE = re.compile(
     r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
 COMMERCE_PROJECT_ANY_RE = re.compile(r"(?mi)^project:[ \t]*")
 COMMERCE_VERSION_RE = re.compile(
-    r"(?m)^version:[ \t]*['\"]?([^'\"#\s](?:[^'\"#\n]*[^'\"#\s])?)['\"]?[ \t]*(?:#.*)?$")
+    r"(?m)^version:[ \t]*(?:'([^'#\n]*)'|\"([^\"#\n]*)\"|([^'\"#\s]\S*))\s*(?:#.*)?$")
+
+
+def _commerce_version_values(text):
+    values = []
+    for parts in COMMERCE_VERSION_RE.findall(text):
+        ver = "".join(parts).strip()
+        if ver:
+            values.append(ver)
+    return values
 COMMERCE_INFO_REL_RE = re.compile(
     r"^(?:web/|docroot/|html/|public/)?modules/(?:contrib/)?"
     r"commerce/" + re.escape(COMMERCE_INFO_YML) + r"$",
@@ -2928,7 +2937,7 @@ def check_drupal_commerce(host, r):
                       "unpackaged checkout; check the commit",
                       path=host.display(path))
             continue
-        versions = [v.strip() for v in COMMERCE_VERSION_RE.findall(text) if v.strip()]
+        versions = _commerce_version_values(text)
         unique = []
         seen = set()
         for ver in versions:

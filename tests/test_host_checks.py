@@ -1003,6 +1003,16 @@ class DrupalCommerce118539(SimCase):
         self.assertEqual(results(c), ["info"])
         self.assertTrue(any("no version" in n for n in c["notes"]))
 
+    def test_padded_quoted_affected_version_is_not_cleared_by_fixed_lock(self):
+        self._lock(self.LOCK, "3.3.13")
+        self.s.write(self.YML_PATH, "project: commerce\nversion: ' 3.3.12 '\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        self.assertEqual(
+            next(f["version"] for f in c["findings"] if f["result"] == "affected"),
+            "3.3.12")
+
     def test_long_non_matching_version_line_does_not_hide_the_real_one(self):
         junk = "version:" + (" " * 4000) + "'x'y\n"
         self.s.write(self.YML_PATH, "project: commerce\n" + junk + "version: '3.3.12'\n")
