@@ -1393,6 +1393,15 @@ class TeamViewer111585(SimCase):
         self.assertStatus(c, "PASS")
         self.assertNotIn("unknown", results(c))
 
+    def test_two_empty_host_dirs_stay_unknown_with_one_registry(self):
+        w = self.sim("windows")
+        w.mkdir("C:/Program Files/TeamViewer Host")
+        w.mkdir("C:/Program Files (x86)/TeamViewer Host")
+        c = w.check("teamviewer-111585",
+                    registry=[{"name": "TeamViewer Host", "version": "15.83"}])
+        self.assertIn("unknown", results(c))
+        self.assertNotEqual(c["status"], "PASS")
+
     def test_empty_hosts(self):
         for platform in ("linux", "darwin", "windows"):
             self.assertStatus(self.sim(platform).check("teamviewer-111585"), "NOT_APPLICABLE")
