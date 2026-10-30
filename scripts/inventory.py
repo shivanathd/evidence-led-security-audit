@@ -35,6 +35,7 @@ import json
 import os
 import posixpath
 import re
+import stat
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -42,7 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import safeio  # noqa: E402
 import textscan  # noqa: E402
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 DEFAULT_EXCLUDES = [".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"]
 LIMITS = [
     "Inventory only: no dependency resolution, CVE matching or exploitability analysis.",
@@ -110,6 +111,43 @@ PEOPLESOFT_PATH_PARTS = frozenset({"peoplesoft", "peopletools", "psft"})
 PEOPLESOFT_FILENAMES = frozenset({
     "psconfig.sh", "allowedhosts.properties", "psappsrv.cfg", "psprcs.cfg",
 })
+COMMERCE_PROJECT_RE = re.compile(
+    r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
+COMMERCE_PROJECT_ANY_RE = re.compile(r"(?mi)^project:[ \t]*")
+COMMERCE_INFO_YML = "commerce" + ".info.yml"
+COMMERCE_PKG_NAME_RE = re.compile(r'"name"\s*:\s*"drupal/commerce"')
+
+
+def _commerce_normalize(text):
+    return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _exists_nofollow(path):
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    return stat.S_ISREG(st.st_mode)
+
+
+def _in_composer_vendor(file_path):
+    """True when the file sits under a Composer vendor tree.
+
+    A directory named vendor counts only if it contains autoload.php or
+    composer/installed.json, so clients/vendor/acme/shop/composer.lock is
+    not skipped.
+    """
+    current = os.path.dirname(os.path.abspath(file_path))
+    while True:
+        if os.path.basename(current).lower() == "vendor":
+            return (
+                _exists_nofollow(os.path.join(current, "autoload.php"))
+                or _exists_nofollow(os.path.join(current, "composer", "installed.json"))
+            )
+        parent = os.path.dirname(current)
+        if parent == current:
+            return False
+        current = parent
 # Split so the public-leak hostname scanner does not read a vendor domain as a leak.
 _ONAMAE_LABEL = "onamae"
 ONAMAE_HOST_RE = re.compile(r"(?i)\b(?:[\w-]+\.)?%s\.(?:com|co\.jp)\b" % _ONAMAE_LABEL)
@@ -452,9 +490,10 @@ class Inventory:
         self.max_reached = False
         self.out = {k: [] for k in ("manifests", "containers", "listeners", "php_runtime_hints", "runtime_hints",
                                     "runtime_pins", "sboms", "dev_server_hints", "mesh_vpn_hints",
-                                    "peoplesoft_hints", "gmo_onamae_hints", "install_hooks",
-                                    "ci_workflows", "agent_instruction_files", "secret_candidates",
-                                    "sensitive_filenames", "sidecar_artifacts", "symlinks")}
+                                    "peoplesoft_hints", "gmo_onamae_hints", "drupal_commerce_hints",
+                                    "install_hooks", "ci_workflows", "agent_instruction_files",
+                                    "secret_candidates", "sensitive_filenames", "sidecar_artifacts",
+                                    "symlinks")}
 
     def skip(self, rel, reason):
         """Record a coverage gap; only listed kinds can match an accepted exclusion."""
@@ -573,6 +612,8 @@ class Inventory:
             self._composer_php(rel, text)
         if name == "composer.lock":
             self._composer_lock_php(rel, text)
+            self._composer_lock_commerce(rel, text)
+        self._commerce_info_yml(rel, name, text)
         if name in LOCKFILES and LOCKFILES[name] == "npm":
             self._dev_server_lockfile(rel, text)
         self._mesh_vpn_text(rel, name, text)
@@ -848,6 +889,59 @@ class Inventory:
                     "path": rel, "line": 0,
                     "hint": "composer.lock %s.php %s (lock constraint, not runtime proof)" % (key, block["php"]),
                 })
+
+    def _composer_lock_commerce(self, rel, text):
+        if _in_composer_vendor(os.path.join(self.root, rel)):
+            return
+        text = _commerce_normalize(text)
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return
+        blocks = []
+        if isinstance(doc, list):
+            blocks = [doc]
+        elif isinstance(doc, dict):
+            for key in ("packages", "packages-dev"):
+                block = doc.get(key)
+                if isinstance(block, list):
+                    blocks.append(block)
+        for block in blocks:
+            for pkg in block:
+                if isinstance(pkg, dict) and pkg.get("name") == "drupal/commerce":
+                    self.out["drupal_commerce_hints"].append({
+                        "path": rel, "line": 0,
+                        "hint": "composer.lock package drupal/commerce (lock pin; not runtime proof)",
+                    })
+                    return
+        if COMMERCE_PKG_NAME_RE.search(text):
+            self.out["drupal_commerce_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "composer.lock names drupal/commerce (lock pin; not runtime proof)",
+            })
+
+    def _commerce_info_yml(self, rel, name, text):
+        if name.lower() != COMMERCE_INFO_YML:
+            return
+        if _in_composer_vendor(os.path.join(self.root, rel)):
+            return
+        text = _commerce_normalize(text)
+        if COMMERCE_PROJECT_RE.search(text):
+            self.out["drupal_commerce_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "Drupal Commerce Core " + COMMERCE_INFO_YML + " (packaged metadata; not runtime proof)",
+            })
+            return
+        if COMMERCE_PROJECT_ANY_RE.search(text):
+            self.out["drupal_commerce_hints"].append({
+                "path": rel, "line": 0,
+                "hint": COMMERCE_INFO_YML + " names a different project (not runtime proof)",
+            })
+            return
+        self.out["drupal_commerce_hints"].append({
+            "path": rel, "line": 0,
+            "hint": "unpackaged Commerce checkout (no project: key; not runtime proof)",
+        })
 
     def _peoplesoft_name(self, rel, name):
         lower = name.lower()

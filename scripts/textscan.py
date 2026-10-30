@@ -110,6 +110,7 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "ubuntu.com", "www.ubuntu.com",  # Ubuntu CVE pages
     "lists.openwall.net",  # linux-cve-announce
     "remedio.io",  # TeamViewer researcher write-up (lead; not a floor)
+    "www.drupal.org", "drupal.org",  # SA-CONTRIB-2026-254 and Commerce Core releases
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

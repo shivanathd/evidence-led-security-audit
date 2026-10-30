@@ -632,6 +632,434 @@ class PeopleSoftPresence(SimCase):
         self.assertStatus(self.s.check("peoplesoft-presence"), "NOT_APPLICABLE")
 
 
+class DrupalCommerce118539(SimCase):
+    """SA-CONTRIB-2026-254 / CVE-2026-118539. Advisory floors 2.41 and 3.3.13."""
+
+    INFO_YML = "commerce" + ".info.yml"
+    YML_PATH = "~/sites/shop/web/modules/contrib/commerce/" + INFO_YML
+    LOCK = "~/sites/shop/composer.lock"
+
+    def _check(self, s=None, extra_roots=None):
+        s = s or self.s
+        roots = [s.home]
+        if extra_roots:
+            roots.extend(s.path(p) for p in extra_roots)
+        return s.check("drupal-commerce-118539", roots=roots)
+
+    def _info(self, spec, version=None, project="commerce", host=None):
+        host = host or self.s
+        lines = ["name: Commerce\n", "type: module\n", "project: %s\n" % project]
+        if version is not None:
+            lines.append("version: '%s'\n" % version)
+        host.write(spec, "".join(lines))
+
+    def _lock(self, spec, version, name="drupal/commerce", host=None, extra_packages=None):
+        host = host or self.s
+        packages = [{"name": name, "version": version}]
+        if extra_packages:
+            packages.extend(extra_packages)
+        host.write(spec, json.dumps({"packages": packages, "packages-dev": []}))
+
+    def test_info_yml_3_3_12_is_affected(self):
+        self._info(self.YML_PATH, "3.3.12")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("3.3.13", c["findings"][0]["detail"])
+
+    def test_info_yml_3_3_13_is_pass(self):
+        self._info(self.YML_PATH, "3.3.13")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_info_yml_8x_2_40_is_affected(self):
+        self._info(self.YML_PATH, "8.x-2.40")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "8.x-2.40")
+
+    def test_info_yml_8x_2_41_is_pass(self):
+        self._info(self.YML_PATH, "8.x-2.41")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertEqual(c["findings"][0]["version"], "8.x-2.41")
+
+    def test_lock_2_40_0_is_affected(self):
+        self._lock(self.LOCK, "2.40.0")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_lock_3_3_13_is_pass(self):
+        self._lock(self.LOCK, "3.3.13")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_magento_only_is_not_applicable(self):
+        self.s.mkdir("~/sites/shop/bin")
+        self.s.write("~/sites/shop/app/etc/env.php", "<?php return [];\n")
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_commerce_shipping_composer_json_is_not_applicable(self):
+        self.s.write("~/sites/shop/web/modules/contrib/commerce_shipping/composer.json",
+                     json.dumps({"name": "drupal/commerce_shipping",
+                                 "require": {"drupal/commerce": "^3.3"}}))
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_prerelease_of_floor_is_affected(self):
+        self._info(self.YML_PATH, "3.3.13-rc1")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("prerelease", c["findings"][0]["detail"])
+
+    def test_unversioned_info_yml_is_unknown(self):
+        # Realistic git / source checkout: Drupal.org packaging adds project: and version:.
+        self.s.write(self.YML_PATH,
+                     "name: Commerce\n"
+                     "type: module\n"
+                     "description: 'Defines common features for eCommerce features.'\n"
+                     "package: Commerce\n"
+                     "core_version_requirement: ^10.3 || ^11\n"
+                     "configure: entity.commerce_store.collection\n"
+                     "dependencies:\n"
+                     "  - address:address\n"
+                     "  - entity:entity\n")
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertIn("unpackaged checkout", c["findings"][0]["detail"])
+        self.assertIn("check the commit", c["findings"][0]["detail"])
+
+    def test_windows_inetpub_3_3_12_is_affected(self):
+        w = self.sim("windows")
+        self._info("C:/inetpub/wwwroot/shop/web/modules/contrib/commerce/" + self.INFO_YML,
+                   "3.3.12", host=w)
+        c = self._check(w, extra_roots=["C:/inetpub/wwwroot"])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_var_www_3_3_13_is_pass(self):
+        self._info("/var/www/shop/web/modules/contrib/commerce/" + self.INFO_YML, "3.3.13")
+        c = self._check(extra_roots=["/var/www"])
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_composer_json_constraint_only_is_not_applicable(self):
+        self.s.write("~/sites/shop/composer.json",
+                     json.dumps({"require": {"drupal/commerce": "^3.3"}}))
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_json_constraint_plus_fixed_lock_and_info_is_pass(self):
+        self.s.write("~/sites/shop/composer.json",
+                     json.dumps({"require": {"drupal/commerce": "^3.3"}}))
+        self._lock(self.LOCK, "3.3.13")
+        self._info(self.YML_PATH, "3.3.13")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertTrue(all(f["result"] == "info" for f in c["findings"]))
+
+    def test_fixed_lock_turns_unversioned_info_into_note(self):
+        self._lock(self.LOCK, "3.3.13")
+        self._info(self.YML_PATH)
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertTrue(any("no version" in n for n in c["notes"]))
+        self.assertFalse(any(f["result"] == "unknown" for f in c["findings"]))
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_info_yml_is_blocked(self):
+        path = self.s.write(self.YML_PATH, "project: commerce\nversion: '3.3.12'\n")
+        os.chmod(path, 0)
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("cannot read", c["reason"])
+
+    def test_dev_builds_are_review(self):
+        for ver in ("3.x-dev", "8.x-2.x-dev", "dev-3.x", "3.3.14-dev", "3.4.0-dev"):
+            s = self.sim("linux")
+            self._lock("~/sites/shop/composer.lock", ver, host=s)
+            c = self._check(s)
+            self.assertStatus(c, "FAIL")
+            self.assertEqual(results(c), ["review"], ver)
+            self.assertIn("check commit", c["findings"][0]["detail"])
+
+    def test_leading_v_four_part_and_non_prerelease_rest(self):
+        for ver in ("v3.3.13", "3.3.13" + ".0", "3.3.13+build1"):
+            s = self.sim("linux")
+            self._lock("~/sites/shop/composer.lock", ver, host=s)
+            c = self._check(s)
+            self.assertStatus(c, "PASS")
+            self.assertEqual(results(c), ["info"], ver)
+
+    def test_lock_major_below_two_is_review(self):
+        self._lock(self.LOCK, "1.2.0")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_installed_json_3_3_12_is_affected(self):
+        self.s.write("~/sites/shop/vendor/composer/installed.json",
+                     json.dumps({"packages": [{"name": "drupal/commerce", "version": "3.3.12"}]}))
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_oversized_lock_is_blocked(self):
+        self.s.write(self.LOCK, b"{" + b" " * (4 * 1024 * 1024) + b"}")
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("too large", c["reason"])
+
+    def test_vendored_info_yml_alone_is_not_applicable(self):
+        self.s.write("~/sites/shop/vendor/autoload.php", "<?php\n")
+        self._info("~/sites/shop/vendor/drupal/commerce/" + self.INFO_YML, "3.3.12")
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_shipping_info_yml_is_not_applicable(self):
+        self._info("~/sites/shop/web/modules/contrib/commerce_shipping/" + "commerce_shipping" + ".info.yml",
+                   "3.3.12", project="commerce_shipping")
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_bare_word_commerce_is_not_applicable(self):
+        self.s.write("~/notes/README.md", "we sell things with commerce software\n")
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_metadata_sources_include_advisory(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "drupal-commerce-118539")
+        self.assertEqual(meta["confirmation"], "confirmed")
+        self.assertEqual(meta["section"], "check_if_used")
+        urls = [hc.SRC[s][1] for s in meta["sources"]]
+        self.assertIn("https://www.drupal.org/sa-contrib-2026-254", urls)
+        self.assertIn("3.3.13", meta["remediation"])
+        self.assertIn("^10.3", meta["remediation"])
+        self.assertIn("^9.3", meta["remediation"])
+        self.assertTrue(any(item == "Drupal Commerce order-inconsistency audit" for item, _reason in hc.SKIPPED))
+
+    def test_northflank_is_untouched(self):
+        self.assertFalse(any("Northflank" in item for item, _reason in hc.SKIPPED))
+        self.assertFalse(any(m["id"] == "northflank" or "Northflank" in m["title"] for m in hc.CHECKS))
+
+    def test_crlf_info_yml_3_3_12_is_affected(self):
+        self.s.write(self.YML_PATH,
+                     "name: Commerce\r\ntype: module\r\nproject: 'commerce'\r\nversion: '3.3.12'\r\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_crlf_info_yml_3_3_13_is_pass(self):
+        self.s.write(self.YML_PATH,
+                     "name: Commerce\r\ntype: module\r\nproject: commerce\r\nversion: 3.3.13\r\n")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_bom_on_first_line_is_matched(self):
+        self.s.write(self.YML_PATH, b"\xef\xbb\xbfproject: 'commerce'\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_home_lock_does_not_clear_unrelated_site(self):
+        self._lock("~/composer.lock", "3.3.13")
+        self._info("~/sites/other/web/modules/contrib/commerce/" + self.INFO_YML)
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertFalse(any("no version" in n for n in c.get("notes", [])))
+
+    def test_sibling_old_site_is_not_cleared_by_shop_lock(self):
+        self._lock(self.LOCK, "3.3.13")
+        self._info("~/sites/shop/old-site/web/modules/contrib/commerce/" + self.INFO_YML)
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertFalse(any("no version" in n for n in c.get("notes", [])))
+
+    def test_project_key_is_matched_case_insensitively(self):
+        self.s.write(self.YML_PATH, "name: Commerce\ntype: module\nproject: Commerce\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_several_version_lines_are_review(self):
+        self.s.write(self.YML_PATH, "project: commerce\nversion: '3.3.13'\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_indented_version_is_ignored(self):
+        self.s.write(self.YML_PATH,
+                     "project: commerce\nfoo:\n  version: '9.9.9'\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "3.3.12")
+
+    def test_reported_version_is_capped(self):
+        ver = "3.3.12" + ("x" * 200)
+        self._info(self.YML_PATH, ver)
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertLessEqual(len(c["findings"][0]["version"]), 64)
+
+    def test_lock_mentions_commerce_without_readable_version_is_unknown(self):
+        self.s.write(self.LOCK, json.dumps(
+            {"packages": {"drupal/commerce": {"name": "drupal/commerce"}}}))
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_invalid_json_lock_names_cause(self):
+        self.s.write(self.LOCK, "{not json")
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("invalid JSON", c["reason"])
+
+    def test_lock_under_folder_named_vendor_is_not_skipped(self):
+        self._lock("~/clients/vendor/shop/composer.lock", "3.3.12")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_require_dev_mention_without_commerce_package_is_not_applicable(self):
+        self.s.write(self.LOCK, json.dumps({
+            "packages": [{
+                "name": "drupal/symfony_mailer",
+                "version": "2.0.2",
+                "require-dev": {"drupal/commerce": "^2.0"},
+            }],
+            "packages-dev": [],
+        }))
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_suggest_mention_without_commerce_package_is_not_applicable(self):
+        self.s.write(self.LOCK, json.dumps({
+            "packages": [{
+                "name": "some/pkg",
+                "version": "1.0.0",
+                "suggest": {"drupal/commerce": "optional store"},
+            }],
+        }))
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_conflict_mention_without_commerce_package_is_not_applicable(self):
+        self.s.write(self.LOCK, json.dumps({
+            "packages": [{
+                "name": "some/pkg",
+                "version": "1.0.0",
+                "conflict": {"drupal/commerce": "*"},
+            }],
+        }))
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_commerce_shipping_lock_only_is_not_applicable(self):
+        self._lock(self.LOCK, "2.0.0", name="drupal/commerce_shipping")
+        self.assertStatus(self._check(), "NOT_APPLICABLE")
+
+    def test_unpackaged_checkout_pairs_with_fixed_lock(self):
+        self._lock(self.LOCK, "3.3.13")
+        self.s.write(self.YML_PATH,
+                     "name: Commerce\n"
+                     "type: module\n"
+                     "package: Commerce\n"
+                     "core_version_requirement: ^10.3 || ^11\n")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertTrue(any("no version" in n for n in c["notes"]))
+        self.assertFalse(any(f["result"] == "unknown" for f in c["findings"]))
+
+    def test_unpackaged_checkout_pairs_with_fixed_installed_json_docroot(self):
+        self.s.write("~/sites/shop/vendor/composer/installed.json",
+                     json.dumps({"packages": [{"name": "drupal/commerce", "version": "3.3.13"}]}))
+        self.s.write("~/sites/shop/docroot/modules/contrib/commerce/" + self.INFO_YML,
+                     "name: Commerce\ntype: module\npackage: Commerce\n")
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertTrue(any("no version" in n for n in c["notes"]))
+        self.assertFalse(any(f["result"] == "unknown" for f in c["findings"]))
+
+    def test_numeric_dev_suffix_variants_are_review(self):
+        for ver in ("3.4.0-dev+abc", "3.4.0-dev1", "3.3.13-DEV"):
+            s = self.sim("linux")
+            self._lock("~/sites/shop/composer.lock", ver, host=s)
+            c = self._check(s)
+            self.assertStatus(c, "FAIL")
+            self.assertEqual(results(c), ["review"], ver)
+            self.assertIn("check commit", c["findings"][0]["detail"])
+
+    def test_mixed_case_web_layout_pairs_with_lock(self):
+        self._lock("~/sites/Shop/composer.lock", "3.3.13")
+        self._info("~/sites/Shop/Web/modules/contrib/commerce/" + self.INFO_YML)
+        c = self._check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertTrue(any("no version" in n for n in c["notes"]))
+
+    def test_padded_quoted_affected_version_is_not_cleared_by_fixed_lock(self):
+        self._lock(self.LOCK, "3.3.13")
+        self.s.write(self.YML_PATH, "project: commerce\nversion: ' 3.3.12 '\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        self.assertEqual(
+            next(f["version"] for f in c["findings"] if f["result"] == "affected"),
+            "3.3.12")
+
+    def test_long_non_matching_version_line_does_not_hide_the_real_one(self):
+        junk = "version:" + (" " * 4000) + "'x'y\n"
+        self.s.write(self.YML_PATH, "project: commerce\n" + junk + "version: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "3.3.12")
+
+    def test_identical_duplicate_version_lines_use_the_value(self):
+        self.s.write(self.YML_PATH, "project: commerce\nversion: '3.3.12'\nversion: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "3.3.12")
+
+    def test_info_yml_named_for_a_different_project_is_review(self):
+        self._info(self.YML_PATH, "3.3.13", project="commerce_kickstart")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("different project", c["findings"][0]["detail"])
+
+    def test_lock_under_clients_vendor_acme_shop_is_not_skipped(self):
+        self._lock("~/clients/vendor/acme/shop/composer.lock", "3.3.12")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_hash_local_suffix_on_floor_is_review_not_fixed(self):
+        for ver in ("3.3.13-rc1#local", "3.3.13#local"):
+            s = self.sim("linux")
+            self._lock(self.LOCK, ver, host=s)
+            c = self._check(s)
+            self.assertStatus(c, "FAIL")
+            self.assertEqual(results(c), ["review"], ver)
+            self.assertIn("unsupported version suffix", c["findings"][0]["detail"])
+
+    def test_unreadable_version_line_is_unknown_not_paired(self):
+        self._lock(self.LOCK, "3.3.13")
+        self.s.write(self.YML_PATH, "project: commerce\nversion: 3.3.12 local\n")
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertTrue(any("unreadable version" in f["detail"] for f in c["findings"]))
+        self.assertFalse(c["notes"])
+
+
 class AnthropicChain(SimCase):
     def test_stale_chrome_is_review(self):
         self.s.dpkg({"google-chrome-stable": "155.0.7700.10-1"})

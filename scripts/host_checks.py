@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, ruby, git, TeamViewer or any audited program,
+- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -57,7 +57,7 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 BRIEFING = "Security briefings, 16-30 Oct 2026 (public reports; dated 2026-10-27, 2026-10-28 and 2026-10-30)"
 BRIEFING_DATE = "2026-10-30"
 APP = ".app"
@@ -81,6 +81,13 @@ LIMITS = [
     "parse_version nums ignore the ABI, so 6.8.0-90 and 6.8.0-124 are not treated as equal.",
     "linux-tcp-uaf-98432 records the running kernel as review: no released Ubuntu fixed build was retrieved. "
     "cve.org floors published 15 Oct 2026, updated 30 Oct 2026 are not Ubuntu package floors. It never claims patched.",
+    "drupal-commerce-118539 reads composer.lock, vendor/composer/installed.json and the packaged Commerce "
+    "info.yml (project: commerce, case-insensitive). composer.json is not evidence. A lock mentions "
+    "drupal/commerce only when a package is named drupal/commerce. Stale copies under releases/ or *.bak can FAIL. "
+    "The walk does not cover /opt, /data, other users' public_html, container volumes, or roots that were not passed in. "
+    "Symlinked files and module folders (for example Composer path repos) are not followed. "
+    "A directory named vendor is a Composer vendor tree only if it contains autoload.php or composer/installed.json. "
+    "Drupal 7 commerce INI files are out of scope.",
 ]
 
 CLEANUP_ORDER = [
@@ -212,6 +219,16 @@ SRC = {
                      "https://ubuntu.com/security/CVE-2026-98432"),
     "cve-98432": ("CVE Record CVE-2026-98432 (published 15 Oct 2026, updated 30 Oct 2026)",
                   "https://www.cve.org/CVERecord?id=CVE-2026-98432"),
+    "sa-contrib-2026-254": ("Drupal SA-CONTRIB-2026-254: Commerce Core access bypass (CVE-2026-118539)",
+                            "https://www.drupal.org/sa-contrib-2026-254"),
+    "commerce-rel-3-3-13": ("Drupal.org: Commerce Core 3.3.13",
+                            "https://www.drupal.org/project/commerce/releases/3.3.13"),
+    "commerce-rel-8-x-2-41": ("Drupal.org: Commerce Core 8.x-2.41",
+                              "https://www.drupal.org/project/commerce/releases/8.x-2.41"),
+    "cve-118539": ("CVE Record CVE-2026-118539",
+                   "https://www.cve.org/CVERecord?id=CVE-2026-118539"),
+    "thn-commerce-118539": ("The Hacker News: Drupal Commerce actively exploited (pointer; not a version floor)",
+                            "https://thehackernews.com/2026/10/hackers-actively-exploit-highly.html"),
 }
 
 SKIPPED = [
@@ -242,6 +259,9 @@ SKIPPED = [
      "Separate GitHub social-engineering lead; no local metadata indicator beyond a README one-liner."),
     ("DHS staff identity leak", "Government data leak; nothing on the endpoint shows it."),
     ("Synology NAS ransomware reports", "Appliance; single forum source; no vendor confirmation."),
+    ("Drupal Commerce order-inconsistency audit",
+     "Needs the site database; drupal-commerce-118539 only reads the packaged Commerce info.yml, composer.lock and "
+     "vendor/composer/installed.json."),
 ]
 
 
@@ -495,6 +515,9 @@ class Index:
         self.peoplesoft = []
         self.gmo_cfg = []
         self.mesh_acl = []
+        self.composer_lock = []
+        self.composer_installed = []
+        self.drupal_commerce = []
         self.complete = True
         self.stopped = None
 
@@ -617,6 +640,12 @@ def build_index(host):
             idx.gmo_cfg.append(path)
         if low in ("acl.hujson", "policy.hujson", "tailscale-acl.json", "tailnet-acl.json", "tailnet-policy.json"):
             idx.mesh_acl.append(path)
+        if low == "composer.lock" and not _in_composer_vendor(path):
+            idx.composer_lock.append(path)
+        if low == "installed.json" and len(plow) >= 2 and plow[-2:] == ["vendor", "composer"]:
+            idx.composer_installed.append(path)
+        if low == "commerce" + ".info.yml" and not _in_composer_vendor(path):
+            idx.drupal_commerce.append(path)
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
 
@@ -2712,6 +2741,236 @@ def check_magento(host, r):
               "(database not read)", path=host.display(d))
 
 
+COMMERCE_8X = re.compile(r"^8\.x-")
+COMMERCE_DEV = re.compile(r"(?:^dev-)|(?:x-dev(?:$|[-.]))|(?:-dev(?:$|[+.\d-]))")
+COMMERCE_FLOORS = ("2.41", "3.3.13")
+COMMERCE_INFO_LIMIT = 64 * 1024
+COMMERCE_INFO_YML = "commerce" + ".info.yml"
+COMMERCE_PROJECT_RE = re.compile(
+    r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
+COMMERCE_PROJECT_ANY_RE = re.compile(r"(?mi)^project:[ \t]*")
+COMMERCE_VERSION_RE = re.compile(
+    r"(?m)^version:[ \t]*(?:'([^'#\n]*)'|\"([^\"#\n]*)\"|([^'\"#\s]\S*))\s*(?:#.*)?$")
+COMMERCE_VERSION_ANY_RE = re.compile(r"(?m)^version:[ \t]*[^\s#]")
+
+
+def _commerce_version_values(text):
+    values = []
+    for parts in COMMERCE_VERSION_RE.findall(text):
+        ver = "".join(parts).strip()
+        if ver:
+            values.append(ver)
+    return values
+COMMERCE_INFO_REL_RE = re.compile(
+    r"^(?:web/|docroot/|html/|public/)?modules/(?:contrib/)?"
+    r"commerce/" + re.escape(COMMERCE_INFO_YML) + r"$",
+    re.I)
+COMMERCE_PKG_NAME_RE = re.compile(r'"name"\s*:\s*"drupal/commerce"')
+
+
+def _commerce_normalize(text):
+    return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _in_composer_vendor(file_path):
+    """True when the file sits under a Composer vendor tree.
+
+    A directory named vendor counts only if it contains autoload.php or
+    composer/installed.json, so ~/clients/vendor/acme/shop/composer.lock is
+    not skipped.
+    """
+    current = os.path.dirname(os.path.abspath(file_path))
+    while True:
+        if os.path.basename(current).lower() == "vendor":
+            return (
+                hs.is_regular(os.path.join(current, "autoload.php"))
+                or hs.is_regular(os.path.join(current, "composer", "installed.json"))
+            )
+        parent = os.path.dirname(current)
+        if parent == current:
+            return False
+        current = parent
+
+
+def _commerce_packages(doc):
+    blocks = []
+    if isinstance(doc, list):
+        blocks = [doc]
+    elif isinstance(doc, dict):
+        for key in ("packages", "packages-dev"):
+            block = doc.get(key)
+            if isinstance(block, list):
+                blocks.append(block)
+    out = []
+    for block in blocks:
+        for pkg in block:
+            if isinstance(pkg, dict) and pkg.get("name") == "drupal/commerce":
+                out.append(pkg.get("version"))
+    return out
+
+
+def _commerce_site_root(path):
+    norm = os.path.normcase(os.path.abspath(path))
+    parent = os.path.dirname(norm)
+    if os.path.basename(norm) == "installed.json":
+        if os.path.basename(parent).lower() == "composer":
+            vendor = os.path.dirname(parent)
+            if os.path.basename(vendor).lower() == "vendor":
+                return os.path.dirname(vendor)
+    return parent
+
+
+def _under_site(path, root):
+    path = os.path.normcase(os.path.abspath(path))
+    root = os.path.normcase(os.path.abspath(root))
+    if path == root:
+        return True
+    return path.startswith(root + os.sep)
+
+
+def _commerce_relposix(path, root):
+    path = os.path.normcase(os.path.abspath(path))
+    root = os.path.normcase(os.path.abspath(root))
+    return os.path.relpath(path, root).replace("\\", "/")
+
+
+def classify_commerce(r, component, raw, path, source):
+    if raw is None or not str(raw).strip().strip("\"'"):
+        r.add("unknown", component, "version string missing (%s)" % source, path=path)
+        return "unknown"
+    original = str(raw).strip().strip("\"'")
+    reported = textscan.redact(original)[:64]
+    stripped = COMMERCE_8X.sub("", original, count=1)
+    if COMMERCE_DEV.search(stripped.lower()) or COMMERCE_DEV.search(original.lower()):
+        r.add("review", component, "development build; check commit (%s)" % source,
+              path=path, version=reported)
+        return "review"
+    if "#" in original or "#" in stripped:
+        r.add("review", component, "unsupported version suffix (%s)" % source,
+              path=path, version=reported)
+        return "review"
+    before = len(r.findings)
+    res = classify_version(r, component, stripped, path, COMMERCE_FLOORS, line_len=1, source=source)
+    if len(r.findings) > before:
+        r.findings[-1]["version"] = reported
+    if res == "ok":
+        return "info"
+    return res
+
+
+def _commerce_blocked_cause(host, path):
+    shown = host.display(path)
+    for item in reversed(host.gaps.examples):
+        if item.get("path") != shown:
+            continue
+        kind = item.get("kind")
+        if kind == "oversized":
+            return "too large"
+        return "cannot read"
+    return "cannot read"
+
+
+def _commerce_read_needed(host, r, path, reader, limit):
+    data = reader(path, limit, host.gaps)
+    if data is None and hs.exists_nofollow(path):
+        r.blocked.append("%s %s" % (host.display(path), _commerce_blocked_cause(host, path)))
+        return None
+    return data
+
+
+def _commerce_deepest_root(path, roots):
+    enclosing = [root for root in roots if _under_site(path, root)]
+    if not enclosing:
+        return None
+    return max(enclosing, key=lambda item: len(os.path.abspath(item)))
+
+
+def _commerce_same_site_fixed(path, roots):
+    deepest = _commerce_deepest_root(path, roots)
+    return (deepest is not None and roots.get(deepest)
+            and bool(COMMERCE_INFO_REL_RE.match(_commerce_relposix(path, deepest))))
+
+
+def _commerce_pair_note(host, r, path):
+    r.notes.append(
+        "%s has no version; a composer.lock or installed.json in the same site root "
+        "is at or above the advisory floor" % host.display(path))
+
+
+def check_drupal_commerce(host, r):
+    idx = index(host)
+    roots = {}
+    for path, source in ([(p, "composer.lock") for p in idx.composer_lock]
+                         + [(p, "installed.json") for p in idx.composer_installed]):
+        text = _commerce_read_needed(host, r, path, hs.read_text, 4 * MIB)
+        if text is None:
+            continue
+        text = _commerce_normalize(text)
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            r.blocked.append("%s invalid JSON" % host.display(path))
+            continue
+        root = _commerce_site_root(path)
+        roots.setdefault(root, False)
+        vers = _commerce_packages(doc)
+        if not vers:
+            if COMMERCE_PKG_NAME_RE.search(text):
+                r.add("unknown", "Drupal Commerce Core",
+                      "%s mentions drupal/commerce but no version could be read" % source,
+                      path=host.display(path))
+            continue
+        for ver in vers:
+            res = classify_commerce(r, "Drupal Commerce Core", ver, host.display(path), source)
+            if res == "info":
+                roots[root] = True
+    for path in idx.drupal_commerce:
+        text = _commerce_read_needed(host, r, path, hs.read_text, COMMERCE_INFO_LIMIT)
+        if text is None:
+            continue
+        text = _commerce_normalize(text)
+        if not COMMERCE_PROJECT_RE.search(text):
+            if COMMERCE_PROJECT_ANY_RE.search(text):
+                r.add("review", "Drupal Commerce Core",
+                      COMMERCE_INFO_YML + " names a different project",
+                      path=host.display(path))
+                continue
+            if _commerce_same_site_fixed(path, roots):
+                _commerce_pair_note(host, r, path)
+            else:
+                r.add("unknown", "Drupal Commerce Core",
+                      "unpackaged checkout; check the commit",
+                      path=host.display(path))
+            continue
+        versions = _commerce_version_values(text)
+        if not versions and COMMERCE_VERSION_ANY_RE.search(text):
+            r.add("unknown", "Drupal Commerce Core",
+                  COMMERCE_INFO_YML + " has an unreadable version:",
+                  path=host.display(path))
+            continue
+        unique = []
+        seen = set()
+        for ver in versions:
+            if ver not in seen:
+                seen.add(ver)
+                unique.append(ver)
+        if len(seen) > 1:
+            r.add("review", "Drupal Commerce Core",
+                  "several version: lines in " + COMMERCE_INFO_YML,
+                  path=host.display(path))
+            continue
+        ver = unique[0] if unique else ""
+        if not ver:
+            if _commerce_same_site_fixed(path, roots):
+                _commerce_pair_note(host, r, path)
+            else:
+                r.add("unknown", "Drupal Commerce Core",
+                      COMMERCE_INFO_YML + " has project: commerce but no version",
+                      path=host.display(path))
+            continue
+        classify_commerce(r, "Drupal Commerce Core", ver, host.display(path), COMMERCE_INFO_YML)
+
+
 def check_connectwise(host, r):
     paths = [host.sys("C:/Windows/LTSvc")]
     for pf in host.program_files():
@@ -3607,6 +3866,18 @@ CHECKS = [
     check_meta("magento-store", "Magento store code on disk", "check_if_used", "confirmed", "dependency", ["thn-magento"],
                "953 stores, mostly Magento, had hidden JavaScript in CMS blocks.",
                "Apply Adobe's PolyShell fix; check cms_block for code nobody added.", ALL_OS, check_magento),
+    check_meta("drupal-commerce-118539",
+               "Drupal Commerce Core below 8.x-2.41 / 3.3.13 (CVE-2026-118539)",
+               "check_if_used", "confirmed", "dependency",
+               ["sa-contrib-2026-254", "commerce-rel-3-3-13", "commerce-rel-8-x-2-41",
+                "cve-118539", "thn-commerce-118539"],
+               "SA-CONTRIB-2026-254 (CVE-2026-118539): Drupal Commerce Core access bypass, actively exploited. "
+               "Affected <2.41 or >=3.0.0 <3.3.13. Fixed builds 8.x-2.41 and 3.3.13. News ranges that include "
+               "those builds are not floors. Drupal 7 commerce INI files are out of scope; this check cannot see them.",
+               "Upgrade Commerce Core to 3.3.13 (requires Drupal ^10.3 || ^11) or 8.x-2.41 "
+               "(requires Drupal ^9.3 || ^10). Then audit orders in the site database; this tool does not. "
+               "No workaround replaces the upgrade.",
+               ALL_OS, check_drupal_commerce),
     check_meta("connectwise-presence", "ConnectWise software present", "check_if_used", "confirmed", "runtime",
                ["thn-connectwise"], "A hacked ConnectWise Cloud Backup app was used to hit hundreds of companies.",
                "Ask whether you or a managed IT provider use ConnectWise.", ALL_OS, check_connectwise, uses_walk=False),
