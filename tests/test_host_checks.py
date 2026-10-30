@@ -1003,6 +1003,14 @@ class DrupalCommerce118539(SimCase):
         self.assertEqual(results(c), ["info"])
         self.assertTrue(any("no version" in n for n in c["notes"]))
 
+    def test_long_non_matching_version_line_does_not_hide_the_real_one(self):
+        junk = "version:" + (" " * 4000) + "'x'y\n"
+        self.s.write(self.YML_PATH, "project: commerce\n" + junk + "version: '3.3.12'\n")
+        c = self._check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "3.3.12")
+
     def test_identical_duplicate_version_lines_use_the_value(self):
         self.s.write(self.YML_PATH, "project: commerce\nversion: '3.3.12'\nversion: '3.3.12'\n")
         c = self._check()

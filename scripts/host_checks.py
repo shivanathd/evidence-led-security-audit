@@ -2750,7 +2750,7 @@ COMMERCE_PROJECT_RE = re.compile(
     r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
 COMMERCE_PROJECT_ANY_RE = re.compile(r"(?mi)^project:[ \t]*")
 COMMERCE_VERSION_RE = re.compile(
-    r"(?m)^version:[ \t]*['\"]?([^'\"#\n]+?)['\"]?[ \t]*(?:#.*)?$")
+    r"(?m)^version:[ \t]*['\"]?([^'\"#\s](?:[^'\"#\n]*[^'\"#\s])?)['\"]?[ \t]*(?:#.*)?$")
 COMMERCE_INFO_REL_RE = re.compile(
     r"^(?:web/|docroot/|html/|public/)?modules/(?:contrib/)?"
     r"commerce/" + re.escape(COMMERCE_INFO_YML) + r"$",
