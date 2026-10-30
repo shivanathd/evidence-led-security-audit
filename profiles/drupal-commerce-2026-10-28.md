@@ -49,9 +49,11 @@ Classification after an anchored, case-sensitive strip of a leading `8.x-`. The 
 - 2.x below 2.41, or 3.x below 3.3.13 (including a prerelease of the floor) → `affected`
 - at or above 2.41 on 2.x, or 3.3.13 on 3.x → `info`
 - development builds (`*x-dev`, `dev-*`, numeric `*-dev` including `+build` / `-dev1` / uppercase `-DEV`) or a major outside 2.x / 3.x → `review` (“check commit”)
+- a version whose remainder includes `#` (for example `3.3.13-rc1#local`) → `review` (“unsupported version suffix”); it is not compared to the floor
 - several `version:` lines whose values differ → `review`; identical duplicates use that value
 - packaged Commerce info.yml whose `project:` names something other than `commerce` (for example `commerce_kickstart`) → `review`
 - packaged info.yml with `project: commerce` but no version, or an unpackaged git checkout (no `project:` key; `composer install --prefer-source`) → `unknown`, unless a proven fixed lock or `installed.json` in the same site root is present **and** the relative path is a Drupal module layout (`(web|docroot|html|public)/?modules/(contrib/)?commerce/` plus the packaged info.yml, case-insensitive). That pairing is a note and the check can PASS.
+- a nonempty `version:` line that the matcher cannot parse (for example `version: 3.3.12 local`) → `unknown`; it is not treated as missing and is not paired with a fixed lock
 - a lock or `installed.json` that names `drupal/commerce` (`"name": "drupal/commerce"`) but has no readable version → `unknown`. A lock that only mentions the string under `require-dev`, `suggest`, `conflict`, or a `drupal/commerce_shipping` package is not evidence.
 
 ## How this maps to the skill

@@ -1041,6 +1041,24 @@ class DrupalCommerce118539(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_hash_local_suffix_on_floor_is_review_not_fixed(self):
+        for ver in ("3.3.13-rc1#local", "3.3.13#local"):
+            s = self.sim("linux")
+            self._lock(self.LOCK, ver, host=s)
+            c = self._check(s)
+            self.assertStatus(c, "FAIL")
+            self.assertEqual(results(c), ["review"], ver)
+            self.assertIn("unsupported version suffix", c["findings"][0]["detail"])
+
+    def test_unreadable_version_line_is_unknown_not_paired(self):
+        self._lock(self.LOCK, "3.3.13")
+        self.s.write(self.YML_PATH, "project: commerce\nversion: 3.3.12 local\n")
+        c = self._check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertTrue(any("unreadable version" in f["detail"] for f in c["findings"]))
+        self.assertFalse(c["notes"])
+
 
 class AnthropicChain(SimCase):
     def test_stale_chrome_is_review(self):

@@ -2751,6 +2751,7 @@ COMMERCE_PROJECT_RE = re.compile(
 COMMERCE_PROJECT_ANY_RE = re.compile(r"(?mi)^project:[ \t]*")
 COMMERCE_VERSION_RE = re.compile(
     r"(?m)^version:[ \t]*(?:'([^'#\n]*)'|\"([^\"#\n]*)\"|([^'\"#\s]\S*))\s*(?:#.*)?$")
+COMMERCE_VERSION_ANY_RE = re.compile(r"(?m)^version:[ \t]*[^\s#]")
 
 
 def _commerce_version_values(text):
@@ -2842,6 +2843,10 @@ def classify_commerce(r, component, raw, path, source):
     stripped = COMMERCE_8X.sub("", original, count=1)
     if COMMERCE_DEV.search(stripped.lower()) or COMMERCE_DEV.search(original.lower()):
         r.add("review", component, "development build; check commit (%s)" % source,
+              path=path, version=reported)
+        return "review"
+    if "#" in original or "#" in stripped:
+        r.add("review", component, "unsupported version suffix (%s)" % source,
               path=path, version=reported)
         return "review"
     before = len(r.findings)
@@ -2938,6 +2943,11 @@ def check_drupal_commerce(host, r):
                       path=host.display(path))
             continue
         versions = _commerce_version_values(text)
+        if not versions and COMMERCE_VERSION_ANY_RE.search(text):
+            r.add("unknown", "Drupal Commerce Core",
+                  COMMERCE_INFO_YML + " has an unreadable version:",
+                  path=host.display(path))
+            continue
         unique = []
         seen = set()
         for ver in versions:
