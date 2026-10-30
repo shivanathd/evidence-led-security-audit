@@ -26,11 +26,11 @@ From SA-CONTRIB-2026-254:
 
 ## Evidence this check reads
 
-- `composer.lock` package `drupal/commerce` (not `composer.json` constraints)
+- `composer.lock` package whose `"name"` is `drupal/commerce` (not `composer.json` constraints, and not a `require-dev` / `suggest` / `conflict` mention of that string)
 - optional `vendor/composer/installed.json` package `drupal/commerce`
-- packaged Commerce info.yml whose YAML `project:` is exactly `commerce`
+- packaged Commerce info.yml whose YAML `project:` is `commerce` (case-insensitive)
 
-It does not read companion `commerce_*` modules, Magento / Adobe Commerce, vendored copies of the info.yml, or Drupal 7 commerce INI files.
+It does not read companion `commerce_*` modules, Magento / Adobe Commerce, copies of the info.yml under a Composer vendor tree (`vendor/autoload.php` or `vendor/composer/installed.json` present), or Drupal 7 commerce INI files. A directory merely named `vendor` is not a Composer vendor tree.
 
 ## Finding to check-result rollup (`run_check`)
 
@@ -44,12 +44,15 @@ Each finding is one evidence row. The check result is the rollup:
 | only `info` (every found copy at or above its line floor) | `PASS` |
 | nothing found in the listed roots | `NOT_APPLICABLE` |
 
-Classification after an anchored, case-sensitive strip of a leading `8.x-`:
+Classification after an anchored, case-sensitive strip of a leading `8.x-`. The version string is lowercased before the development-build match (`-dev` at end, or `-dev` followed by `+`, `.`, a digit, or `-`; also `*x-dev` and `dev-*`). That includes `3.4.0-dev+abc`, `3.4.0-dev1`, and `3.3.13-DEV`.
 
 - 2.x below 2.41, or 3.x below 3.3.13 (including a prerelease of the floor) → `affected`
 - at or above 2.41 on 2.x, or 3.3.13 on 3.x → `info`
-- `*x-dev`, `dev-*`, or a major outside 2.x / 3.x → `review` (“check commit” for dev builds)
-- packaged info.yml with `project: commerce` but no version → `unknown`, unless a proven fixed lock or `installed.json` in the same site root is present, in which case it is a note
+- development builds (`*x-dev`, `dev-*`, numeric `*-dev` including `+build` / `-dev1` / uppercase `-DEV`) or a major outside 2.x / 3.x → `review` (“check commit”)
+- several `version:` lines whose values differ → `review`; identical duplicates use that value
+- packaged Commerce info.yml whose `project:` names something other than `commerce` (for example `commerce_kickstart`) → `review`
+- packaged info.yml with `project: commerce` but no version, or an unpackaged git checkout (no `project:` key; `composer install --prefer-source`) → `unknown`, unless a proven fixed lock or `installed.json` in the same site root is present **and** the relative path is a Drupal module layout (`(web|docroot|html|public)/?modules/(contrib/)?commerce/` plus the packaged info.yml, case-insensitive). That pairing is a note and the check can PASS.
+- a lock or `installed.json` that names `drupal/commerce` (`"name": "drupal/commerce"`) but has no readable version → `unknown`. A lock that only mentions the string under `require-dev`, `suggest`, `conflict`, or a `drupal/commerce_shipping` package is not evidence.
 
 ## How this maps to the skill
 
@@ -64,6 +67,7 @@ Classification after an anchored, case-sensitive strip of a leading `8.x-`:
 - Symlinked files and module folders (for example Composer path repos) are not followed.
 - Drupal 7 commerce INI files are out of scope. This check cannot see that product line.
 - `composer.json` ranges are not evidence. A patched lock plus a loose `^3.3` constraint is still PASS when the lock and info.yml are fixed.
+- A folder named `vendor` is treated as Composer’s vendor tree only when `vendor/autoload.php` or `vendor/composer/installed.json` exists. `~/clients/vendor/acme/shop/composer.lock` is therefore still read.
 
 ## Closing a finding under this profile
 

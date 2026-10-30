@@ -35,6 +35,7 @@ import json
 import os
 import posixpath
 import re
+import stat
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -112,29 +113,41 @@ PEOPLESOFT_FILENAMES = frozenset({
 })
 COMMERCE_PROJECT_RE = re.compile(
     r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
-COMMERCE_PROJECT_ANY_RE = re.compile(r"(?m)^project:[ \t]*")
+COMMERCE_PROJECT_ANY_RE = re.compile(r"(?mi)^project:[ \t]*")
 COMMERCE_INFO_YML = "commerce" + ".info.yml"
+COMMERCE_PKG_NAME_RE = re.compile(r'"name"\s*:\s*"drupal/commerce"')
 
 
 def _commerce_normalize(text):
     return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _in_composer_vendor(parts):
-    """True only for Composer vendor/<org>/<pkg>/... and vendor/composer/ trees."""
-    plow = [p.lower() for p in parts]
-    last = -1
-    for i, p in enumerate(plow):
-        if p == "vendor":
-            last = i
-    if last < 0:
+def _exists_nofollow(path):
+    try:
+        st = os.lstat(path)
+    except OSError:
         return False
-    after = plow[last + 1:]
-    if after[:1] == ["composer"]:
-        return True
-    if len(after) >= 2 and after[1] not in ("web", "docroot", "html", "public", "modules", "sites"):
-        return True
-    return False
+    return stat.S_ISREG(st.st_mode)
+
+
+def _in_composer_vendor(file_path):
+    """True when the file sits under a Composer vendor tree.
+
+    A directory named vendor counts only if it contains autoload.php or
+    composer/installed.json, so clients/vendor/acme/shop/composer.lock is
+    not skipped.
+    """
+    current = os.path.dirname(os.path.abspath(file_path))
+    while True:
+        if os.path.basename(current).lower() == "vendor":
+            return (
+                _exists_nofollow(os.path.join(current, "autoload.php"))
+                or _exists_nofollow(os.path.join(current, "composer", "installed.json"))
+            )
+        parent = os.path.dirname(current)
+        if parent == current:
+            return False
+        current = parent
 # Split so the public-leak hostname scanner does not read a vendor domain as a leak.
 _ONAMAE_LABEL = "onamae"
 ONAMAE_HOST_RE = re.compile(r"(?i)\b(?:[\w-]+\.)?%s\.(?:com|co\.jp)\b" % _ONAMAE_LABEL)
@@ -878,10 +891,11 @@ class Inventory:
                 })
 
     def _composer_lock_commerce(self, rel, text):
-        if _in_composer_vendor(PurePosixPath(rel).parts[:-1]):
+        if _in_composer_vendor(os.path.join(self.root, rel)):
             return
+        text = _commerce_normalize(text)
         try:
-            doc = json.loads(_commerce_normalize(text))
+            doc = json.loads(text)
         except ValueError:
             return
         blocks = []
@@ -900,11 +914,16 @@ class Inventory:
                         "hint": "composer.lock package drupal/commerce (lock pin; not runtime proof)",
                     })
                     return
+        if COMMERCE_PKG_NAME_RE.search(text):
+            self.out["drupal_commerce_hints"].append({
+                "path": rel, "line": 0,
+                "hint": "composer.lock names drupal/commerce (lock pin; not runtime proof)",
+            })
 
     def _commerce_info_yml(self, rel, name, text):
         if name.lower() != COMMERCE_INFO_YML:
             return
-        if _in_composer_vendor(PurePosixPath(rel).parts[:-1]):
+        if _in_composer_vendor(os.path.join(self.root, rel)):
             return
         text = _commerce_normalize(text)
         if COMMERCE_PROJECT_RE.search(text):
@@ -914,6 +933,10 @@ class Inventory:
             })
             return
         if COMMERCE_PROJECT_ANY_RE.search(text):
+            self.out["drupal_commerce_hints"].append({
+                "path": rel, "line": 0,
+                "hint": COMMERCE_INFO_YML + " names a different project (not runtime proof)",
+            })
             return
         self.out["drupal_commerce_hints"].append({
             "path": rel, "line": 0,

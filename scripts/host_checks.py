@@ -82,9 +82,11 @@ LIMITS = [
     "linux-tcp-uaf-98432 records the running kernel as review: no released Ubuntu fixed build was retrieved. "
     "cve.org floors published 15 Oct 2026, updated 30 Oct 2026 are not Ubuntu package floors. It never claims patched.",
     "drupal-commerce-118539 reads composer.lock, vendor/composer/installed.json and the packaged Commerce "
-    "info.yml (project: commerce). composer.json is not evidence. Stale copies under releases/ or *.bak can FAIL. "
+    "info.yml (project: commerce, case-insensitive). composer.json is not evidence. A lock mentions "
+    "drupal/commerce only when a package is named drupal/commerce. Stale copies under releases/ or *.bak can FAIL. "
     "The walk does not cover /opt, /data, other users' public_html, container volumes, or roots that were not passed in. "
     "Symlinked files and module folders (for example Composer path repos) are not followed. "
+    "A directory named vendor is a Composer vendor tree only if it contains autoload.php or composer/installed.json. "
     "Drupal 7 commerce INI files are out of scope.",
 ]
 
@@ -638,11 +640,11 @@ def build_index(host):
             idx.gmo_cfg.append(path)
         if low in ("acl.hujson", "policy.hujson", "tailscale-acl.json", "tailnet-acl.json", "tailnet-policy.json"):
             idx.mesh_acl.append(path)
-        if low == "composer.lock" and not _in_composer_vendor(plow):
+        if low == "composer.lock" and not _in_composer_vendor(path):
             idx.composer_lock.append(path)
         if low == "installed.json" and len(plow) >= 2 and plow[-2:] == ["vendor", "composer"]:
             idx.composer_installed.append(path)
-        if low == "commerce" + ".info.yml" and not _in_composer_vendor(plow):
+        if low == "commerce" + ".info.yml" and not _in_composer_vendor(path):
             idx.drupal_commerce.append(path)
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
@@ -2740,39 +2742,44 @@ def check_magento(host, r):
 
 
 COMMERCE_8X = re.compile(r"^8\.x-")
-COMMERCE_DEV = re.compile(r"(?:^dev-)|(?:x-dev(?:$|[-.]))|(?:-dev$)")
+COMMERCE_DEV = re.compile(r"(?:^dev-)|(?:x-dev(?:$|[-.]))|(?:-dev(?:$|[+.\d-]))")
 COMMERCE_FLOORS = ("2.41", "3.3.13")
 COMMERCE_INFO_LIMIT = 64 * 1024
 COMMERCE_INFO_YML = "commerce" + ".info.yml"
 COMMERCE_PROJECT_RE = re.compile(
     r"(?mi)^project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
-COMMERCE_PROJECT_ANY_RE = re.compile(r"(?m)^project:[ \t]*")
+COMMERCE_PROJECT_ANY_RE = re.compile(r"(?mi)^project:[ \t]*")
 COMMERCE_VERSION_RE = re.compile(
     r"(?m)^version:[ \t]*['\"]?([^'\"#\n]+?)['\"]?[ \t]*(?:#.*)?$")
 COMMERCE_INFO_REL_RE = re.compile(
     r"^(?:web/|docroot/|html/|public/)?modules/(?:contrib/)?"
-    r"commerce/" + re.escape(COMMERCE_INFO_YML) + r"$")
+    r"commerce/" + re.escape(COMMERCE_INFO_YML) + r"$",
+    re.I)
+COMMERCE_PKG_NAME_RE = re.compile(r'"name"\s*:\s*"drupal/commerce"')
 
 
 def _commerce_normalize(text):
     return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _in_composer_vendor(parts):
-    """True only for Composer vendor/<org>/<pkg>/... and vendor/composer/ trees."""
-    plow = [p.lower() for p in parts]
-    last = -1
-    for i, p in enumerate(plow):
-        if p == "vendor":
-            last = i
-    if last < 0:
-        return False
-    after = plow[last + 1:]
-    if after[:1] == ["composer"]:
-        return True
-    if len(after) >= 2 and after[1] not in ("web", "docroot", "html", "public", "modules", "sites"):
-        return True
-    return False
+def _in_composer_vendor(file_path):
+    """True when the file sits under a Composer vendor tree.
+
+    A directory named vendor counts only if it contains autoload.php or
+    composer/installed.json, so ~/clients/vendor/acme/shop/composer.lock is
+    not skipped.
+    """
+    current = os.path.dirname(os.path.abspath(file_path))
+    while True:
+        if os.path.basename(current).lower() == "vendor":
+            return (
+                hs.is_regular(os.path.join(current, "autoload.php"))
+                or hs.is_regular(os.path.join(current, "composer", "installed.json"))
+            )
+        parent = os.path.dirname(current)
+        if parent == current:
+            return False
+        current = parent
 
 
 def _commerce_packages(doc):
@@ -2824,7 +2831,7 @@ def classify_commerce(r, component, raw, path, source):
     original = str(raw).strip().strip("\"'")
     reported = textscan.redact(original)[:64]
     stripped = COMMERCE_8X.sub("", original, count=1)
-    if COMMERCE_DEV.search(stripped) or COMMERCE_DEV.search(original):
+    if COMMERCE_DEV.search(stripped.lower()) or COMMERCE_DEV.search(original.lower()):
         r.add("review", component, "development build; check commit (%s)" % source,
               path=path, version=reported)
         return "review"
@@ -2845,8 +2852,6 @@ def _commerce_blocked_cause(host, path):
         kind = item.get("kind")
         if kind == "oversized":
             return "too large"
-        if kind == "unparsed":
-            return "invalid JSON"
         return "cannot read"
     return "cannot read"
 
@@ -2864,6 +2869,18 @@ def _commerce_deepest_root(path, roots):
     if not enclosing:
         return None
     return max(enclosing, key=lambda item: len(os.path.abspath(item)))
+
+
+def _commerce_same_site_fixed(path, roots):
+    deepest = _commerce_deepest_root(path, roots)
+    return (deepest is not None and roots.get(deepest)
+            and bool(COMMERCE_INFO_REL_RE.match(_commerce_relposix(path, deepest))))
+
+
+def _commerce_pair_note(host, r, path):
+    r.notes.append(
+        "%s has no version; a composer.lock or installed.json in the same site root "
+        "is at or above the advisory floor" % host.display(path))
 
 
 def check_drupal_commerce(host, r):
@@ -2884,7 +2901,7 @@ def check_drupal_commerce(host, r):
         roots.setdefault(root, False)
         vers = _commerce_packages(doc)
         if not vers:
-            if "drupal/commerce" in text:
+            if COMMERCE_PKG_NAME_RE.search(text):
                 r.add("unknown", "Drupal Commerce Core",
                       "%s mentions drupal/commerce but no version could be read" % source,
                       path=host.display(path))
@@ -2900,25 +2917,33 @@ def check_drupal_commerce(host, r):
         text = _commerce_normalize(text)
         if not COMMERCE_PROJECT_RE.search(text):
             if COMMERCE_PROJECT_ANY_RE.search(text):
+                r.add("review", "Drupal Commerce Core",
+                      COMMERCE_INFO_YML + " names a different project",
+                      path=host.display(path))
                 continue
-            r.add("unknown", "Drupal Commerce Core",
-                  "unpackaged checkout; check the commit",
-                  path=host.display(path))
+            if _commerce_same_site_fixed(path, roots):
+                _commerce_pair_note(host, r, path)
+            else:
+                r.add("unknown", "Drupal Commerce Core",
+                      "unpackaged checkout; check the commit",
+                      path=host.display(path))
             continue
-        versions = COMMERCE_VERSION_RE.findall(text)
-        if len(versions) > 1:
+        versions = [v.strip() for v in COMMERCE_VERSION_RE.findall(text) if v.strip()]
+        unique = []
+        seen = set()
+        for ver in versions:
+            if ver not in seen:
+                seen.add(ver)
+                unique.append(ver)
+        if len(seen) > 1:
             r.add("review", "Drupal Commerce Core",
                   "several version: lines in " + COMMERCE_INFO_YML,
                   path=host.display(path))
             continue
-        ver = versions[0].strip() if versions else ""
+        ver = unique[0] if unique else ""
         if not ver:
-            deepest = _commerce_deepest_root(path, roots)
-            if (deepest is not None and roots.get(deepest)
-                    and COMMERCE_INFO_REL_RE.match(_commerce_relposix(path, deepest))):
-                r.notes.append(
-                    "%s has no version; a composer.lock or installed.json in the same site root "
-                    "is at or above the advisory floor" % host.display(path))
+            if _commerce_same_site_fixed(path, roots):
+                _commerce_pair_note(host, r, path)
             else:
                 r.add("unknown", "Drupal Commerce Core",
                       COMMERCE_INFO_YML + " has project: commerce but no version",

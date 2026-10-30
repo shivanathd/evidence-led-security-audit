@@ -594,7 +594,10 @@ class DrupalCommerceHints(unittest.TestCase):
 
     def test_vendored_info_yml_is_empty(self):
         def write(root):
-            vendored = root / "vendor" / "drupal" / "commerce"
+            vendor = root / "vendor"
+            vendor.mkdir(parents=True)
+            (vendor / "autoload.php").write_text("<?php\n", encoding="utf-8")
+            vendored = vendor / "drupal" / "commerce"
             vendored.mkdir(parents=True)
             (vendored / ("commerce" + ".info.yml")).write_text(
                 "project: commerce\nversion: '3.3.12'\n", encoding="utf-8")
@@ -650,13 +653,73 @@ class DrupalCommerceHints(unittest.TestCase):
 
     def test_vendored_package_lock_is_empty(self):
         def write(root):
-            pkg = root / "vendor" / "x" / "y"
+            vendor = root / "vendor"
+            vendor.mkdir(parents=True)
+            (vendor / "autoload.php").write_text("<?php\n", encoding="utf-8")
+            pkg = vendor / "x" / "y"
             pkg.mkdir(parents=True)
             (pkg / "composer.lock").write_text(
                 json.dumps({"packages": [{"name": "drupal/commerce", "version": "3.3.12"}]}),
                 encoding="utf-8")
 
         self.assertEqual(self._run(write)["drupal_commerce_hints"], [])
+
+    def test_require_dev_mention_without_commerce_package_is_empty(self):
+        def write(root):
+            (root / "composer.lock").write_text(json.dumps({
+                "packages": [{
+                    "name": "drupal/symfony_mailer",
+                    "version": "2.0.2",
+                    "require-dev": {"drupal/commerce": "^2.0"},
+                }],
+                "packages-dev": [],
+            }), encoding="utf-8")
+
+        self.assertEqual(self._run(write)["drupal_commerce_hints"], [])
+
+    def test_suggest_mention_without_commerce_package_is_empty(self):
+        def write(root):
+            (root / "composer.lock").write_text(json.dumps({
+                "packages": [{
+                    "name": "some/pkg",
+                    "version": "1.0.0",
+                    "suggest": {"drupal/commerce": "optional store"},
+                }],
+            }), encoding="utf-8")
+
+        self.assertEqual(self._run(write)["drupal_commerce_hints"], [])
+
+    def test_commerce_shipping_lock_only_is_empty(self):
+        def write(root):
+            (root / "composer.lock").write_text(
+                json.dumps({"packages": [{"name": "drupal/commerce_shipping", "version": "2.0.0"}]}),
+                encoding="utf-8")
+
+        self.assertEqual(self._run(write)["drupal_commerce_hints"], [])
+
+    def test_info_yml_named_for_a_different_project_is_a_hint(self):
+        def write(root):
+            module = root / "web" / "modules" / "contrib" / "commerce"
+            module.mkdir(parents=True)
+            (module / ("commerce" + ".info.yml")).write_text(
+                "name: Kickstart\nproject: commerce_kickstart\nversion: '3.3.13'\n",
+                encoding="utf-8")
+
+        hints = {h["path"]: h["hint"] for h in self._run(write)["drupal_commerce_hints"]}
+        yml = "web/modules/contrib/commerce/" + ("commerce" + ".info.yml")
+        self.assertIn(yml, hints)
+        self.assertIn("different project", hints[yml])
+
+    def test_lock_under_clients_vendor_acme_shop_is_a_hint(self):
+        def write(root):
+            shop = root / "clients" / "vendor" / "acme" / "shop"
+            shop.mkdir(parents=True)
+            (shop / "composer.lock").write_text(
+                json.dumps({"packages": [{"name": "drupal/commerce", "version": "3.3.12"}]}),
+                encoding="utf-8")
+
+        hints = {h["path"] for h in self._run(write)["drupal_commerce_hints"]}
+        self.assertIn("clients/vendor/acme/shop/composer.lock", hints)
 
 
 @support.POSIX_ONLY
