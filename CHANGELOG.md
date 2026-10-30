@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: read-only check `drupal-commerce-118539` (45 checks total). Classifies Drupal Commerce Core against SA-CONTRIB-2026-254 / CVE-2026-118539 floors 8.x-2.41 and 3.3.13 from `composer.lock`, optional `vendor/composer/installed.json`, and packaged Commerce info.yml (`project: commerce` only). `composer.json` is not evidence. Dev builds and lines outside 2.x/3.x are review. Drupal 7 commerce INI files are out of scope. A same-site fixed lock turns an unversioned info.yml into a note. An unreadable needed file is BLOCKED.
+- `scripts/inventory.py`: `drupal_commerce_hints` for a `drupal/commerce` lock pin or packaged Commerce info.yml. Empty hints are not runtime absence.
+- Dated profile: `drupal-commerce-2026-10-28.md`. Order-inconsistency audit is a SKIPPED row (needs the site database).
+
+### Changed
+
+- Reviewed public hosts: `www.drupal.org`, `drupal.org`.
+
 ## 0.4.2 - 2026-10-30
 
 ### Added

@@ -110,6 +110,9 @@ PEOPLESOFT_PATH_PARTS = frozenset({"peoplesoft", "peopletools", "psft"})
 PEOPLESOFT_FILENAMES = frozenset({
     "psconfig.sh", "allowedhosts.properties", "psappsrv.cfg", "psprcs.cfg",
 })
+COMMERCE_PROJECT_RE = re.compile(
+    r"(?m)^[ \t]*project:[ \t]*(?:'commerce'|\"commerce\"|commerce)[ \t]*(?:#.*)?$")
+COMMERCE_INFO_YML = "commerce" + ".info.yml"
 # Split so the public-leak hostname scanner does not read a vendor domain as a leak.
 _ONAMAE_LABEL = "onamae"
 ONAMAE_HOST_RE = re.compile(r"(?i)\b(?:[\w-]+\.)?%s\.(?:com|co\.jp)\b" % _ONAMAE_LABEL)
@@ -452,9 +455,10 @@ class Inventory:
         self.max_reached = False
         self.out = {k: [] for k in ("manifests", "containers", "listeners", "php_runtime_hints", "runtime_hints",
                                     "runtime_pins", "sboms", "dev_server_hints", "mesh_vpn_hints",
-                                    "peoplesoft_hints", "gmo_onamae_hints", "install_hooks",
-                                    "ci_workflows", "agent_instruction_files", "secret_candidates",
-                                    "sensitive_filenames", "sidecar_artifacts", "symlinks")}
+                                    "peoplesoft_hints", "gmo_onamae_hints", "drupal_commerce_hints",
+                                    "install_hooks", "ci_workflows", "agent_instruction_files",
+                                    "secret_candidates", "sensitive_filenames", "sidecar_artifacts",
+                                    "symlinks")}
 
     def skip(self, rel, reason):
         """Record a coverage gap; only listed kinds can match an accepted exclusion."""
@@ -573,6 +577,8 @@ class Inventory:
             self._composer_php(rel, text)
         if name == "composer.lock":
             self._composer_lock_php(rel, text)
+            self._composer_lock_commerce(rel, text)
+        self._commerce_info_yml(rel, name, text)
         if name in LOCKFILES and LOCKFILES[name] == "npm":
             self._dev_server_lockfile(rel, text)
         self._mesh_vpn_text(rel, name, text)
@@ -848,6 +854,40 @@ class Inventory:
                     "path": rel, "line": 0,
                     "hint": "composer.lock %s.php %s (lock constraint, not runtime proof)" % (key, block["php"]),
                 })
+
+    def _composer_lock_commerce(self, rel, text):
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return
+        blocks = []
+        if isinstance(doc, list):
+            blocks = [doc]
+        elif isinstance(doc, dict):
+            for key in ("packages", "packages-dev"):
+                block = doc.get(key)
+                if isinstance(block, list):
+                    blocks.append(block)
+        for block in blocks:
+            for pkg in block:
+                if isinstance(pkg, dict) and pkg.get("name") == "drupal/commerce":
+                    self.out["drupal_commerce_hints"].append({
+                        "path": rel, "line": 0,
+                        "hint": "composer.lock package drupal/commerce (lock pin; not runtime proof)",
+                    })
+                    return
+
+    def _commerce_info_yml(self, rel, name, text):
+        if name.lower() != COMMERCE_INFO_YML:
+            return
+        if "vendor" in {p.lower() for p in PurePosixPath(rel).parts}:
+            return
+        if not COMMERCE_PROJECT_RE.search(text):
+            return
+        self.out["drupal_commerce_hints"].append({
+            "path": rel, "line": 0,
+            "hint": "Drupal Commerce Core " + COMMERCE_INFO_YML + " (packaged metadata; not runtime proof)",
+        })
 
     def _peoplesoft_name(self, rel, name):
         lower = name.lower()
