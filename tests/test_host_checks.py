@@ -1232,6 +1232,13 @@ class TeamViewer111585(SimCase):
         self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["unknown"])
 
+    def test_macos_user_host_bundle_without_plist_is_unknown(self):
+        m = self.sim("darwin")
+        m.mkdir("~/Applications/TeamViewerHost" + APP)
+        c = m.check("teamviewer-111585")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
     def test_windows_pe_and_legacy_lines(self):
         def pe(ver):
             w = self.sim("windows")
@@ -1391,6 +1398,7 @@ class FragnesiaLinux(SimCase):
             ("24.04", "6.8.12-060812-generic"),
             ("22.04", "5.15.150-051550-generic"),
             ("24.04", "6.8.1-200-generic"),
+            ("24.04", "6.8.0-0124-generic"),
         ):
             c = self._ubuntu(release, osrelease)
             self.assertEqual(results(c), ["review"], osrelease)
