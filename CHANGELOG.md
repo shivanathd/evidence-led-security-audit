@@ -11,6 +11,7 @@
 
 - Reviewed public hosts: `blog.jetbrains.com`, `blog.cloudflare.com`, `clickhouse.com`, `wordpress.org`, `www.wordpress.org`.
 - `profiles/emudhra-2026-10-17.md` points at the JetBrains JBR check; OS-store reporting is unchanged.
+- `clickhouse-116366` does not treat `clickhouse-common-static` as server evidence on a client-only or keeper-only install (those packages pull the shared static package). An orphan `clickhouse-common-static` is still classified.
 
 ## 0.4.3 - 2026-10-30
 

@@ -2380,8 +2380,24 @@ class Clickhouse116366(SimCase):
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "NOT_APPLICABLE")
 
+    def test_client_plus_common_static_is_not_applicable(self):
+        self.s.dpkg({
+            "clickhouse-client": dotted(26, 10, 2, 84),
+            "clickhouse-common-static": dotted(26, 10, 2, 84),
+        })
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
     def test_keeper_only_is_not_applicable(self):
         self.s.dpkg({"clickhouse-keeper": dotted(26, 10, 2, 84)})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_keeper_plus_common_static_is_not_applicable(self):
+        self.s.dpkg({
+            "clickhouse-keeper": dotted(26, 10, 2, 84),
+            "clickhouse-common-static": dotted(26, 10, 2, 84),
+        })
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "NOT_APPLICABLE")
 

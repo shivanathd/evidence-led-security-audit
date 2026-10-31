@@ -93,9 +93,11 @@ LIMITS = [
     "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
     "jetbrainsd on Linux uses ~/.local/share only; XDG_DATA_HOME is unread. Snap revisions never follow current. "
     "On 2025.3 and later, JCEF certificate updates depend on the IDE reaching Google's update servers.",
-    "clickhouse-116366 classifies clickhouse-server and clickhouse-common-static only. clickhouse-keeper alone is "
-    "not this check. clickhouse-client (package or image) is not this check. Homebrew reads the Cellar formula "
-    "clickhouse; the cask is unread. Guessed version files and Windows Program Files are not read.",
+    "clickhouse-116366 classifies clickhouse-server and, when that package is present, clickhouse-common-static. "
+    "An orphan clickhouse-common-static (no clickhouse-client or clickhouse-keeper) is also classified. "
+    "clickhouse-client or clickhouse-keeper with or without the shared package is not this check. Homebrew "
+    "reads the Cellar formula clickhouse; the cask is unread. Guessed version files and Windows Program Files "
+    "are not read.",
     "wordpress-core-upgrade-rce never makes an HTTP request to setup-config.php, install.php or any URL under "
     "wp-content/upgrade. Reading wp-includes/version.php on disk, including staged copies under wp-content/upgrade, "
     "is in scope.",
@@ -4112,7 +4114,18 @@ def check_jetbrains_jbr(host, r):
 def check_clickhouse(host, r):
     pk = linux_packages(host) if host.platform == "linux" else {}
     found_pkg = False
+    has_server = bool(pk.get("clickhouse-server"))
+    has_common = bool(pk.get("clickhouse-common-static"))
+    has_client = bool(pk.get("clickhouse-client"))
+    has_keeper = bool(pk.get("clickhouse-keeper"))
+    classify = set()
+    if has_server:
+        classify.update(CH_PKGS)
+    elif has_common and not has_client and not has_keeper:
+        classify.add("clickhouse-common-static")
     for name in CH_PKGS:
+        if name not in classify:
+            continue
         for ver, src in pk.get(name, []):
             found_pkg = True
             classify_version(r, name, ver, None, CH_FLOORS, 2, source=src)
@@ -4430,7 +4443,8 @@ CHECKS = [
                ["ch-sec-116366", "cve-116366"],
                "CVE-2026-116366: unauthenticated network RCE on ClickHouse Server. OSS floors only: "
                "v26.3.62.3-lts, v26.8.36.3-lts, v26.9.27.3-stable, v26.10.3.7-stable. Cloud / BYOC numbers "
-               "are not OSS floors. clickhouse-client and clickhouse-keeper are not this check.",
+               "are not OSS floors. clickhouse-client and clickhouse-keeper (with or without "
+               "clickhouse-common-static) are not this check.",
                "Upgrade OSS to the listed train floor (or newer on that train). Cloud / BYOC is out of scope. "
                "This tool never starts ClickHouse.",
                ALL_OS, check_clickhouse),

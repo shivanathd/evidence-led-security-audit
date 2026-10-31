@@ -34,6 +34,7 @@ A directory is a WordPress core root when it contains `wp-includes/version.php` 
 | --- | --- |
 | at least one `affected` or `review` | `FAIL` |
 | at least one `unknown` (and no `affected`/`review`) | `BLOCKED` |
+| walk stopped (`max_entries` / time budget) or the check raised (`r.blocked`), including when no findings exist | `BLOCKED` |
 | only `info` | `PASS` |
 | nothing found | `NOT_APPLICABLE` |
 
@@ -45,7 +46,7 @@ A directory is a WordPress core root when it contains `wp-includes/version.php` 
 
 - No HTTP to `setup-config.php`, `install.php`, or `wp-content/upgrade`. Reading `version.php` on disk, including staged copies, is in scope.
 - Plugin-only trees (no core markers) are not this check.
-- The walk does not cover roots that were not passed in.
+- The walk does not cover roots that were not passed in. It also skips named caches and tool trees (`node_modules`, `.git`, `.cache`, and the rest of `SKIP_ANY`) and, under a directory that contains `package.json`, skips `dist`, `build`, `coverage`, `out`, and `.svelte-kit`. Pass a skipped directory as an explicit `--root` if it must be scanned.
 
 ## Closing a finding under this profile
 

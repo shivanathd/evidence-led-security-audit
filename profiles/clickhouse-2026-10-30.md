@@ -26,7 +26,7 @@ CNA `defaultStatus=affected` for OSS trains that are not in those four rows. Thi
 
 ## Evidence this check reads
 
-- Linux packages `clickhouse-server` and `clickhouse-common-static`
+- Linux packages `clickhouse-server` and `clickhouse-common-static`. `clickhouse-common-static` is classified with `clickhouse-server`, or when it is present with neither `clickhouse-client` nor `clickhouse-keeper`. It is not server evidence on a client-only or keeper-only install (those packages pull the shared static package).
 - Homebrew Cellar formula `clickhouse` (the cask is unread)
 - Image tags matching `clickhouse-server` in Dockerfiles / compose / deploy YAML
 - A plain `/etc/clickhouse-server` directory with no package is `unknown`
@@ -39,6 +39,7 @@ CNA `defaultStatus=affected` for OSS trains that are not in those four rows. Thi
 | --- | --- |
 | at least one `affected` or `review` | `FAIL` |
 | at least one `unknown` (and no `affected`/`review`) | `BLOCKED` |
+| walk stopped (`max_entries` / time budget) or the check raised (`r.blocked`), including when no findings exist | `BLOCKED` |
 | only `info` | `PASS` |
 | nothing found | `NOT_APPLICABLE` |
 
@@ -50,7 +51,7 @@ CNA `defaultStatus=affected` for OSS trains that are not in those four rows. Thi
 
 - Guessed version files and Windows Program Files are not read. Docker refs cover Windows images.
 - Homebrew cask is unread.
-- Cloud / BYOC is skipped (SaaS; no local artifact this helper can classify).
+- Cloud / BYOC is not a SaaS console this helper can classify. If a Cloud or BYOC image or package name appears in scanned package metadata or Dockerfile / compose / deploy YAML, this check applies the OSS floors and the finding is provisional (no Cloud/BYOC discriminator).
 
 ## Closing a finding under this profile
 
