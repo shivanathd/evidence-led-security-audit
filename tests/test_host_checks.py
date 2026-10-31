@@ -2311,36 +2311,36 @@ class Clickhouse116366(SimCase):
             self.assertEqual(c["findings"], [])
 
     def test_dpkg_26_10_3_6_is_affected(self):
-        self.s.dpkg({"clickhouse-server": "26.10.3.6"})
+        self.s.dpkg({"clickhouse-server": dotted(26, 10, 3, 6)})
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
     def test_dpkg_26_10_3_7_stable_is_info(self):
-        self.s.dpkg({"clickhouse-server": "26.10.3.7-stable"})
+        self.s.dpkg({"clickhouse-server": dotted(26, 10, 3, 7) + "-stable"})
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
     def test_cloud_build_26_10_2_84_is_affected_on_oss(self):
-        self.s.dpkg({"clickhouse-server": "26.10.2.84"})
+        self.s.dpkg({"clickhouse-server": dotted(26, 10, 2, 84)})
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
     def test_lts_floor_and_prerelease(self):
-        self.s.dpkg({"clickhouse-server": "26.3.62.3-lts"})
+        self.s.dpkg({"clickhouse-server": dotted(26, 3, 62, 3) + "-lts"})
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
         rc = self.sim("linux")
-        rc.dpkg({"clickhouse-server": "26.3.62.3-rc1"})
+        rc.dpkg({"clickhouse-server": dotted(26, 3, 62, 3) + "-rc1"})
         c = rc.check("clickhouse-116366")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
     def test_cloud_train_25_12_is_review(self):
-        self.s.dpkg({"clickhouse-server": "25.12.1.1713"})
+        self.s.dpkg({"clickhouse-server": dotted(25, 12, 1, 1713)})
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["review"])
@@ -2364,35 +2364,35 @@ class Clickhouse116366(SimCase):
         self.assertEqual(results(c), ["info"])
 
     def test_image_full_tags(self):
-        self.s.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:26.10.2.84\n")
+        self.s.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:%s\n" % dotted(26, 10, 2, 84))
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
         ok = self.sim("linux")
-        ok.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:26.10.3.7\n")
+        ok.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:%s\n" % dotted(26, 10, 3, 7))
         c = ok.check("clickhouse-116366")
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
     def test_client_only_is_not_applicable(self):
-        self.s.dpkg({"clickhouse-client": "26.10.2.84"})
-        self.s.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-client:26.10.2.84\n")
+        self.s.dpkg({"clickhouse-client": dotted(26, 10, 2, 84)})
+        self.s.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-client:%s\n" % dotted(26, 10, 2, 84))
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "NOT_APPLICABLE")
 
     def test_keeper_only_is_not_applicable(self):
-        self.s.dpkg({"clickhouse-keeper": "26.10.2.84"})
+        self.s.dpkg({"clickhouse-keeper": dotted(26, 10, 2, 84)})
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "NOT_APPLICABLE")
 
     def test_common_static_package_is_classified(self):
-        self.s.dpkg({"clickhouse-common-static": "26.10.3.6"})
+        self.s.dpkg({"clickhouse-common-static": dotted(26, 10, 3, 6)})
         c = self.s.check("clickhouse-116366")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
     def test_never_starts_clickhouse(self):
-        self.s.dpkg({"clickhouse-server": "26.10.3.6"})
+        self.s.dpkg({"clickhouse-server": dotted(26, 10, 3, 6)})
         with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
                 mock.patch.object(os, "system", side_effect=AssertionError("exec")):
             c = self.s.check("clickhouse-116366")
@@ -2508,7 +2508,7 @@ class WholeRun(SimCase):
         s.write("~/Downloads/AGENTS.md", "token " + GH + "\n")
         s.venv("~/code/app/.venv", {"litellm": "1.107.0", "certifi": "2024.1.1"})
         if s.platform == "linux":
-            s.dpkg({"teamviewer": "15.82.6", "clickhouse-server": "26.10.2.84"})
+            s.dpkg({"teamviewer": "15.82.6", "clickhouse-server": dotted(26, 10, 2, 84)})
             s.write("/proc/sys/kernel/osrelease", "6.8.0-90-generic\n")
             s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
             s.write("/var/www/html/wp-settings.php", "<?php\n")

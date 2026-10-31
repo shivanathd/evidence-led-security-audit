@@ -88,6 +88,17 @@ LIMITS = [
     "Symlinked files and module folders (for example Composer path repos) are not followed. "
     "A directory named vendor is a Composer vendor tree only if it contains autoload.php or composer/installed.json. "
     "Drupal 7 commerce INI files are out of scope.",
+    "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
+    "PE FileVersion, Info.plist, linux packages, snap metadata and Flatpak are not IDE version sources. "
+    "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
+    "jetbrainsd on Linux uses ~/.local/share only; XDG_DATA_HOME is unread. Snap revisions never follow current. "
+    "On 2025.3 and later, JCEF certificate updates depend on the IDE reaching Google's update servers.",
+    "clickhouse-116366 classifies clickhouse-server and clickhouse-common-static only. clickhouse-keeper alone is "
+    "not this check. clickhouse-client (package or image) is not this check. Homebrew reads the Cellar formula "
+    "clickhouse; the cask is unread. Guessed version files and Windows Program Files are not read.",
+    "wordpress-core-upgrade-rce never makes an HTTP request to setup-config.php, install.php or any URL under "
+    "wp-content/upgrade. Reading wp-includes/version.php on disk, including staged copies under wp-content/upgrade, "
+    "is in scope.",
 ]
 
 CLEANUP_ORDER = [
@@ -229,6 +240,22 @@ SRC = {
                    "https://www.cve.org/CVERecord?id=CVE-2026-118539"),
     "thn-commerce-118539": ("The Hacker News: Drupal Commerce actively exploited (pointer; not a version floor)",
                             "https://thehackernews.com/2026/10/hackers-actively-exploit-highly.html"),
+    "jb-emudhra-ides": ("JetBrains: compromised eMudhra certificates in IDEs (30 Oct 2026)",
+                        "https://blog.jetbrains.com/security/2026/10/compromised-emudhra-certificates-ides/"),
+    "cf-emudhra-patching": ("Cloudflare: eMudhra patching (pointer; not a version floor)",
+                            "https://blog.cloudflare.com/emudhra-patching/"),
+    "ch-sec-116366": ("ClickHouse security changelog CVE-2026-116366",
+                      "https://clickhouse.com/docs/resources/changelogs/security-changelog"),
+    "cve-116366": ("CVE Record CVE-2026-116366",
+                   "https://www.cve.org/CVERecord?id=CVE-2026-116366"),
+    "wp-714-news": ("WordPress.org: WordPress 7.1.4",
+                    "https://wordpress.org/news/2026/10/wordpress-7-1-4/"),
+    "wp-714-helphub": ("WordPress HelpHub: Version 7.1.4",
+                       "https://wordpress.org/documentation/wordpress-version/version-7-1-4/"),
+    "ghsa-4w3m-c66w-69mg": ("GitHub advisory GHSA-4w3m-c66w-69mg (WordPress core upgrade race)",
+                            "https://github.com/WordPress/wordpress-develop/security/advisories/GHSA-4w3m-c66w-69mg"),
+    "thn-wp-upgrade-rce": ("The Hacker News: WordPress upgrade-window RCE (pointer; not a version floor)",
+                           "https://thehackernews.com/2026/10/wordpress-rce-flaw-draws-nearly-63000.html"),
 }
 
 SKIPPED = [
@@ -262,6 +289,16 @@ SKIPPED = [
     ("Drupal Commerce order-inconsistency audit",
      "Needs the site database; drupal-commerce-118539 only reads the packaged Commerce info.yml, composer.lock and "
      "vendor/composer/installed.json."),
+    ("IntelliJ-platform products not in the JetBrains 30 Oct table",
+     "Android Studio, Aqua, Writerside and other productCodes; check that vendor."),
+    ("ClickHouse Cloud / BYOC (CVE-2026-116366)",
+     "Vendor states Cloud and BYOC are patched; Cloud version numbers are not OSS floors."),
+    ("JetBrains TeamCity / YouTrack / other server products",
+     "Not in the 30 Oct IDE/JBR table; check that vendor."),
+    ("WordPress upgrade-path / setup-config.php probing",
+     "Would be a production probe; wordpress-core-upgrade-rce reads $wp_version on disk only."),
+    ("WordPress 7.1.4 companion issues (XSS, Customizer, Interactivity API, bundled CA refresh)",
+     "Separate bugs; not this check."),
 ]
 
 
@@ -518,6 +555,7 @@ class Index:
         self.composer_lock = []
         self.composer_installed = []
         self.drupal_commerce = []
+        self.wordpress_core = []
         self.complete = True
         self.stopped = None
 
@@ -584,6 +622,14 @@ def build_index(host):
             child_skip.add("pkg")
         if plow[-2:] == ["wp-content", "plugins"] and "updraftplus" in low:
             idx.updraft.append(os.path.join(path, low["updraftplus"]))
+        if "wp-includes" in low and ("wp-settings.php" in low or "wp-load.php" in low):
+            inc = os.path.join(path, low["wp-includes"])
+            ver = os.path.join(inc, "version.php")
+            settings = os.path.join(path, low["wp-settings.php"]) if "wp-settings.php" in low else None
+            load = os.path.join(path, low["wp-load.php"]) if "wp-load.php" in low else None
+            if hs.is_regular(ver) and (
+                    (settings and hs.is_regular(settings)) or (load and hs.is_regular(load))):
+                idx.wordpress_core.append(path)
         if "bin" in low and "app" in low and hs.is_regular(os.path.join(path, low["app"], "etc", "env.php")):
             idx.magento.append(path)
         if "occ" in low and "version.php" in low:
@@ -3750,6 +3796,407 @@ def check_linux_tcp_uaf(host, r):
           version=osrel or None)
 
 
+# --------------------------------------------------------------------------
+# JetBrains JBR / eMudhra, ClickHouse CVE-2026-116366, WordPress core upgrade
+# --------------------------------------------------------------------------
+
+def _ver(*parts):
+    return ".".join(str(p) for p in parts)
+
+
+JB_IDE_CODES = {
+    "IU": "IntelliJ IDEA", "IC": "IntelliJ IDEA",
+    "PY": "PyCharm", "PC": "PyCharm",
+    "PS": "PhpStorm", "RM": "RubyMine", "WS": "WebStorm",
+    "RD": "Rider", "CL": "CLion", "DS": "DataSpell",
+    "DB": "DataGrip", "GO": "GoLand", "RR": "RustRover", "GW": "Gateway",
+}
+JB_FLOORS = {
+    "IntelliJ IDEA": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 1), _ver(2025, 3, 6, 2), _ver(2025, 2, 6, 4)),
+    "PyCharm": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 1), _ver(2025, 3, 6, 2), _ver(2025, 2, 6, 3)),
+    "PhpStorm": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 1), _ver(2025, 3, 6, 2), _ver(2025, 2, 6, 3)),
+    "RubyMine": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 1), _ver(2025, 3, 6, 2), _ver(2025, 2, 6, 3)),
+    "WebStorm": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 1), _ver(2025, 3, 6, 2), _ver(2025, 2, 6, 3)),
+    "Rider": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 3), _ver(2025, 3, 5, 3)),
+    "CLion": (_ver(2026, 3), _ver(2026, 2, 4, 1), _ver(2026, 1, 5, 2), _ver(2025, 3, 6, 3), _ver(2025, 2, 6, 3)),
+    "DataSpell": (_ver(2026, 1, 3, 1), _ver(2025, 3, 3, 1), _ver(2025, 2, 4, 1)),
+    "DataGrip": (_ver(2026, 3), _ver(2026, 2, 6, 1), _ver(2026, 1, 4, 1), _ver(2025, 3, 6, 1), _ver(2025, 2, 6, 1)),
+    "GoLand": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 1), _ver(2025, 3, 5, 2), _ver(2025, 2, 6, 3)),
+    "RustRover": (_ver(2026, 3), _ver(2026, 2, 5), _ver(2026, 1, 4, 1), _ver(2025, 3, 7, 1), _ver(2025, 2, 6, 1)),
+    "Gateway": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 4), _ver(2025, 3, 3), _ver(2025, 2, 6)),
+    "ReSharper": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 3), _ver(2025, 3, 5, 3)),
+}
+JB_PRE_RE = re.compile(r"(?i)\b(EAP|RC)\b")
+JB_JCEF_GOOGLE = "JCEF certificate updates depend on the IDE reaching Google's update servers"
+JB_PRE_DETAIL = ("pre-release build; local metadata cannot show whether it is the fixed RC/EAP; "
+                 "update to the latest RC/EAP or the 2026.3 release")
+JB_APP_NAMES = ("IntelliJ IDEA", "PyCharm", "PhpStorm", "RubyMine", "WebStorm", "Rider", "CLion",
+                "DataSpell", "DataGrip", "GoLand", "RustRover", "Gateway")
+JBR_FLOORS = {(25, 635): 79, (25, 508): 41, (25, 329): 142, (21, 1163): 125, (21, 1038): 91}
+JBR_VER = re.compile(r"JBR-(\d+)[^-]*-(\d+)\.(\d+)")
+TB_FLOORS = (_ver(3, 9, 1), _ver(3, 8, 2))
+JB_DAEMON = _ver(0, 9, 9728)
+CH_FLOORS = (_ver(26, 3, 62, 3), _ver(26, 8, 36, 3), _ver(26, 9, 27, 3), _ver(26, 10, 3, 7))
+CH_PKGS = ("clickhouse-server", "clickhouse-common-static")
+WP_FLOORS = (
+    _ver(7, 1, 4), _ver(7, 0, 8), _ver(6, 9, 11), _ver(6, 8, 12), _ver(6, 7, 11), _ver(6, 6, 11),
+    _ver(6, 5, 14), _ver(6, 4, 14), _ver(6, 3, 14), _ver(6, 2, 15), _ver(6, 1, 16), _ver(6, 0, 18),
+    _ver(5, 9, 20), _ver(5, 8, 19), _ver(5, 7, 21), _ver(5, 6, 23), _ver(5, 5, 24), _ver(5, 4, 25),
+    _ver(5, 3, 27), _ver(5, 2, 30), _ver(5, 1, 28), _ver(5, 0, 31), _ver(4, 9, 35), _ver(4, 8, 34),
+    _ver(4, 7, 39),
+)
+WP_VER_RE = re.compile(r"(?m)^\s*\$wp_version\s*=\s*['\"]([^'\"]+)['\"]\s*;")
+
+
+def jetbrains_classify(r, product, raw, path, suffix=""):
+    blob = "%s %s" % (raw or "", suffix or "")
+    if JB_PRE_RE.search(blob):
+        r.add("review", product, JB_PRE_DETAIL, path=path, version=raw)
+        return
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", product, "version string could not be parsed (metadata)", path=path,
+              version=textscan.redact(str(raw))[:64] if raw else None)
+        return
+    floors = JB_FLOORS[product]
+    res, note = hs.classify_lines(v, floors, 2)
+    if res == "review":
+        oldest = min(hs.parse_version(f).nums[:2] for f in floors)
+        if v.nums[:2] < oldest:
+            r.add("affected", product, "no fixed build on this line; from metadata", path=path, version=raw)
+            return
+        r.add("review", product, "%s; from metadata" % note, path=path, version=raw)
+        return
+    if res == "affected":
+        r.add("affected", product, "%s; from metadata" % note, path=path, version=raw)
+        return
+    is_ide = product not in ("Gateway", "ReSharper")
+    if is_ide and v.nums[:2] == (2025, 2):
+        r.add("review", product,
+              "at or above the listed 2025.2 floor; JCEF Chrome-certificate fix is pending (JBR-only update)",
+              path=path, version=raw)
+        return
+    extra = ("; " + JB_JCEF_GOOGLE) if is_ide and v.nums[:2] >= (2025, 3) else ""
+    r.add("info", product, "%s; from metadata%s" % (note, extra), path=path, version=raw)
+
+
+def toolbox_classify(r, raw, path):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", "Toolbox App", "version string could not be parsed (metadata)", path=path,
+              version=textscan.redact(str(raw))[:64] if raw else None)
+        return
+    if v.nums[0] < 3 or (v.nums[0] == 3 and (len(v.nums) < 2 or v.nums[1] <= 7)):
+        r.add("affected", "Toolbox App", "no fixed build on this line; from metadata", path=path, version=raw)
+        return
+    classify_version(r, "Toolbox App", raw, path, TB_FLOORS, 2)
+
+
+def _jb_read_product_info(host, path, r):
+    if not hs.exists_nofollow(path):
+        return False
+    if not hs.is_regular(path):
+        r.add("unknown", "JetBrains IDE", "product-info.json present; version not readable",
+              path=host.display(path))
+        return True
+    data = hs.read_json(path, 256 * 1024, host.gaps)
+    if not isinstance(data, dict):
+        r.add("unknown", "JetBrains IDE", "product-info.json present; version not readable",
+              path=host.display(path))
+        return True
+    product = JB_IDE_CODES.get(str(data.get("productCode") or ""))
+    if product is None:
+        return True
+    jetbrains_classify(r, product, str(data.get("version") or ""), host.display(path),
+                       str(data.get("versionSuffix") or ""))
+    return True
+
+
+def _jb_looks_like_app(name):
+    stem = name[:-len(APP)] if name.endswith(APP) else name
+    return any(stem.startswith(k) or k in stem for k in JB_APP_NAMES)
+
+
+def _jb_scan_app_dir(host, base, r):
+    for name in hs.subdirs(base):
+        if not name.endswith(APP) or name == "JetBrains Toolbox" + APP:
+            continue
+        info = os.path.join(base, name, "Contents", "Resources", "product-info.json")
+        if hs.exists_nofollow(info):
+            _jb_read_product_info(host, info, r)
+        elif _jb_looks_like_app(name):
+            r.add("unknown", "JetBrains IDE", "JetBrains app present; product-info.json missing",
+                  path=host.display(os.path.join(base, name)))
+
+
+def _jb_scan_toolbox_apps(host, root, r, depth=0):
+    if not hs.is_plain_dir(root):
+        return
+    info = os.path.join(root, "product-info.json")
+    if hs.exists_nofollow(info):
+        _jb_read_product_info(host, info, r)
+    if depth >= 3:
+        return
+    for name in hs.subdirs(root):
+        _jb_scan_toolbox_apps(host, os.path.join(root, name), r, depth + 1)
+
+
+def _jb_collect_ides(host, r):
+    if host.platform == "darwin":
+        for base in (host.sys("/Applications"), host.h("Applications")):
+            _jb_scan_app_dir(host, base, r)
+        tb = host.h("Applications", "JetBrains Toolbox")
+        if hs.is_plain_dir(tb):
+            _jb_scan_app_dir(host, tb, r)
+        return
+    if host.platform == "linux":
+        for base in (host.sys("/opt"), host.sys("/usr/share")):
+            for name in hs.subdirs(base):
+                info = os.path.join(base, name, "product-info.json")
+                if hs.exists_nofollow(info):
+                    _jb_read_product_info(host, info, r)
+        snap = host.sys("/snap")
+        for name in hs.subdirs(snap):
+            root = os.path.join(snap, name)
+            for rev in hs.listdir(root):
+                if rev == "current" or not rev.isdigit():
+                    continue
+                info = os.path.join(root, rev, "product-info.json")
+                if hs.exists_nofollow(info):
+                    _jb_read_product_info(host, info, r)
+        _jb_scan_toolbox_apps(host, host.h(".local", "share", "JetBrains", "Toolbox", "apps"), r)
+        return
+    for pf in host.program_files():
+        jb = os.path.join(pf, "JetBrains")
+        for name in hs.subdirs(jb):
+            child = os.path.join(jb, name)
+            info = os.path.join(child, "product-info.json")
+            if hs.exists_nofollow(info):
+                _jb_read_product_info(host, info, r)
+            else:
+                r.add("unknown", "JetBrains IDE", "JetBrains folder present; product-info.json missing",
+                      path=host.display(child))
+    local = host.localappdata()
+    for name in hs.subdirs(os.path.join(local, "Programs")):
+        info = os.path.join(local, "Programs", name, "product-info.json")
+        if hs.exists_nofollow(info):
+            _jb_read_product_info(host, info, r)
+    _jb_scan_toolbox_apps(host, os.path.join(local, "JetBrains", "Toolbox", "apps"), r)
+
+
+def _jb_toolbox(host, r):
+    if host.platform == "darwin":
+        for base in (host.sys("/Applications"), host.h("Applications")):
+            plist = os.path.join(base, "JetBrains Toolbox" + APP, "Contents", "Info.plist")
+            if not hs.exists_nofollow(plist):
+                continue
+            ver = hs.plist_value(plist, "CFBundleShortVersionString") if hs.is_regular(plist) else None
+            if ver:
+                toolbox_classify(r, ver, host.display(plist))
+            else:
+                r.add("unknown", "Toolbox App", "Toolbox app present; version not in Info.plist",
+                      path=host.display(plist))
+        return
+    if host.platform == "linux":
+        bin_dir = host.h(".local", "share", "JetBrains", "Toolbox", "bin")
+        if hs.is_plain_dir(bin_dir):
+            r.add("unknown", "Toolbox App", "Toolbox bin present; version not in local metadata",
+                  path=host.display(bin_dir))
+        return
+    for e in host.registry:
+        name = e.get("name") or ""
+        if name == "JetBrains Toolbox" or name.startswith("JetBrains Toolbox "):
+            ver = e.get("version") or ""
+            if ver:
+                toolbox_classify(r, ver, None)
+            else:
+                r.add("unknown", "Toolbox App", "Toolbox present; DisplayVersion missing")
+
+
+def _jb_resharper(host, r):
+    if host.platform != "windows":
+        return
+    for e in host.registry:
+        name = e.get("name") or ""
+        if name.startswith("JetBrains ReSharper"):
+            ver = e.get("version") or ""
+            if ver:
+                jetbrains_classify(r, "ReSharper", ver, None)
+            else:
+                r.add("unknown", "ReSharper", "ReSharper present; DisplayVersion missing")
+
+
+def _jb_daemon_roots(host):
+    if host.platform == "darwin":
+        return [host.h("Library", "Application Support", "JetBrains", "Daemon", "bundles")]
+    if host.platform == "linux":
+        return [host.h(".local", "share", "JetBrains", "Daemon", "bundles")]
+    return [os.path.join(host.localappdata(), "JetBrains", "Daemon", "bundles")]
+
+
+def _jb_jetbrainsd(host, r):
+    for bundles in _jb_daemon_roots(host):
+        if not hs.is_plain_dir(bundles):
+            continue
+        best_name, best_v = None, None
+        for name in hs.listdir(bundles):
+            p = os.path.join(bundles, name)
+            st = hs.lstat(p)
+            if st is None or stat.S_ISLNK(st.st_mode) or not hs.is_plain_dir(p):
+                continue
+            raw = name[11:] if name.lower().startswith("jetbrainsd-") else name
+            v = hs.parse_version(raw)
+            if v is None or len(v.nums) < 3:
+                continue
+            if best_v is None or hs.cmp_nums(v.nums, best_v.nums) > 0:
+                best_name, best_v = name, v
+        if best_name is None:
+            r.add("unknown", "jetbrainsd",
+                  "Daemon bundles present; no versioned sibling (current is not followed)",
+                  path=host.display(bundles))
+        else:
+            raw = best_name[11:] if best_name.lower().startswith("jetbrainsd-") else best_name
+            classify_version(r, "jetbrainsd", raw, host.display(os.path.join(bundles, best_name)),
+                             [JB_DAEMON], 2)
+
+
+def _jb_jbr(host, r):
+    if host.platform != "darwin":
+        return
+    for base in (host.sys("/Library/Java/JavaVirtualMachines"),
+                 host.h("Library", "Java", "JavaVirtualMachines")):
+        for name in hs.subdirs(base):
+            rel = os.path.join(base, name, "Contents", "Home", "release")
+            if not hs.exists_nofollow(rel):
+                continue
+            text = hs.read_text(rel, 64 * 1024, host.gaps)
+            if text is None:
+                r.add("unknown", "JetBrains Runtime", "release file present; not readable",
+                      path=host.display(rel))
+                continue
+            impl, iver = "", ""
+            for line in text.splitlines():
+                if line.startswith("IMPLEMENTOR="):
+                    impl = line.split("=", 1)[1].strip().strip('"')
+                elif line.startswith("IMPLEMENTOR_VERSION="):
+                    iver = line.split("=", 1)[1].strip().strip('"')
+            if "JetBrains" not in impl:
+                continue
+            m = JBR_VER.search(iver)
+            if not m:
+                r.add("unknown", "JetBrains Runtime",
+                      "IMPLEMENTOR_VERSION did not match JBR-(major)-build.minor",
+                      path=host.display(rel), version=iver)
+                continue
+            major, build, minor = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            floor = JBR_FLOORS.get((major, build))
+            if floor is not None:
+                kind = "info" if minor >= floor else "affected"
+                note = ("at or above standalone JBR floor %s.%s" % (build, floor) if kind == "info"
+                        else "below standalone JBR floor %s.%s" % (build, floor))
+                r.add(kind, "JetBrains Runtime", note, path=host.display(rel), version=iver)
+            else:
+                r.add("review", "JetBrains Runtime",
+                      "JBR %s build %s is not a listed standalone floor" % (major, build),
+                      path=host.display(rel), version=iver)
+
+
+def check_jetbrains_jbr(host, r):
+    _jb_collect_ides(host, r)
+    _jb_toolbox(host, r)
+    _jb_resharper(host, r)
+    _jb_jetbrainsd(host, r)
+    _jb_jbr(host, r)
+
+
+def check_clickhouse(host, r):
+    pk = linux_packages(host) if host.platform == "linux" else {}
+    found_pkg = False
+    for name in CH_PKGS:
+        for ver, src in pk.get(name, []):
+            found_pkg = True
+            classify_version(r, name, ver, None, CH_FLOORS, 2, source=src)
+    if host.platform == "linux" and not found_pkg and hs.is_plain_dir(host.sys("/etc/clickhouse-server")):
+        r.add("unknown", "clickhouse-server",
+              "config directory present; version not in package metadata",
+              path="/etc/clickhouse-server")
+    for ver, path in cellar(host).get("clickhouse", []):
+        classify_version(r, "clickhouse (Homebrew)", ver, host.display(path), CH_FLOORS, 2,
+                         source="Homebrew Cellar")
+    for path, _image, tag in docker_refs(host, r"clickhouse-server"):
+        v = hs.parse_version(tag)
+        if v and len(v.nums) >= 4:
+            classify_version(r, "clickhouse-server image", tag, host.display(path), CH_FLOORS, 2,
+                             source="image tag")
+        else:
+            r.add("info", "clickhouse-server image",
+                  "moving tag %s; pull and rebuild to get the fixed build" % tag,
+                  path=host.display(path), version=tag)
+
+
+def _wp_72_result(raw):
+    m = re.search(r"(?i)beta[-._]?(\d+)", raw)
+    if m:
+        n = int(m.group(1))
+        if n >= 3:
+            return "info", "7.2 beta 3 or later; from wp-includes/version.php"
+        if n in (1, 2):
+            return "affected", "7.2 beta 1 or 2 is below the Beta 3 fix; from wp-includes/version.php"
+        return "review", "7.2 prerelease; from wp-includes/version.php"
+    if re.search(r"(?i)(?:^|[-._])rc(?:\d|\b|[-._]|$)", raw):
+        return "info", "7.2 RC; from wp-includes/version.php"
+    if re.search(r"(?i)alpha", raw) or (hs.parse_version(raw) and hs.parse_version(raw).prerelease):
+        return "review", "7.2 prerelease; from wp-includes/version.php"
+    return "info", "7.2 or later; from wp-includes/version.php"
+
+
+def _wp_is_staged(path):
+    parts = (path or "").replace("\\", "/").lower().split("/")
+    try:
+        i = parts.index("wp-content")
+    except ValueError:
+        return False
+    return "upgrade" in parts[i:]
+
+
+def wordpress_classify(r, raw, path):
+    if _wp_is_staged(path):
+        r.add("review", "WordPress Core",
+              "staged copy under wp-content/upgrade; reading version.php on disk is in scope",
+              path=path, version=raw)
+        return
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", "WordPress Core", "version string could not be parsed", path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    major = v.nums[0]
+    minor = v.nums[1] if len(v.nums) > 1 else 0
+    if major > 7 or (major == 7 and minor >= 3):
+        r.add("info", "WordPress Core", "7.3 or later; from wp-includes/version.php", path=path, version=raw)
+        return
+    if major == 7 and minor == 2:
+        kind, note = _wp_72_result(raw)
+        r.add(kind, "WordPress Core", note, path=path, version=raw)
+        return
+    classify_version(r, "WordPress Core", raw, path, WP_FLOORS, 2, source="wp-includes/version.php")
+
+
+def check_wordpress_core(host, r):
+    for root in index(host).wordpress_core:
+        ver_path = os.path.join(root, "wp-includes", "version.php")
+        text = hs.read_text(ver_path, 256 * 1024, host.gaps)
+        if text is None:
+            r.add("unknown", "WordPress Core", "version.php present; not readable",
+                  path=host.display(ver_path))
+            continue
+        m = WP_VER_RE.search(text)
+        if not m:
+            r.add("unknown", "WordPress Core", "$wp_version not found", path=host.display(ver_path))
+            continue
+        wordpress_classify(r, m.group(1), host.display(ver_path))
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -3967,6 +4414,36 @@ CHECKS = [
                "Wait for a released distro build, then confirm the running kernel. WIP targets are not floors. "
                "Do not treat a Go-only change as a kernel fix.",
                "Linux only", check_linux_tcp_uaf, uses_walk=False),
+    check_meta("jetbrains-jbr-emudhra",
+               "JetBrains IDE / JBR / Toolbox / jetbrainsd eMudhra trust-store floors (30 Oct 2026)",
+               "check_if_used", "confirmed", "runtime",
+               ["jb-emudhra-ides", "cf-emudhra-patching", "thn-emudhra"],
+               "JetBrains 30 Oct 2026 blog: bundled JBR still trusted the compromised eMudhra intermediates. "
+               "OS updates do not cover this. Product-specific floors; 2025.2 at or above its floor is JCEF-pending. "
+               "IDE version comes only from product-info.json. RC/EAP is review. This tool never starts an IDE.",
+               "Update each product to its listed floor. On 2025.2, JCEF is still pending. On 2025.3+, JCEF "
+               "updates need Google's servers. This tool never disables JCEF or writes files.",
+               ALL_OS, check_jetbrains_jbr, uses_walk=False),
+    check_meta("clickhouse-116366",
+               "ClickHouse Server below OSS floors for CVE-2026-116366",
+               "check_if_used", "confirmed", "runtime",
+               ["ch-sec-116366", "cve-116366"],
+               "CVE-2026-116366: unauthenticated network RCE on ClickHouse Server. OSS floors only: "
+               "v26.3.62.3-lts, v26.8.36.3-lts, v26.9.27.3-stable, v26.10.3.7-stable. Cloud / BYOC numbers "
+               "are not OSS floors. clickhouse-client and clickhouse-keeper are not this check.",
+               "Upgrade OSS to the listed train floor (or newer on that train). Cloud / BYOC is out of scope. "
+               "This tool never starts ClickHouse.",
+               ALL_OS, check_clickhouse),
+    check_meta("wordpress-core-upgrade-rce",
+               "WordPress Core below 7.1.4 / branch backports (upgrade-window RCE race)",
+               "check_if_used", "confirmed", "dependency",
+               ["wp-714-news", "wp-714-helphub", "ghsa-4w3m-c66w-69mg", "thn-wp-upgrade-rce"],
+               "GHSA-4w3m-c66w-69mg: a race during a full-package core upgrade can expose a staged installer. "
+               "Patched 28 Oct 2026 in 7.1.4 and the HelpHub/GHSA branch table through 4.7.39. "
+               "4.6 and earlier are review. No CVE id. This check reads $wp_version only.",
+               "Update to 7.1.4 or the GHSA patched build for that branch. Confirm the update landed; this "
+               "tool does not. Never request files under wp-content/upgrade.",
+               ALL_OS, check_wordpress_core),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
