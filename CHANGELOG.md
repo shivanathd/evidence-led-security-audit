@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.4 - 2026-10-31
 
 ### Added
 
@@ -12,6 +12,13 @@
 - Reviewed public hosts: `blog.jetbrains.com`, `blog.cloudflare.com`, `clickhouse.com`, `wordpress.org`, `www.wordpress.org`.
 - `profiles/emudhra-2026-10-17.md` points at the JetBrains JBR check; OS-store reporting is unchanged.
 - `clickhouse-116366` does not treat `clickhouse-common-static` as server evidence on a client-only or keeper-only install (those packages pull the shared static package). An orphan `clickhouse-common-static` is still classified.
+
+### Known limits
+
+- `jetbrains-jbr-emudhra` matches RC/EAP only as a separate word, so a suffix like `EAP9` or `RC1` reads `affected` instead of `review`. It still FAILs.
+- An unrelated macOS app whose name contains a JetBrains product name (for example `Gateway`) and has no `product-info.json` reads `unknown`.
+- On Windows, a non-IDE folder under `Program Files/JetBrains` with no `product-info.json` reads `unknown`.
+- The package file count is at its target of 60. The next profile needs a higher target or a merged profile.
 
 ## 0.4.3 - 2026-10-30
 
