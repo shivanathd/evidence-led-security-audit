@@ -2083,6 +2083,418 @@ class LinuxTcpUaf98432(SimCase):
 
 
 # --------------------------------------------------------------------------
+# JetBrains JBR / JCEF / jetbrainsd (eMudhra)
+# --------------------------------------------------------------------------
+
+class JetBrainsJbrEmudhra(SimCase):
+    platform = "darwin"
+
+    def _info(self, spec, code, version, suffix="", host=None):
+        s = host or self.s
+        payload = {"productCode": code, "version": version}
+        if suffix:
+            payload["versionSuffix"] = suffix
+        s.write(spec, json.dumps(payload))
+        return s
+
+    def _mac_app(self, name, code, version, suffix=""):
+        spec = "/Applications/%s%s/Contents/Resources/product-info.json" % (name, APP)
+        self._info(spec, code, version, suffix)
+        return spec
+
+    def test_empty_hosts_are_not_applicable(self):
+        for platform in ("darwin", "linux", "windows"):
+            c = self.sim(platform).check("jetbrains-jbr-emudhra")
+            self.assertStatus(c, "NOT_APPLICABLE")
+            self.assertEqual(c["findings"], [])
+
+    def test_intellij_2025_2_6_3_is_affected(self):
+        self._mac_app("IntelliJ IDEA", "IU", "2025.2.6.3")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_intellij_2025_2_6_4_is_review_jcef_pending(self):
+        self._mac_app("IntelliJ IDEA", "IU", "2025.2.6.4")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("JCEF", c["findings"][0]["detail"])
+
+    def test_intellij_2026_2_4_is_info(self):
+        self._mac_app("IntelliJ IDEA", "IU", "2026.2.4")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("Google", c["findings"][0]["detail"])
+
+    def test_clion_2026_2_4_is_affected_and_2026_2_4_1_is_info(self):
+        self._mac_app("CLion", "CL", "2026.2.4")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("darwin")
+        self._info("/Applications/CLion%s/Contents/Resources/product-info.json" % APP, "CL", "2026.2.4.1", host=ok)
+        c = ok.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_rider_2026_3_eap_is_review(self):
+        self._mac_app("Rider", "RD", "2026.3", "EAP")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("pre-release", c["findings"][0]["detail"])
+
+    def test_intellij_2026_3_rc_is_review(self):
+        self._mac_app("IntelliJ IDEA", "IU", "2026.3", "RC")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_rider_2026_3_final_is_info(self):
+        self._mac_app("Rider", "RD", "2026.3")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dataspell_2025_2_4_1_is_review(self):
+        self._mac_app("DataSpell", "DS", "2025.2.4.1")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("JCEF", c["findings"][0]["detail"])
+
+    def test_gateway_2025_2_6_is_info(self):
+        self._mac_app("Gateway", "GW", "2025.2.6")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dataspell_2026_2_1_unlisted_newer_is_review(self):
+        self._mac_app("DataSpell", "DS", "2026.2.1")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_rider_2025_2_3_older_than_oldest_is_affected(self):
+        self._mac_app("Rider", "RD", "2025.2.3")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("no fixed build on this line", c["findings"][0]["detail"])
+
+    def test_resharper_2025_2_1_is_affected(self):
+        w = self.sim("windows")
+        c = w.check("jetbrains-jbr-emudhra",
+                    registry=[{"name": "JetBrains ReSharper 2025.2", "version": "2025.2.1"}])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_toolbox_3_7_affected_3_8_2_info_3_10_review(self):
+        self.s.plist("/Applications/JetBrains Toolbox%s/Contents/Info.plist" % APP,
+                     {"CFBundleShortVersionString": "3.7.0"})
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("darwin")
+        ok.plist("/Applications/JetBrains Toolbox%s/Contents/Info.plist" % APP,
+                 {"CFBundleShortVersionString": "3.8.2"})
+        c = ok.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        other = self.sim("darwin")
+        other.plist("/Applications/JetBrains Toolbox%s/Contents/Info.plist" % APP,
+                    {"CFBundleShortVersionString": "3.10.0"})
+        c = other.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_toolbox_2_x_is_affected(self):
+        self.s.plist("/Applications/JetBrains Toolbox%s/Contents/Info.plist" % APP,
+                     {"CFBundleShortVersionString": "2.9.1"})
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_idea_2025_1_4_is_affected(self):
+        self._mac_app("IntelliJ IDEA", "IU", "2025.1.4")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_jetbrainsd_versioned_dirs(self):
+        self.s.mkdir("~/Library/Application Support/JetBrains/Daemon/bundles/0.9.9727")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("darwin")
+        ok.mkdir("~/Library/Application Support/JetBrains/Daemon/bundles/0.9.9728")
+        c = ok.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    @unittest.skipUnless(CAN_SYMLINK, "needs POSIX symlinks")
+    def test_jetbrainsd_current_only_is_blocked(self):
+        bundles = self.s.mkdir("~/Library/Application Support/JetBrains/Daemon/bundles")
+        os.symlink(os.path.join(bundles, "0.9.9728"), os.path.join(bundles, "current"))
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_standalone_jbr_floors(self):
+        rel = ("IMPLEMENTOR=JetBrains s.r.o.\n"
+               "IMPLEMENTOR_VERSION=JBR-21.0.8+9-1038.91-jcef\n")
+        self.s.write("/Library/Java/JavaVirtualMachines/jbr-21/Contents/Home/release", rel)
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        low = self.sim("darwin")
+        low.write("/Library/Java/JavaVirtualMachines/jbr-21/Contents/Home/release",
+                  "IMPLEMENTOR=JetBrains s.r.o.\nIMPLEMENTOR_VERSION=JBR-21.0.8+9-1038.90-jcef\n")
+        c = low.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_oracle_jdk_is_ignored(self):
+        self.s.write("/Library/Java/JavaVirtualMachines/jdk-21/Contents/Home/release",
+                     "IMPLEMENTOR=Oracle Corporation\nIMPLEMENTOR_VERSION=21.0.8+9-LTS\n")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_product_info_is_blocked(self):
+        path = self.s.write("/Applications/IntelliJ IDEA%s/Contents/Resources/product-info.json" % APP,
+                            json.dumps({"productCode": "IU", "version": "2026.2.4"}))
+        os.chmod(path, 0)
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_unknown_product_code_is_not_a_finding(self):
+        self._mac_app("Android Studio", "AI", "2025.2.1")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertEqual(c["findings"], [])
+
+    def test_windows_pycharm_product_info(self):
+        w = self.sim("windows")
+        self._info("C:/Program Files/JetBrains/PyCharm/product-info.json", "PY", "2026.2.3", host=w)
+        c = w.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_linux_toolbox_bin_without_version_is_blocked(self):
+        lin = self.sim("linux")
+        lin.mkdir("~/.local/share/JetBrains/Toolbox/bin")
+        c = lin.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_never_starts_a_process(self):
+        self._mac_app("IntelliJ IDEA", "IU", "2025.2.6.3")
+        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+            c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+
+
+# --------------------------------------------------------------------------
+# ClickHouse CVE-2026-116366
+# --------------------------------------------------------------------------
+
+class Clickhouse116366(SimCase):
+    def test_empty_hosts_are_not_applicable(self):
+        for platform in ("darwin", "linux", "windows"):
+            c = self.sim(platform).check("clickhouse-116366")
+            self.assertStatus(c, "NOT_APPLICABLE")
+            self.assertEqual(c["findings"], [])
+
+    def test_dpkg_26_10_3_6_is_affected(self):
+        self.s.dpkg({"clickhouse-server": "26.10.3.6"})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_dpkg_26_10_3_7_stable_is_info(self):
+        self.s.dpkg({"clickhouse-server": "26.10.3.7-stable"})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_cloud_build_26_10_2_84_is_affected_on_oss(self):
+        self.s.dpkg({"clickhouse-server": "26.10.2.84"})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_lts_floor_and_prerelease(self):
+        self.s.dpkg({"clickhouse-server": "26.3.62.3-lts"})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        rc = self.sim("linux")
+        rc.dpkg({"clickhouse-server": "26.3.62.3-rc1"})
+        c = rc.check("clickhouse-116366")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_cloud_train_25_12_is_review(self):
+        self.s.dpkg({"clickhouse-server": "25.12.1.1713"})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_etc_dir_without_version_is_blocked(self):
+        self.s.mkdir("/etc/clickhouse-server")
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_image_moving_tags_are_info(self):
+        self.s.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:latest\n")
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("moving tag", c["findings"][0]["detail"])
+        short = self.sim("linux")
+        short.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:26.10\n")
+        c = short.check("clickhouse-116366")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_image_full_tags(self):
+        self.s.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:26.10.2.84\n")
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-server:26.10.3.7\n")
+        c = ok.check("clickhouse-116366")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_client_only_is_not_applicable(self):
+        self.s.dpkg({"clickhouse-client": "26.10.2.84"})
+        self.s.write("~/code/db/Dockerfile", "FROM clickhouse/clickhouse-client:26.10.2.84\n")
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_keeper_only_is_not_applicable(self):
+        self.s.dpkg({"clickhouse-keeper": "26.10.2.84"})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_common_static_package_is_classified(self):
+        self.s.dpkg({"clickhouse-common-static": "26.10.3.6"})
+        c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_never_starts_clickhouse(self):
+        self.s.dpkg({"clickhouse-server": "26.10.3.6"})
+        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+            c = self.s.check("clickhouse-116366")
+        self.assertStatus(c, "FAIL")
+
+
+# --------------------------------------------------------------------------
+# WordPress Core upgrade-window RCE
+# --------------------------------------------------------------------------
+
+class WordpressCoreUpgradeRce(SimCase):
+    def _core(self, root, version, host=None):
+        s = host or self.s
+        s.write(root + "/wp-settings.php", "<?php\n")
+        s.write(root + "/wp-includes/version.php", "$wp_version = '%s';\n" % version)
+        return s
+
+    def test_empty_hosts_are_not_applicable(self):
+        for platform in ("darwin", "linux", "windows"):
+            c = self.sim(platform).check("wordpress-core-upgrade-rce")
+            self.assertStatus(c, "NOT_APPLICABLE")
+            self.assertEqual(c["findings"], [])
+
+    def test_713_is_affected(self):
+        self._core("/var/www/html", "7.1.3")
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_714_is_info(self):
+        self._core("~/sites/blog", "7.1.4")
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_714_rc1_is_affected(self):
+        self._core("~/sites/blog", "7.1.4-RC1")
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_47_branch(self):
+        self._core("~/sites/old", "4.7.39")
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        low = self.sim("linux")
+        self._core("~/sites/old", "4.7.38", host=low)
+        c = low.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_46_is_review(self):
+        self._core("~/sites/legacy", "4.6.1")
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_72_prereleases(self):
+        cases = (
+            ("7.2-beta2-61200", "FAIL", "affected"),
+            ("7.2-beta3-61234", "PASS", "info"),
+            ("7.2-alpha-61000-src", "FAIL", "review"),
+            ("7.2-RC1", "PASS", "info"),
+        )
+        for ver, status, kind in cases:
+            s = self.sim("linux")
+            self._core("~/sites/blog", ver, host=s)
+            c = s.check("wordpress-core-upgrade-rce")
+            self.assertStatus(c, status)
+            self.assertEqual(results(c), [kind], ver)
+
+    def test_plugin_only_tree_is_not_this_check(self):
+        self.s.write("~/sites/blog/wp-content/plugins/updraftplus/updraftplus.php", "* Version: 1.25.9\n")
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_staged_upgrade_copy_is_review(self):
+        self._core("~/sites/blog/wp-content/upgrade/wordpress", "7.1.4")
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("staged", c["findings"][0]["detail"].lower())
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_version_php_is_blocked(self):
+        self._core("~/sites/blog", "7.1.3")
+        os.chmod(self.s.path("~/sites/blog/wp-includes/version.php"), 0)
+        c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_never_connects_or_executes(self):
+        self._core("~/sites/blog", "7.1.3")
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")), \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+            c = self.s.check("wordpress-core-upgrade-rce")
+        self.assertStatus(c, "FAIL")
+
+
+# --------------------------------------------------------------------------
 # Whole-run behaviour: no crash, read only, bounded, redacted
 # --------------------------------------------------------------------------
 
@@ -2096,15 +2508,21 @@ class WholeRun(SimCase):
         s.write("~/Downloads/AGENTS.md", "token " + GH + "\n")
         s.venv("~/code/app/.venv", {"litellm": "1.107.0", "certifi": "2024.1.1"})
         if s.platform == "linux":
-            s.dpkg({"teamviewer": "15.82.6"})
+            s.dpkg({"teamviewer": "15.82.6", "clickhouse-server": "26.10.2.84"})
             s.write("/proc/sys/kernel/osrelease", "6.8.0-90-generic\n")
             s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+            s.write("/var/www/html/wp-settings.php", "<?php\n")
+            s.write("/var/www/html/wp-includes/version.php", "$wp_version = '7.1.3';\n")
         elif s.platform == "darwin":
             s.plist("/Applications/TeamViewer" + APP + "/Contents/Info.plist",
                     {"CFBundleShortVersionString": "15.82"})
+            s.write("/Applications/IntelliJ IDEA" + APP + "/Contents/Resources/product-info.json",
+                    json.dumps({"productCode": "IU", "version": "2025.2.6.3"}))
         else:
             s.write("C:/Program Files/TeamViewer/TeamViewer.exe",
                     hostfix.pe_with_version(dotted(15, 82, 6, 0)))
+            s.write("C:/Program Files/JetBrains/PyCharm/product-info.json",
+                    json.dumps({"productCode": "PY", "version": "2026.2.3"}))
 
     def test_every_check_runs_on_empty_hosts(self):
         for platform in ("darwin", "linux", "windows"):
@@ -2134,9 +2552,15 @@ class WholeRun(SimCase):
             if platform == "linux":
                 self.assertEqual(by["fragnesia-linux"]["status"], "FAIL")
                 self.assertEqual(by["linux-tcp-uaf-98432"]["status"], "FAIL")
+                self.assertEqual(by["clickhouse-116366"]["status"], "FAIL")
+                self.assertEqual(by["wordpress-core-upgrade-rce"]["status"], "FAIL")
+                self.assertEqual(by["jetbrains-jbr-emudhra"]["status"], "NOT_APPLICABLE")
             else:
                 self.assertEqual(by["fragnesia-linux"]["status"], "NOT_APPLICABLE")
                 self.assertEqual(by["linux-tcp-uaf-98432"]["status"], "NOT_APPLICABLE")
+                self.assertEqual(by["jetbrains-jbr-emudhra"]["status"], "FAIL")
+                self.assertEqual(by["clickhouse-116366"]["status"], "NOT_APPLICABLE")
+                self.assertEqual(by["wordpress-core-upgrade-rce"]["status"], "NOT_APPLICABLE")
 
     def test_secrets_never_reach_the_output(self):
         self.populate(self.s)
