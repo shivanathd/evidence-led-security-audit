@@ -17,6 +17,7 @@ import zlib
 
 import support
 import host_checks as hc
+import hostscan as hs
 
 MIB = 1024 * 1024
 # The public-leak scanner reads four-part versions as IPv4 addresses, name@version as e-mail,
@@ -83,6 +84,15 @@ class Sim:
 
     def host(self, **kw):
         kw.setdefault("env", dict(self.env))
+        if "roots" not in kw:
+            extras = []
+            for spec in ("/var/www", "/srv", "/usr/share/nginx/html", "/Library/WebServer/Documents",
+                         "/Applications/MAMP/htdocs", "C:/inetpub/wwwroot", "C:/xampp/htdocs",
+                         "C:/laragon/www"):
+                p = self.path(spec)
+                if hs.is_plain_dir(p):
+                    extras.append(p)
+            kw["roots"] = [self.home] + extras
         return hc.Host(platform=self.platform, home=self.home, sysroot=self.sysroot, **kw)
 
     def check(self, cid, **kw):

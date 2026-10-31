@@ -1,12 +1,12 @@
 # Release-candidate validation
 
-Version 0.4.3, checked on 30 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
+Version 0.4.4, checked on 31 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
 ## Executed checks
 
-- **Unit suite:** 370 test methods on Linux with Python 3.12 (0.4.2 had 332). POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
+- **Unit suite:** 421 test methods, green in CI on Ubuntu (Python 3.9 and 3.14), macOS (3.14) and Windows (3.9 and 3.14). 0.4.3 had 370. POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.
 - **Skill format:** The candidate passed `agentskills validate` using its absolute directory when that CLI was available. The hub stays under 4,000 characters.
-- **Package inspection:** The public-package checker (run from a directory whose name matches `SKILL.md`) reported no rule match and no unreviewed binary content for this text-only candidate. Reviewed public hosts added for this 0.4.3 change: `www.drupal.org`, `drupal.org`. Commerce info.yml filenames are assembled at runtime so the leak scanner does not treat the `.info` suffix as a live host. The private denylist was not available in this run; the checker was run without one.
+- **Package inspection:** The public-package checker (run from a directory whose name matches `SKILL.md`) reported no rule match and no unreviewed binary content for this text-only candidate. Reviewed public hosts added for this 0.4.4 change: `blog.jetbrains.com`, `blog.cloudflare.com`, `clickhouse.com`, `wordpress.org`, `www.wordpress.org`. Four-part ClickHouse floors are assembled at runtime so the leak scanner does not read them as IPv4 addresses. The checker ran without the private denylist; a separate private-terms scan of the branch diff found no match.
 - **Secret check:** Pattern checks (`textscan` secret shapes, `check_public_package.py`, a privacy grep of the branch diff) found no leaked values. Pattern checks do not prove that every confidential fact has been detected.
 - **Examples:** The baseline and after-fix examples validate structurally; the after-fix example intentionally remains INCOMPLETE because a required check is blocked.
 - **Host checks:** Fixture tests cover every check id on simulated macOS, Linux and Windows hosts (positive, negative and edge cases: symlink loops, unreadable directories, missing binaries, prereleases, Windows paths, spaces and unicode). A whole-run test proves no writes, no network, no subprocess beyond the two read-only listings, and no planted secret values in the JSON. CI also runs `host_checks.py` against each runner into `$RUNNER_TEMP`.

@@ -111,6 +111,10 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "lists.openwall.net",  # linux-cve-announce
     "remedio.io",  # TeamViewer researcher write-up (lead; not a floor)
     "www.drupal.org", "drupal.org",  # SA-CONTRIB-2026-254 and Commerce Core releases
+    "blog.jetbrains.com",  # JetBrains JBR eMudhra IDE floors
+    "blog.cloudflare.com",  # eMudhra patching pointer
+    "clickhouse.com",  # CVE-2026-116366 security changelog
+    "wordpress.org", "www.wordpress.org",  # WordPress 7.1.4 news and HelpHub
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

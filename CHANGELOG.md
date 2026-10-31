@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.4 - 2026-10-31
+
+### Added
+
+- `scripts/host_checks.py`: three read-only checks (48 checks total). `jetbrains-jbr-emudhra` classifies JetBrains IDEs, Gateway, Toolbox, ReSharper, standalone JBR (macOS) and `jetbrainsd` against the 30 Oct 2026 blog floors. IDE versions come only from `product-info.json`. RC/EAP is review. An IDE on line 2025.2 at or above its floor is JCEF-pending review. `clickhouse-116366` classifies `clickhouse-server` and `clickhouse-common-static` against the four OSS floors for CVE-2026-116366 (`line_len=2`). Cloud / BYOC numbers are not OSS floors. Moving image tags are info. `wordpress-core-upgrade-rce` classifies `$wp_version` against GHSA-4w3m-c66w-69mg / HelpHub 7.1.4 backports through 4.7.39. 7.2 prereleases follow the Beta 3 rule. Staged copies under `wp-content/upgrade` are review. None of these checks start a program or make an HTTP request.
+- Dated profiles: `jetbrains-jbr-emudhra-2026-10-30.md`, `clickhouse-2026-10-30.md`, `wordpress-core-upgrade-2026-10-28.md`.
+
+### Changed
+
+- Reviewed public hosts: `blog.jetbrains.com`, `blog.cloudflare.com`, `clickhouse.com`, `wordpress.org`, `www.wordpress.org`.
+- `profiles/emudhra-2026-10-17.md` points at the JetBrains JBR check; OS-store reporting is unchanged.
+- `clickhouse-116366` does not treat `clickhouse-common-static` as server evidence on a client-only or keeper-only install (those packages pull the shared static package). An orphan `clickhouse-common-static` is still classified.
+
+### Known limits
+
+- `jetbrains-jbr-emudhra` matches RC/EAP only as a separate word, so a suffix like `EAP9` or `RC1` reads `affected` instead of `review`. It still FAILs.
+- An unrelated macOS app whose name contains a JetBrains product name (for example `Gateway`) and has no `product-info.json` reads `unknown`.
+- On Windows, a non-IDE folder under `Program Files/JetBrains` with no `product-info.json` reads `unknown`.
+- The package file count is at its target of 60. The next profile needs a higher target or a merged profile.
+
 ## 0.4.3 - 2026-10-30
 
 ### Added
