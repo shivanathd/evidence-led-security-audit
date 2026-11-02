@@ -4,7 +4,7 @@
 
 ### Added
 
-- `scripts/host_checks.py`: read-only check `lxd-112816` (49 checks total). Classifies Canonical LXD and MicroCloud snap metadata against Discourse 90557 / CVE-2026-112816 floors (LXD 6.10.1, 5.21.9, 5.0.11, 4.0.15; MicroCloud 3.4.1, 2.1.5). The active snap revision is the `current` symlink text; retained revisions are info. Distro `lxd` / `microcloud` packages are review. Related Incus packages cite GHSA-xg75 (`>= 7.6.0`); Incus 6.0 LTS is review. Presence without version uses `/var/snap/lxd/common/lxd`, `/var/snap/microcloud/common`, or `/var/lib/incus`. It never starts `lxc`, `lxd`, `incus`, `microcloud` or `snap`.
+- `scripts/host_checks.py`: read-only check `lxd-112816` (49 checks total). Classifies Canonical LXD and MicroCloud snap metadata against Discourse 90557 / CVE-2026-112816 floors (LXD 6.10.1, 5.21.9, 5.0.11, 4.0.15; MicroCloud 3.4.1, 2.1.5). The active snap revision is the `current` symlink text; retained revisions are info. Distro `lxd` / `microcloud` packages are review. Related Incus is classified from `incus` / `incus-base` packages (GHSA-xg75, `>= 7.6.0`) or `/var/lib/incus`; `/snap/incus` is not read. Incus 6.0 LTS is review. Presence without version uses `/var/snap/lxd/common/lxd`, `/var/snap/microcloud/common`, or `/var/lib/incus`. It never starts `lxc`, `lxd`, `incus`, `microcloud` or `snap`.
 - Dated profile: `lxd-microcloud-2026-10-28.md`.
 
 ### Changed
@@ -17,7 +17,7 @@
 - Homebrew and Chocolatey `incus`/`lxc` are clients and are not classified.
 - Container image references are not classified for this check.
 - `/var/lib/lxd` is ignored (deb-era leftover after `lxd.migrate` on older Ubuntu).
-- Progressive rollout can leave `current` on an older revision; the check follows the link text rather than every retained revision.
+- Retained older revisions are info. Only the revision `current` points at is classified.
 
 ## 0.4.4 - 2026-10-31
 

@@ -40,7 +40,7 @@ Point releases were in progressive rollout from `candidate` to `stable` at advis
 
 ## Evidence this check reads
 
-- Linux snaps `lxd`, `microcloud`, and `incus`: the active revision is the basename of `/snap/<name>/current` when that path is a symlink whose target has a readable `meta/snap.yaml`. The link text is read; the link is never opened as a file. Other `x?digit` revisions on disk are recorded as inactive retained copies.
+- Linux snaps `lxd` and `microcloud`: the active revision is the basename of `/snap/<name>/current` when that path is a symlink whose target has a readable `meta/snap.yaml`. The link text is read; the link is never opened as a file. Other `x?digit` revisions on disk are recorded as inactive retained copies. `/snap/incus` is not read.
 - When `current` is missing, is not a symlink, or points at a revision with no readable yaml, every matching revision is classified and the detail says the active revision was not read.
 - Linux packages `lxd` and `microcloud` from dpkg/apk/pacman/rpm: always `review` (Canonical ships the fix in the snap). Ubuntu archive `lxd` is not treated as "Not affected" from `VERSION_ID`.
 - Linux package `incus`, or `incus-base` only when `incus` is absent. `incus-client` alone is not this check.

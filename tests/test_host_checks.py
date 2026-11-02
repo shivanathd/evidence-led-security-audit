@@ -2609,6 +2609,13 @@ class Lxd112816(SimCase):
         self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["unknown"])
 
+    def test_empty_version_value_is_blocked(self):
+        self.s.write("/snap/lxd/100/meta/snap.yaml", "version:\nsummary: x\n")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("review", results(c))
+
     def test_local_x_revision_is_classified(self):
         self._snap("lxd", "x1", "5.21.8")
         c = self.s.check("lxd-112816")
@@ -2700,6 +2707,12 @@ class Lxd112816(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["review"])
 
+    def test_incus_snap_is_not_applicable(self):
+        self._snap("incus", "1", "7.5")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertEqual(c["findings"], [])
+
     def test_incus_client_only_is_not_applicable(self):
         self.s.dpkg({"incus-client": "7.5"})
         c = self.s.check("lxd-112816")
@@ -2742,6 +2755,37 @@ class Lxd112816(SimCase):
                 mock.patch.object(os, "system", side_effect=AssertionError("exec")):
             c = self.s.check("lxd-112816")
         self.assertStatus(c, "FAIL")
+
+    @unittest.skipUnless(CAN_SYMLINK, "needs POSIX symlinks")
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_current_unreadable_yaml_falls_back(self):
+        self._snap("lxd", "100", "5.21.8")
+        self._snap("lxd", "101", "5.21.9")
+        self._current("lxd", "101")
+        os.chmod(self.s.path("/snap/lxd/101/meta/snap.yaml"), 0)
+        c = self.s.check("lxd-112816")
+        self.assertGreaterEqual(len(c["findings"]), 2)
+        for f in c["findings"]:
+            self.assertIn("active revision not read", f["detail"])
+        kinds = results(c)
+        self.assertIn("affected", kinds)
+        self.assertIn("unknown", kinds)
+
+    def test_non_revision_snap_child_is_skipped(self):
+        self.s.write("/snap/lxd/foo/meta/snap.yaml", "version: 5.21.8\n")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertEqual(c["findings"], [])
+
+    def test_current_plain_directory_falls_back(self):
+        self._snap("lxd", "100", "5.21.8")
+        self._snap("lxd", "101", "5.21.9")
+        self.s.mkdir("/snap/lxd/current")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        for f in c["findings"]:
+            self.assertIn("active revision not read", f["detail"])
 
 
 # --------------------------------------------------------------------------

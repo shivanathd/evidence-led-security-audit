@@ -4223,7 +4223,8 @@ def check_wordpress_core(host, r):
 
 
 _SNAP_REV_RE = re.compile(r"^x?\d+$")
-_SNAP_VER_RE = re.compile(r"(?m)^version:\s*['\"]?([^'\"\s]+)")
+_SNAP_VER_RE = re.compile(r"(?m)^version:[ \t]*['\"]?([^'\"\s]+)")
+_LXD_SNAP_NAMES = ("lxd", "microcloud")
 _LXD_COMPONENTS = ("lxd", "microcloud", "incus")
 
 
@@ -4357,7 +4358,7 @@ def check_lxd_112816(host, r):
     labels = {"lxd": "LXD", "microcloud": "MicroCloud", "incus": "Incus"}
     cites = {"lxd": None, "microcloud": None, "incus": "GHSA-xg75"}
     if host.platform == "linux":
-        for name in _LXD_COMPONENTS:
+        for name in _LXD_SNAP_NAMES:
             if _lxd_emit_snaps(host, r, name, labels[name], cites[name]):
                 found[name] = True
         pk = linux_packages(host)
