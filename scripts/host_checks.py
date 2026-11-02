@@ -4648,7 +4648,7 @@ CHECKS = [
                "incus, microcloud or snap.",
                "Refresh the LXD or MicroCloud snap to the listed floor. Incus: 7.6.0 or later. Restricting "
                "the HTTPS listener is mitigation, not a vendor fix. This tool never starts a program.",
-               ALL_OS, check_lxd_112816, uses_walk=False),
+               "Linux only", check_lxd_112816, uses_walk=False),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

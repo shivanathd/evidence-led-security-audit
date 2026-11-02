@@ -2530,6 +2530,7 @@ class Lxd112816(SimCase):
             c = self.sim(platform).check("lxd-112816")
             self.assertStatus(c, "NOT_APPLICABLE")
             self.assertEqual(c["findings"], [])
+            self.assertEqual(c["os_support"], "Linux only")
 
     def test_classifier_lxd_microcloud_incus_floors(self):
         cases = (
