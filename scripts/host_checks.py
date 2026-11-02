@@ -57,7 +57,7 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.4"
+VERSION = "0.4.5"
 BRIEFING = "Security briefings, 16-30 Oct 2026 (public reports; dated 2026-10-27, 2026-10-28 and 2026-10-30)"
 BRIEFING_DATE = "2026-10-30"
 APP = ".app"
@@ -101,6 +101,10 @@ LIMITS = [
     "wordpress-core-upgrade-rce never makes an HTTP request to setup-config.php, install.php or any URL under "
     "wp-content/upgrade. Reading wp-includes/version.php on disk, including staged copies under wp-content/upgrade, "
     "is in scope.",
+    "lxd-112816 classifies the active snap revision from the current symlink text (readlink only; the link is "
+    "never opened as a file). Other x?digit revisions are inactive retained copies. Distro lxd and microcloud "
+    "packages are review. No lxc, lxd, incus, microcloud or snap command is run. Homebrew/Chocolatey clients "
+    "and container image tags are not classified. /var/lib/lxd is ignored.",
 ]
 
 CLEANUP_ORDER = [
@@ -258,6 +262,14 @@ SRC = {
                             "https://github.com/WordPress/wordpress-develop/security/advisories/GHSA-4w3m-c66w-69mg"),
     "thn-wp-upgrade-rce": ("The Hacker News: WordPress upgrade-window RCE (pointer; not a version floor)",
                            "https://thehackernews.com/2026/10/wordpress-rce-flaw-draws-nearly-63000.html"),
+    "lxd-discourse-90557": ("Canonical Discourse: critical vulnerability in LXD and MicroCloud",
+                            "https://discourse.ubuntu.com/t/security-advisory-critical-vulnerability-found-in-canonical-lxd-and-microcloud/90557"),
+    "ghsa-pq55-m3w3-jh54": ("GitHub advisory GHSA-pq55-m3w3-jh54 (CVE-2026-112816)",
+                            "https://github.com/advisories/GHSA-pq55-m3w3-jh54"),
+    "ubuntu-cve-2026-112816": ("Ubuntu Security CVE-2026-112816",
+                               "https://ubuntu.com/security/CVE-2026-112816"),
+    "incus-ghsa-xg75": ("Incus advisory GHSA-xg75-xf37-cph9",
+                        "https://github.com/lxc/incus/security/advisories/GHSA-xg75-xf37-cph9"),
 }
 
 SKIPPED = [
@@ -4210,6 +4222,175 @@ def check_wordpress_core(host, r):
         wordpress_classify(r, m.group(1), host.display(ver_path))
 
 
+_SNAP_REV_RE = re.compile(r"^x?\d+$")
+_SNAP_VER_RE = re.compile(r"(?m)^version:[ \t]*['\"]?([^'\"\s]+)")
+_LXD_SNAP_NAMES = ("lxd", "microcloud")
+_LXD_COMPONENTS = ("lxd", "microcloud", "incus")
+
+
+def classify_lxd_family(component, raw):
+    """Return (result, note) for a parsed LXD / MicroCloud / Incus version.
+
+    ``raw`` is a ``hostscan.Version`` or None (None is review).
+    """
+    if raw is None:
+        return "review", "version string could not be parsed"
+    nums = raw.nums
+    if component == "lxd":
+        if nums and nums[0] == 6:
+            floor = "6.10.1"
+        elif nums[:2] == (5, 21):
+            floor = "5.21.9"
+        elif nums[:2] == (5, 0):
+            floor = "5.0.11"
+        elif nums[:2] == (4, 0):
+            floor = "4.0.15"
+        else:
+            line = ".".join(str(n) for n in (nums[:2] if len(nums) >= 2 else nums[:1]))
+            return "review", "release line %s is not in the advisory table" % (line or "unknown")
+        return _lxd_floor_result(raw, floor, "snap floor")
+    if component == "microcloud":
+        if nums and nums[0] == 3:
+            floor = "3.4.1"
+        elif nums and nums[0] == 2:
+            floor = "2.1.5"
+        else:
+            line = str(nums[0]) if nums else "unknown"
+            return "review", "release line %s is not in the advisory table" % line
+        return _lxd_floor_result(raw, floor, "snap floor")
+    if component == "incus":
+        if nums and nums[0] == 7:
+            return _lxd_floor_result(raw, "7.6.0", "GHSA-xg75 floor")
+        return "review", "the advisory names only the v7 module; check the Incus 6.0 LTS release notes"
+    return "review", "release line is not in the advisory table"
+
+
+def _lxd_floor_result(raw, floor, label):
+    if hs.at_least(raw, floor):
+        return "info", "at or above %s %s" % (label, floor)
+    note = "below %s %s" % (label, floor)
+    if raw.prerelease and hs.cmp_nums(raw.nums, hs.parse_version(floor).nums) == 0:
+        note = "prerelease of %s %s is not treated as fixed" % (label, floor)
+    return "affected", note
+
+
+def _lxd_active_revision(host, name):
+    """Basename of /snap/<name>/current when it is a revision with readable snap.yaml."""
+    cur = host.sys("/snap/%s/current" % name)
+    st = hs.lstat(cur)
+    if st is None or not stat.S_ISLNK(st.st_mode):
+        return None
+    try:
+        rev = os.readlink(cur)
+    except OSError:
+        return None
+    base = os.path.basename(rev)
+    if not _SNAP_REV_RE.match(base):
+        return None
+    meta = os.path.join(host.sys("/snap/%s" % name), base, "meta", "snap.yaml")
+    if hs.read_text(meta, 256 * 1024, host.gaps) is None:
+        return None
+    return base
+
+
+def _lxd_snap_revisions(host, name):
+    root = host.sys("/snap/%s" % name)
+    return [rev for rev in hs.listdir(root, host.gaps) if rev != "current" and _SNAP_REV_RE.match(rev)]
+
+
+def _lxd_snap_version(host, name, rev):
+    """Return (version_or_None, yaml_readable)."""
+    meta = os.path.join(host.sys("/snap/%s" % name), rev, "meta", "snap.yaml")
+    text = hs.read_text(meta, 256 * 1024, host.gaps)
+    if text is None:
+        return None, False
+    m = _SNAP_VER_RE.search(text)
+    return (m.group(1) if m else None), True
+
+
+def _lxd_cite(note, cite):
+    return "%s; %s" % (note, cite) if cite else note
+
+
+def _lxd_emit_snaps(host, r, name, label, cite):
+    """Classify snap revisions. Return True when this product produced a finding."""
+    revs = _lxd_snap_revisions(host, name)
+    active = _lxd_active_revision(host, name)
+    fallback = active is None
+    if not revs:
+        cur = host.sys("/snap/%s/current" % name)
+        st = hs.lstat(cur)
+        if st is not None and stat.S_ISLNK(st.st_mode):
+            r.add("unknown", label,
+                  _lxd_cite("current points at a revision with no readable snap.yaml", cite),
+                  path=host.display(cur))
+            return True
+        return False
+    for rev in revs:
+        raw, readable = _lxd_snap_version(host, name, rev)
+        path = host.display(os.path.join(host.sys("/snap/%s" % name), rev, "meta", "snap.yaml"))
+        if not fallback and rev != active:
+            r.add("info", label,
+                  "inactive retained revision %s (version %s); snapd keeps it after a refresh; it is not running"
+                  % (rev, raw if raw else "unread"),
+                  path=path, version=raw)
+            continue
+        extra = "; active revision not read" if fallback else ""
+        if not readable:
+            r.add("unknown", label,
+                  _lxd_cite("snap.yaml missing or unreadable" + extra, cite), path=path)
+            continue
+        if raw is None:
+            r.add("unknown", label,
+                  _lxd_cite("snap.yaml has no version line" + extra, cite), path=path)
+            continue
+        kind, note = classify_lxd_family(name, hs.parse_version(raw))
+        r.add(kind, label, _lxd_cite(note + extra, cite), path=path, version=raw)
+    return True
+
+
+def check_lxd_112816(host, r):
+    r.notes.append(
+        "Standalone LXD listens on a local socket by default; MicroCloud clustering uses the network API. "
+        "Restricting the HTTPS listener is mitigation, not a vendor fix."
+    )
+    found = {name: False for name in _LXD_COMPONENTS}
+    labels = {"lxd": "LXD", "microcloud": "MicroCloud", "incus": "Incus"}
+    cites = {"lxd": None, "microcloud": None, "incus": "GHSA-xg75"}
+    if host.platform == "linux":
+        for name in _LXD_SNAP_NAMES:
+            if _lxd_emit_snaps(host, r, name, labels[name], cites[name]):
+                found[name] = True
+        pk = linux_packages(host)
+        for name in ("lxd", "microcloud"):
+            for ver, _src in pk.get(name, []):
+                found[name] = True
+                r.add("review", labels[name],
+                      "distribution package; Canonical ships the fix in the snap; "
+                      "confirm any backport in the distro tracker",
+                      version=ver)
+        if pk.get("incus"):
+            incus_rows = pk.get("incus")
+        else:
+            incus_rows = pk.get("incus-base") or []
+        for ver, _src in incus_rows:
+            found["incus"] = True
+            kind, note = classify_lxd_family("incus", hs.parse_version(ver))
+            r.add(kind, "Incus", note + "; GHSA-xg75", version=ver)
+        if not found["lxd"] and hs.is_plain_dir(host.sys("/var/snap/lxd/common/lxd")):
+            r.add("unknown", "LXD",
+                  "data directory present; version not in snap or package metadata",
+                  path="/var/snap/lxd/common/lxd")
+        if not found["microcloud"] and hs.is_plain_dir(host.sys("/var/snap/microcloud/common")):
+            r.add("unknown", "MicroCloud",
+                  "data directory present; version not in snap or package metadata",
+                  path="/var/snap/microcloud/common")
+        if not found["incus"] and hs.is_plain_dir(host.sys("/var/lib/incus")):
+            r.add("unknown", "Incus",
+                  "data directory present; version not in snap or package metadata",
+                  path="/var/lib/incus")
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -4458,6 +4639,17 @@ CHECKS = [
                "Update to 7.1.4 or the GHSA patched build for that branch. Confirm the update landed; this "
                "tool does not. Never request files under wp-content/upgrade.",
                ALL_OS, check_wordpress_core),
+    check_meta("lxd-112816",
+               "LXD / MicroCloud below snap floors (CVE-2026-112816); Incus GHSA-xg75",
+               "check_if_used", "confirmed", "runtime",
+               ["lxd-discourse-90557", "ghsa-pq55-m3w3-jh54", "ubuntu-cve-2026-112816", "incus-ghsa-xg75"],
+               "CVE-2026-112816: mTLS authentication bypass in Canonical LXD and MicroCloud. Snap floors "
+               "6.10.1, 5.21.9, 5.0.11, 4.0.15 and MicroCloud 3.4.1 / 2.1.5. Related Incus fix is GHSA-xg75 "
+               ">= 7.6.0. Distro lxd/microcloud packages are review. This check never starts lxc, lxd, "
+               "incus, microcloud or snap.",
+               "Refresh the LXD or MicroCloud snap to the listed floor. Incus: 7.6.0 or later. Restricting "
+               "the HTTPS listener is mitigation, not a vendor fix. This tool never starts a program.",
+               "Linux only", check_lxd_112816, uses_walk=False),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

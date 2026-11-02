@@ -2511,6 +2511,284 @@ class WordpressCoreUpgradeRce(SimCase):
 
 
 # --------------------------------------------------------------------------
+# Canonical LXD / MicroCloud CVE-2026-112816 (related Incus GHSA-xg75)
+# --------------------------------------------------------------------------
+
+class Lxd112816(SimCase):
+    def _snap(self, name, rev, version, host=None):
+        s = host or self.s
+        body = "name: %s\nversion: %s\n" % (name, version)
+        s.write("/snap/%s/%s/meta/snap.yaml" % (name, rev), body)
+        return s
+
+    def _current(self, name, rev, host=None):
+        s = host or self.s
+        os.symlink(rev, s.path("/snap/%s/current" % name))
+
+    def test_empty_hosts_are_not_applicable(self):
+        for platform in ("darwin", "linux", "windows"):
+            c = self.sim(platform).check("lxd-112816")
+            self.assertStatus(c, "NOT_APPLICABLE")
+            self.assertEqual(c["findings"], [])
+            self.assertEqual(c["os_support"], "Linux only")
+
+    def test_classifier_lxd_microcloud_incus_floors(self):
+        cases = (
+            ("lxd", "6.9.0", "affected"),
+            ("lxd", "6.10.0", "affected"),
+            ("lxd", "6.10.1", "info"),
+            ("lxd", "5.21.8", "affected"),
+            ("lxd", "5.21.9", "info"),
+            ("lxd", "5.21.9-rc1", "affected"),
+            ("lxd", "5.21.9-1a2b3c4", "info"),
+            ("lxd", "5.21.8-1a2b3c4", "affected"),
+            ("lxd", "5.0.10", "affected"),
+            ("lxd", "5.0.11", "info"),
+            ("lxd", "4.0.14", "affected"),
+            ("lxd", "4.0.15", "info"),
+            ("lxd", "5.1.0", "review"),
+            ("microcloud", "3.4.0", "affected"),
+            ("microcloud", "3.4.1", "info"),
+            ("microcloud", "2.1.4", "affected"),
+            ("microcloud", "2.1.5", "info"),
+            ("microcloud", "1.0.0", "review"),
+            ("incus", "7.5", "affected"),
+            ("incus", "7.6", "info"),
+            ("incus", "7.6.0", "info"),
+            ("incus", "6.0.5", "review"),
+        )
+        for component, raw, want in cases:
+            got, note = hc.classify_lxd_family(component, hs.parse_version(raw))
+            self.assertEqual(got, want, (component, raw, note))
+        got, note = hc.classify_lxd_family("lxd", None)
+        self.assertEqual(got, "review", note)
+        got, note = hc.classify_lxd_family("incus", hs.parse_version("6.0.5"))
+        self.assertIn("v7 module", note)
+
+    def test_snap_5218_is_affected_and_5219_is_info(self):
+        self._snap("lxd", "100", "5.21.8")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("active revision not read", c["findings"][0]["detail"])
+        ok = self.sim("linux")
+        self._snap("lxd", "101", "5.21.9", host=ok)
+        c = ok.check("lxd-112816")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_snap_6x_floors(self):
+        for ver, status, kind in (("6.9.0", "FAIL", "affected"),
+                                  ("6.10.0", "FAIL", "affected"),
+                                  ("6.10.1", "PASS", "info")):
+            s = self.sim("linux")
+            self._snap("lxd", "80", ver, host=s)
+            c = s.check("lxd-112816")
+            self.assertStatus(c, status)
+            self.assertEqual(results(c), [kind], ver)
+
+    def test_snap_build_hash_and_prerelease(self):
+        for ver, status, kind in (("5.21.9-1a2b3c4", "PASS", "info"),
+                                  ("5.21.8-1a2b3c4", "FAIL", "affected"),
+                                  ("5.21.9-rc1", "FAIL", "affected")):
+            s = self.sim("linux")
+            self._snap("lxd", "90", ver, host=s)
+            c = s.check("lxd-112816")
+            self.assertStatus(c, status)
+            self.assertEqual(results(c), [kind], ver)
+
+    def test_unreadable_version_line_is_review(self):
+        self.s.write("/snap/lxd/100/meta/snap.yaml", "version: git-1a2b3c4\n")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_missing_version_line_is_unknown(self):
+        self.s.write("/snap/lxd/100/meta/snap.yaml", "name: lxd\n")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_empty_version_value_is_blocked(self):
+        self.s.write("/snap/lxd/100/meta/snap.yaml", "version:\nsummary: x\n")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("review", results(c))
+
+    def test_local_x_revision_is_classified(self):
+        self._snap("lxd", "x1", "5.21.8")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    @unittest.skipUnless(CAN_SYMLINK, "needs POSIX symlinks")
+    def test_current_points_at_fixed_rev_retains_old_as_info(self):
+        self._snap("lxd", "100", "5.21.8")
+        self._snap("lxd", "101", "5.21.9")
+        self._current("lxd", "101")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(sorted(results(c)), ["info", "info"])
+        details = " ".join(f["detail"] for f in c["findings"])
+        self.assertIn("inactive retained revision 100", details)
+        self.assertIn("5.21.8", details)
+
+    @unittest.skipUnless(CAN_SYMLINK, "needs POSIX symlinks")
+    def test_current_points_at_old_rev_is_affected(self):
+        self._snap("lxd", "100", "5.21.8")
+        self._snap("lxd", "101", "5.21.9")
+        self._current("lxd", "100")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        by_ver = {f.get("version"): f for f in c["findings"]}
+        self.assertEqual(by_ver["5.21.8"]["result"], "affected")
+        self.assertEqual(by_ver["5.21.9"]["result"], "info")
+        self.assertIn("inactive retained revision 101", by_ver["5.21.9"]["detail"])
+
+    def test_two_revs_without_current_falls_back(self):
+        self._snap("lxd", "100", "5.21.8")
+        self._snap("lxd", "101", "5.21.9")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        for f in c["findings"]:
+            self.assertIn("active revision not read", f["detail"])
+
+    @unittest.skipUnless(CAN_SYMLINK, "needs POSIX symlinks")
+    def test_dangling_current_without_revision_is_blocked(self):
+        self.s.mkdir("/snap/lxd")
+        self._current("lxd", "999")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_microcloud_snap_floors(self):
+        for ver, status, kind in (("3.4.0", "FAIL", "affected"),
+                                  ("3.4.1", "PASS", "info"),
+                                  ("2.1.4", "FAIL", "affected"),
+                                  ("2.1.5", "PASS", "info")):
+            s = self.sim("linux")
+            self._snap("microcloud", "40", ver, host=s)
+            c = s.check("lxd-112816")
+            self.assertStatus(c, status)
+            self.assertEqual(results(c), [kind], ver)
+
+    def test_incus_package_cites_ghsa_not_lxd_cve(self):
+        self.s.dpkg({"incus": "7.5"})
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        detail = c["findings"][0]["detail"]
+        self.assertIn("GHSA-xg75", detail)
+        self.assertNotIn("CVE-2026-112816", detail)
+        ok = self.sim("linux")
+        ok.dpkg({"incus": "7.6"})
+        c = ok.check("lxd-112816")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("GHSA-xg75", c["findings"][0]["detail"])
+        rev = self.sim("linux")
+        rev.dpkg({"incus": "6.0.5"})
+        c = rev.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_dpkg_lxd_is_review_never_affected(self):
+        self.s.dpkg({"lxd": "1:0.9"})
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("distribution package", c["findings"][0]["detail"])
+        other = self.sim("linux")
+        other.dpkg({"lxd": "5.0.2-5"})
+        c = other.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_incus_snap_is_not_applicable(self):
+        self._snap("incus", "1", "7.5")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertEqual(c["findings"], [])
+
+    def test_incus_client_only_is_not_applicable(self):
+        self.s.dpkg({"incus-client": "7.5"})
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_incus_base_used_only_when_incus_absent(self):
+        self.s.dpkg({"incus-base": "7.5"})
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        both = self.sim("linux")
+        both.dpkg({"incus": "7.6", "incus-base": "7.5"})
+        c = both.check("lxd-112816")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertEqual(c["findings"][0]["version"], "7.6")
+
+    def test_presence_var_snap_lxd_is_blocked(self):
+        self.s.mkdir("/var/snap/lxd/common/lxd")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_var_lib_lxd_only_is_not_applicable(self):
+        self.s.mkdir("/var/lib/lxd")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_homebrew_and_images_and_https_hint_are_ignored(self):
+        self.s.write("/opt/homebrew/Cellar/lxc/6.0.0/INSTALL_RECEIPT.json", "{}\n")
+        self.s.write("/opt/homebrew/Cellar/incus/7.5.0/INSTALL_RECEIPT.json", "{}\n")
+        self.s.write("~/code/service-a/Dockerfile", "FROM canonical/lxd:5.21.8\n")
+        self.s.write("~/code/service-a/preseed.yaml", "config:\n  core.https_address: 192.0.2.10:8443\n")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_never_starts_lxc_lxd_or_snap(self):
+        self._snap("lxd", "100", "5.21.8")
+        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+            c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+
+    @unittest.skipUnless(CAN_SYMLINK, "needs POSIX symlinks")
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_current_unreadable_yaml_falls_back(self):
+        self._snap("lxd", "100", "5.21.8")
+        self._snap("lxd", "101", "5.21.9")
+        self._current("lxd", "101")
+        os.chmod(self.s.path("/snap/lxd/101/meta/snap.yaml"), 0)
+        c = self.s.check("lxd-112816")
+        self.assertGreaterEqual(len(c["findings"]), 2)
+        for f in c["findings"]:
+            self.assertIn("active revision not read", f["detail"])
+        kinds = results(c)
+        self.assertIn("affected", kinds)
+        self.assertIn("unknown", kinds)
+
+    def test_non_revision_snap_child_is_skipped(self):
+        self.s.write("/snap/lxd/foo/meta/snap.yaml", "version: 5.21.8\n")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertEqual(c["findings"], [])
+
+    def test_current_plain_directory_falls_back(self):
+        self._snap("lxd", "100", "5.21.8")
+        self._snap("lxd", "101", "5.21.9")
+        self.s.mkdir("/snap/lxd/current")
+        c = self.s.check("lxd-112816")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        for f in c["findings"]:
+            self.assertIn("active revision not read", f["detail"])
+
+
+# --------------------------------------------------------------------------
 # Whole-run behaviour: no crash, read only, bounded, redacted
 # --------------------------------------------------------------------------
 
@@ -2529,6 +2807,7 @@ class WholeRun(SimCase):
             s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
             s.write("/var/www/html/wp-settings.php", "<?php\n")
             s.write("/var/www/html/wp-includes/version.php", "$wp_version = '7.1.3';\n")
+            s.write("/snap/lxd/100/meta/snap.yaml", "version: 5.21.8-1a2b3c4\n")
         elif s.platform == "darwin":
             s.plist("/Applications/TeamViewer" + APP + "/Contents/Info.plist",
                     {"CFBundleShortVersionString": "15.82"})
@@ -2571,12 +2850,14 @@ class WholeRun(SimCase):
                 self.assertEqual(by["clickhouse-116366"]["status"], "FAIL")
                 self.assertEqual(by["wordpress-core-upgrade-rce"]["status"], "FAIL")
                 self.assertEqual(by["jetbrains-jbr-emudhra"]["status"], "NOT_APPLICABLE")
+                self.assertEqual(by["lxd-112816"]["status"], "FAIL")
             else:
                 self.assertEqual(by["fragnesia-linux"]["status"], "NOT_APPLICABLE")
                 self.assertEqual(by["linux-tcp-uaf-98432"]["status"], "NOT_APPLICABLE")
                 self.assertEqual(by["jetbrains-jbr-emudhra"]["status"], "FAIL")
                 self.assertEqual(by["clickhouse-116366"]["status"], "NOT_APPLICABLE")
                 self.assertEqual(by["wordpress-core-upgrade-rce"]["status"], "NOT_APPLICABLE")
+                self.assertEqual(by["lxd-112816"]["status"], "NOT_APPLICABLE")
 
     def test_secrets_never_reach_the_output(self):
         self.populate(self.s)
