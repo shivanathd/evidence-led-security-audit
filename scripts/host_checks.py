@@ -4056,6 +4056,8 @@ def check_linux_tcp_uaf(host, r):
 # --------------------------------------------------------------------------
 
 _NODERED_ADMIN_AUTH = re.compile(r"(?m)^\s*adminAuth\s*:")
+_NODERED_ADMIN_AUTH_OFF = re.compile(
+    r"(?m)^\s*adminAuth\s*:\s*(?:false|null|undefined)\s*(?:,|$|})")
 _NODERED_HTTP_ADMIN_AUTH = re.compile(r"(?m)^\s*httpAdminAuth\s*:")
 _NODERED_UI_HOST = re.compile(r"(?m)^\s*uiHost\s*:\s*(['\"])([^'\"]+)\1")
 _NODERED_SIEMENS = re.compile(r"industrial os|simatic|iot2050", re.I)
@@ -4206,7 +4208,8 @@ def _nodered_classify_settings(host, r, path, pkg_ver):
               path=host.display(path), version=pkg_ver)
         return
     stripped = _strip_js_comments(text)
-    has_auth = bool(_NODERED_ADMIN_AUTH.search(stripped))
+    has_auth = (bool(_NODERED_ADMIN_AUTH.search(stripped))
+                and not _NODERED_ADMIN_AUTH_OFF.search(stripped))
     has_http = bool(_NODERED_HTTP_ADMIN_AUTH.search(stripped))
     ui_m = _NODERED_UI_HOST.search(stripped)
     ui_val = ui_m.group(2) if ui_m else None

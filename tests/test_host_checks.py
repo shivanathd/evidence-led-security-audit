@@ -2344,6 +2344,31 @@ class NodeRedAdminHttp(SimCase):
         self.assertEqual(results(c), ["info"])
         self.assertIn("loopback", c["findings"][0]["detail"])
 
+    def test_admin_auth_false_is_review(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js",
+                "module.exports = {\n    adminAuth: false,\n    uiPort: 1880\n};\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("no adminAuth", c["findings"][0]["detail"])
+        self.assertIn("all interfaces", c["findings"][0]["detail"])
+        self.assertFalse(c["findings"][0].get("adminAuth_set"))
+
+    def test_admin_auth_null_with_loopback_is_info(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js",
+                "module.exports = {\n"
+                "    adminAuth: null,\n"
+                "    uiHost: \"127.0.0.1\"\n"
+                "};\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("loopback", c["findings"][0]["detail"])
+        self.assertIn("no adminAuth", c["findings"][0]["detail"])
+        self.assertFalse(c["findings"][0].get("adminAuth_set"))
+
     def test_http_admin_auth_only_is_review(self):
         self._require()
         s = self.s

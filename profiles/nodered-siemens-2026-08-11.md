@@ -38,6 +38,7 @@ Siemens markers: os-release `ID` / `NAME` / `PRETTY_NAME` containing Industrial 
 | nothing found | `NOT_APPLICABLE` |
 
 - `adminAuth` present → `info`.
+- `adminAuth` set to false, null or undefined counts as no adminAuth.
 - No `adminAuth` and `uiHost` is a quoted `127.0.0.1` / `localhost` / `::1` → `info`.
 - No `adminAuth` and `uiHost` absent, another literal, or not a quoted literal → `review`.
 - Only deprecated `httpAdminAuth` → `review`.
