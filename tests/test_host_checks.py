@@ -2044,30 +2044,90 @@ class FragnesiaLinux(SimCase):
         self.assertNotIn("before 13 may", blob)
 
 
+class UbuntuGenericAbiHelper(SimCase):
+    def test_helper_matches_fragnesia_noble_and_non_generic(self):
+        fn = getattr(hc, "ubuntu_generic_abi_state", None)
+        self.assertTrue(callable(fn))
+        below, row = fn("6.8.0-90-generic", "24.04", None, hc.FRAGNESIA_UBUNTU_ABI)
+        self.assertEqual(below, "below")
+        self.assertEqual(row[0], 124)
+        ok, _row = fn("6.8.0-124-generic", "24.04", None, hc.FRAGNESIA_UBUNTU_ABI)
+        self.assertEqual(ok, "at_or_above")
+        ng, empty = fn("5.15.0-1070-aws", "22.04", None, hc.FRAGNESIA_UBUNTU_ABI)
+        self.assertEqual(ng, "non_generic")
+        self.assertIsNone(empty)
+        no_row, empty = fn("6.8.0-90-generic", "25.10", None, hc.FRAGNESIA_UBUNTU_ABI)
+        self.assertEqual(no_row, "no_row")
+        self.assertIsNone(empty)
+        unread, _row = fn("5.15.0-181-generic", "22.04", None, hc.FRAGNESIA_UBUNTU_ABI)
+        self.assertEqual(unread, "upload_unreadable")
+        mismatch, _row = fn(
+            "6.8.0-124-generic", "24.04", 124, hc.FRAGNESIA_UBUNTU_ABI, upload_series="20.04")
+        self.assertEqual(mismatch, "suffix_mismatch")
+
+
 class LinuxTcpUaf98432(SimCase):
+    def _ubuntu(self, release, osrelease, proc_version=None, os_id="ubuntu"):
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=%s\nVERSION_ID="%s"\n' % (os_id, release))
+        s.write("/proc/sys/kernel/osrelease", osrelease + "\n")
+        if proc_version:
+            s.write("/proc/version", proc_version)
+        return s, s.check("linux-tcp-uaf-98432")
+
+    def _rhel(self, os_id, osrelease, version_id="8.10"):
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=%s\nVERSION_ID="%s"\n' % (os_id, version_id))
+        s.write("/proc/sys/kernel/osrelease", osrelease + "\n")
+        return s.check("linux-tcp-uaf-98432")
+
     def test_other_os_and_empty_linux(self):
         self.assertStatus(self.sim("darwin").check("linux-tcp-uaf-98432"), "NOT_APPLICABLE")
         self.assertStatus(self.sim("windows").check("linux-tcp-uaf-98432"), "NOT_APPLICABLE")
         self.assertStatus(self.s.check("linux-tcp-uaf-98432"), "NOT_APPLICABLE")
 
-    def test_running_kernel_is_review_only(self):
+    def test_osrelease_missing_with_other_metadata_is_unknown(self):
         s = self.sim("linux")
-        s.write("/proc/sys/kernel/osrelease", "6.8.0-90-generic\n")
         s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
         c = s.check("linux-tcp-uaf-98432")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertIn("running kernel release could not be read", c["findings"][0]["detail"])
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_osrelease_unreadable_is_unknown(self):
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        s.write("/proc/sys/kernel/osrelease", "6.8.0-90-generic\n", 0)
+        c = s.check("linux-tcp-uaf-98432")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_running_kernel_is_review_only(self):
+        _s, c = self._ubuntu("24.04", "6.8.0-90-generic")
         self.assertStatus(c, "FAIL")
-        self.assertEqual(results(c), ["review"])
+        self.assertEqual(results(c), ["affected"])
         detail = c["findings"][0]["detail"]
+        blob = json.dumps(c).lower()
         self.assertIn("6.8.0-90-generic", c["findings"][0].get("version", "") + detail)
-        self.assertIn("ubuntu", detail.lower())
-        self.assertIn("24.04", detail)
-        self.assertIn("29 Oct 2026", detail)
-        self.assertIn("no released fixed build", detail.lower())
-        self.assertIn("15 Oct 2026", detail)
-        self.assertIn("30 Oct 2026", detail)
-        self.assertTrue("5.10.272" in detail or "cve.org" in detail.lower())
-        self.assertIn("not Ubuntu", detail)
-        self.assertNotIn("patched", detail.lower())
+        self.assertIn("proposed", detail.lower())
+        self.assertIn("6.8.0-149.149", detail)
+        self.assertIn("-updates", detail.lower())
+        self.assertNotIn("patched", blob)
+        self.assertNotRegex(detail.lower(), r"\bfixed\b")
+
+    def test_proposed_at_floor_is_review_not_updates(self):
+        _s, c = self._ubuntu(
+            "24.04", "6.8.0-149-generic",
+            "Linux version 6.8.0-149-generic (buildd@lcy) (gcc) #149-Ubuntu SMP\n")
+        self.assertEqual(results(c), ["review"])
+        self.assertStatus(c, "FAIL")
+        detail = c["findings"][0]["detail"]
+        self.assertIn("proposed", detail.lower())
+        self.assertIn("2 Nov 2026", detail)
+        self.assertIn("-updates", detail.lower())
+        self.assertNotIn("patched", json.dumps(c).lower())
+        self.assertNotRegex(detail.lower(), r"\bfixed\b")
 
     def test_wip_targets_are_not_floors(self):
         s = self.sim("linux")
@@ -2076,10 +2136,351 @@ class LinuxTcpUaf98432(SimCase):
         s.dpkg({"linux-image-generic": "6.8.0-149.149"})
         c = s.check("linux-tcp-uaf-98432")
         self.assertEqual(results(c), ["review"])
+        self.assertNotEqual(c["status"], "PASS")
         blob = json.dumps(c).lower()
         self.assertNotIn("affected", results(c))
         self.assertNotIn("patched", blob)
-        self.assertNotIn("at or above", blob)
+        self.assertNotIn("info", results(c))
+
+    def test_ubuntu_26_10_below_claimed_abi_is_review(self):
+        _s, c = self._ubuntu("26.10", "7.3.0-8-generic")
+        self.assertEqual(results(c), ["review"])
+        detail = c["findings"][0]["detail"]
+        self.assertIn("26.10", detail)
+        self.assertTrue("ubuntu.com/security/CVE-2026-98432" in detail or "CVE page" in detail or "cve page" in detail.lower())
+        self.assertIn("proposed", detail.lower())
+        self.assertNotIn("patched", json.dumps(c).lower())
+
+    def test_trusty_3_13_is_info_other_series_review(self):
+        _s, ok = self._ubuntu("14.04", "3.13.0-100-generic")
+        self.assertEqual(results(ok), ["info"])
+        self.assertStatus(ok, "PASS")
+        _s, other = self._ubuntu("14.04", "4.4.0-100-generic")
+        self.assertEqual(results(other), ["review"])
+        self.assertIn("no Ubuntu fix information for this series", other["findings"][0]["detail"])
+
+    def test_pending_and_unlisted_ubuntu_series_are_review(self):
+        _s, xenial = self._ubuntu("16.04", "4.4.0-200-generic")
+        self.assertEqual(results(xenial), ["review"])
+        self.assertIn("fix pending (Ubuntu, 2 Nov 2026)", xenial["findings"][0]["detail"])
+        _s, questing = self._ubuntu("25.10", "6.17.0-34-generic")
+        self.assertEqual(results(questing), ["review"])
+        _s, aws = self._ubuntu("22.04", "5.15.0-203-aws")
+        self.assertEqual(results(aws), ["review"])
+
+    def test_hwe_wip_wording_from_cve_page(self):
+        _s, low = self._ubuntu("20.04", "5.15.0-180-generic")
+        self.assertEqual(results(low), ["affected"])
+        self.assertIn("WIP target on the Ubuntu CVE page", low["findings"][0]["detail"])
+        _s, at = self._ubuntu(
+            "20.04", "5.15.0-203-generic",
+            "Linux version 5.15.0-203-generic (buildd@lcy) (gcc) #213~20.04.1-Ubuntu SMP\n")
+        self.assertEqual(results(at), ["review"])
+        self.assertIn("WIP target on the Ubuntu CVE page", at["findings"][0]["detail"])
+        self.assertNotIn("Ubuntu blog", at["findings"][0]["detail"])
+
+    def test_rhel_stream_floors(self):
+        el9_low = self._rhel("rhel", "5.14.0-687.50.1.el9_8.x86_64", "9.8")
+        self.assertStatus(el9_low, "FAIL")
+        self.assertEqual(results(el9_low), ["affected"])
+        self.assertIn("RHSA-2026:93412", el9_low["findings"][0]["detail"])
+        el9_ok = self._rhel("rhel", "5.14.0-687.64.1.el9_8.x86_64", "9.8")
+        self.assertEqual(results(el9_ok), ["info"])
+        self.assertStatus(el9_ok, "PASS")
+        self.assertIn("at or above RHSA-2026:93412 kernel 5.14.0-687.64.1.el9_8", el9_ok["findings"][0]["detail"])
+        el9_6 = self._rhel("rhel", "5.14.0-570.51.1.el9_6.x86_64", "9.6")
+        self.assertEqual(results(el9_6), ["review"])
+        self.assertIn("el9_6", el9_6["findings"][0]["detail"])
+        self.assertIn("stream", el9_6["findings"][0]["detail"])
+        self.assertNotEqual(results(el9_6), ["affected"])
+        el8_low = self._rhel("rhel", "4.18.0-553.80.1.el8_10.x86_64", "8.10")
+        self.assertEqual(results(el8_low), ["affected"])
+        el10_hi = self._rhel("rhel", "6.12.0-211.80.1.el10_2.x86_64", "10.2")
+        self.assertEqual(results(el10_hi), ["info"])
+        variant = self._rhel("rhel", "5.14.0-687.64.1.el9_8.x86_64+rt", "9.8")
+        self.assertEqual(results(variant), ["info"])
+        rt = self._rhel("rhel", "4.18.0-553.182.1.rt7.337.el8_10.x86_64", "8.10")
+        self.assertEqual(results(rt), ["review"])
+
+    def test_rocky_does_not_use_rhel_floor(self):
+        c = self._rhel("rocky", "5.14.0-687.64.1.el9_8.x86_64", "9.8")
+        self.assertEqual(results(c), ["review"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    def test_title_and_limits_drop_review_only(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "linux-tcp-uaf-98432")
+        self.assertNotIn("review only", meta["title"].lower())
+        self.assertIn("-proposed", meta["remediation"])
+        self.assertIn("MPTCP", meta["remediation"])
+        stale = [x for x in hc.LIMITS if x.startswith(
+            "linux-tcp-uaf-98432 records the running kernel as review")]
+        self.assertEqual(stale, [])
+        self.assertTrue(any("nodered-admin-http reads" in x for x in hc.LIMITS))
+
+
+NR_HASH = "$2a$08$" + ("x" * 53)
+NR_SETTINGS_AUTH = (
+    "module.exports = {\n"
+    "    uiPort: 1880,\n"
+    "    adminAuth: {\n"
+    "        type: \"credentials\",\n"
+    "        users: [{ username: \"example\", password: \"%s\" }]\n"
+    "    }\n"
+    "};\n"
+) % NR_HASH
+NR_SETTINGS_BLOCK = (
+    "module.exports = {\n"
+    "    uiPort: process.env.PORT || 1880,\n"
+    "    /*\n"
+    "    adminAuth: {\n"
+    "        type: \"credentials\",\n"
+    "        users: [{ username: \"example\", password: \"%s\" }]\n"
+    "    },\n"
+    "    */\n"
+    "    functionGlobalContext: {}\n"
+    "};\n"
+) % NR_HASH
+
+
+class NodeRedAdminHttp(SimCase):
+    def _require(self):
+        self.assertIn("nodered-admin-http", hc.CHECK_IDS)
+
+    def test_empty_hosts_not_applicable(self):
+        self._require()
+        for platform in ("darwin", "linux", "windows"):
+            self.assertStatus(self.sim(platform).check("nodered-admin-http"), "NOT_APPLICABLE")
+
+    def test_walk_flag_and_sources(self):
+        self._require()
+        meta = next(m for m in hc.CHECKS if m["id"] == "nodered-admin-http")
+        self.assertFalse(meta["uses_walk"])
+        for key in meta["sources"]:
+            self.assertIn(key, hc.SRC)
+
+    def test_default_template_block_comment_is_review(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js", NR_SETTINGS_BLOCK)
+        c = s.check("nodered-admin-http")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("no adminAuth", c["findings"][0]["detail"])
+        self.assertIn("all interfaces", c["findings"][0]["detail"])
+        self.assertNotIn("affected by CVE-2026-58115", json.dumps(c["findings"]))
+
+    def test_uncommented_admin_auth_is_info(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js", NR_SETTINGS_AUTH)
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["info"])
+        self.assertStatus(c, "PASS")
+        self.assertIn("adminAuth set", c["findings"][0]["detail"])
+
+    def test_line_comment_admin_auth_counts_absent(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js",
+                "module.exports = {\n    // adminAuth: { type: \"credentials\" },\n    uiPort: 1880\n};\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["review"])
+
+    def test_loopback_uihost_without_auth_is_info(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js",
+                "module.exports = {\n    uiHost: \"127.0.0.1\",\n    uiPort: 1880\n};\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("loopback", c["findings"][0]["detail"])
+        self.assertIn("no adminAuth", c["findings"][0]["detail"])
+
+    def test_env_uihost_and_url_string_are_review(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js",
+                "module.exports = {\n"
+                "    uiHost: process.env.HOST,\n"
+                "    editorTheme: { page: { title: \"http://example.invalid\" } }\n"
+                "};\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("all interfaces", c["findings"][0]["detail"])
+
+    def test_http_admin_auth_only_is_review(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js",
+                "module.exports = {\n    httpAdminAuth: { user: \"example\", pass: \"x\" }\n};\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("deprecated httpAdminAuth", c["findings"][0]["detail"])
+
+    def test_package_without_settings_is_review(self):
+        self._require()
+        s = self.s
+        s.dpkg({"nodered": "3.1.9"})
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("settings.js not found", c["findings"][0]["detail"])
+        self.assertIn("~/.node-red", c["findings"][0]["detail"])
+
+    def test_project_node_modules_and_etc_settings_are_ignored(self):
+        self._require()
+        s = self.s
+        s.write("~/code/app/node_modules/node-red/package.json", '{"name":"node-red","version":"4.0.0"}\n')
+        s.write("/etc/node-red/settings.js", "module.exports = {};\n")
+        self.assertStatus(s.check("nodered-admin-http"), "NOT_APPLICABLE")
+
+    def test_comm_detects_process_cmdline_does_not(self):
+        self._require()
+        s = self.sim("linux")
+        s.write("/proc/99/comm", "node\n")
+        s.write("/proc/99/cmdline", "node-red\n")
+        s.write("/proc/99/environ", "SECRET=wallet\n")
+        self.assertStatus(s.check("nodered-admin-http"), "NOT_APPLICABLE")
+        s.write("/proc/42/comm", "node-red\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["review"])
+
+    def test_unit_file_name_only(self):
+        self._require()
+        s = self.sim("linux")
+        s.write("/etc/systemd/system/node-red.service", "[Unit]\nDescription=ignored\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["review"])
+
+    def test_siemens_marker_with_nodered_is_review_even_with_auth(self):
+        self._require()
+        s = self.sim("linux")
+        s.write("/etc/os-release",
+                'ID=debian\nNAME="SIMATIC Industrial OS"\nPRETTY_NAME="IoT2050 Advanced 6ES7647-0BA00-1YA2"\n')
+        s.dpkg({"nodered": "3.1.0"})
+        s.write("~/.node-red/settings.js", NR_SETTINGS_AUTH)
+        c = s.check("nodered-admin-http")
+        kinds = results(c)
+        self.assertIn("review", kinds)
+        self.assertIn("info", kinds)
+        review = next(f for f in c["findings"] if f["result"] == "review")
+        self.assertIn("SSA-834709", review["detail"])
+        self.assertIn("V4.3.4.1", review["detail"])
+        self.assertIn("firmware version not read", review["detail"])
+
+    def test_siemens_without_nodered_is_note_only(self):
+        self._require()
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=debian\nPRETTY_NAME="SIMATIC Industrial OS"\n')
+        c = s.check("nodered-admin-http")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertTrue(any("SIMATIC" in n or "IoT2050" in n or "Siemens" in n for n in c["notes"]))
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_settings_is_unknown(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js", NR_SETTINGS_AUTH, 0)
+        c = s.check("nodered-admin-http")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_never_exec_and_no_settings_leak(self):
+        self._require()
+        s = self.s
+        s.write("~/.node-red/settings.js", NR_SETTINGS_AUTH)
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")), \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(subprocess, "run", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+            c = s.check("nodered-admin-http")
+        blob = json.dumps(c)
+        self.assertNotIn(NR_HASH, blob)
+        self.assertNotIn("username", blob.lower())
+        self.assertEqual(results(c), ["info"])
+
+
+class CryptoPaymentGateway81648(SimCase):
+    PLUGIN = (
+        "<?php\n"
+        "/**\n"
+        " * Plugin Name: CryptoPayment Gateway\n"
+        " * Version: %s\n"
+        " */\n"
+    )
+
+    def _require(self):
+        self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
+
+    def _plugin(self, spec, version=None, body=None):
+        text = body if body is not None else self.PLUGIN % version
+        self.s.write(spec, text)
+
+    def test_empty_hosts_not_applicable(self):
+        self._require()
+        for platform in ("darwin", "linux", "windows"):
+            self.assertStatus(self.sim(platform).check("cryptopayment-gateway-81648"), "NOT_APPLICABLE")
+
+    def test_walk_flag(self):
+        self._require()
+        meta = next(m for m in hc.CHECKS if m["id"] == "cryptopayment-gateway-81648")
+        self.assertTrue(meta["uses_walk"])
+        for key in meta["sources"]:
+            self.assertIn(key, hc.SRC)
+
+    def test_listed_version_is_affected(self):
+        self._require()
+        self._plugin("~/site/wp-content/plugins/cryptopayment-gateway/cryptopayment-gateway.php", "1.2.2")
+        c = self.s.check("cryptopayment-gateway-81648")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("1.2.1-1.2.2", c["findings"][0]["detail"])
+        self.assertIn("no fixed release", c["findings"][0]["detail"])
+        self.assertIn("closed on wordpress.org", c["findings"][0]["detail"])
+
+    def test_other_versions_are_review(self):
+        self._require()
+        self._plugin("~/site/wp-content/plugins/cryptopayment-gateway/cryptopayment-gateway.php", "1.2.0")
+        c = self.s.check("cryptopayment-gateway-81648")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("outside WPScan's listed range", c["findings"][0]["detail"])
+        s = self.sim("linux")
+        s.write("~/site/wp-content/plugins/cryptopayment-gateway/cryptopayment-gateway.php",
+                self.PLUGIN % "1.3.0")
+        self.assertEqual(results(s.check("cryptopayment-gateway-81648")), ["review"])
+
+    def test_missing_version_header_is_blocked(self):
+        self._require()
+        self._plugin("~/site/wp-content/plugins/cryptopayment-gateway/cryptopayment-gateway.php",
+                     body="<?php\n/* Plugin Name: CryptoPayment Gateway */\n")
+        c = self.s.check("cryptopayment-gateway-81648")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_main_file_missing_does_not_open_other_php(self):
+        self._require()
+        self.s.write("~/site/wp-content/plugins/cryptopayment-gateway/other.php",
+                     "<?php\n/* Plugin Name: Other */\nVersion: 1.2.2\n")
+        opened = []
+        real = hs.read_text
+
+        def wrapped(path, *args, **kwargs):
+            opened.append(str(path))
+            return real(path, *args, **kwargs)
+
+        with mock.patch.object(hs, "read_text", side_effect=wrapped):
+            c = self.s.check("cryptopayment-gateway-81648")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertFalse(any(p.endswith("other.php") for p in opened))
+
+    def test_web_root_plugin_is_found(self):
+        self._require()
+        s = self.sim("linux")
+        s.write("/var/www/site/wp-content/plugins/cryptopayment-gateway/cryptopayment-gateway.php",
+                self.PLUGIN % "1.2.1")
+        c = s.check("cryptopayment-gateway-81648")
+        self.assertEqual(results(c), ["affected"])
+        self.assertTrue(any("cryptopayment-gateway" in (f.get("path") or "") for f in c["findings"]))
 
 
 # --------------------------------------------------------------------------
@@ -2929,6 +3330,9 @@ class WholeRun(SimCase):
             if m["id"] != "plex-media-server":
                 self.assertTrue(m["sources"], m["id"])
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
+        self.assertEqual(len(hc.CHECK_IDS), 51)
+        self.assertIn("nodered-admin-http", hc.CHECK_IDS)
+        self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
         self.assertTrue(all(reason for _item, reason in hc.SKIPPED))
 
     def test_report_fragments_validate_in_a_report(self):
