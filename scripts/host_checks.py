@@ -4084,6 +4084,8 @@ def _strip_js_comments(text):
                 escape = False
             elif c == "\\":
                 escape = True
+            elif c == "\n":
+                in_str = None
             elif c == in_str:
                 in_str = None
             i += 1

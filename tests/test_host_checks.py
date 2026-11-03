@@ -2308,6 +2308,42 @@ class NodeRedAdminHttp(SimCase):
         self.assertEqual(results(c), ["review"])
         self.assertIn("all interfaces", c["findings"][0]["detail"])
 
+    def test_unclosed_quote_does_not_keep_commented_admin_auth(self):
+        self._require()
+        commented = "    /*\n    adminAuth: { type: \"credentials\" },\n    */\n"
+        apostrophe = (
+            "module.exports = {\n"
+            "    editorTheme: { page: { title: `Bob's editor` } },\n"
+            + commented +
+            "};\n"
+        )
+        regex = (
+            "module.exports = {\n"
+            "    const re = /'/;\n"
+            + commented +
+            "};\n"
+        )
+        for body in (apostrophe, regex):
+            s = self.sim("linux")
+            s.write("~/.node-red/settings.js", body)
+            c = s.check("nodered-admin-http")
+            self.assertEqual(results(c), ["review"], body)
+            self.assertIn("no adminAuth", c["findings"][0]["detail"], body)
+
+    def test_slash_slash_inside_quoted_string_is_kept(self):
+        self._require()
+        kept = hc._strip_js_comments('    title: "http://example.invalid", // note\n')
+        self.assertIn("http://example.invalid", kept)
+        self.assertNotIn("note", kept)
+        s = self.s
+        s.write("~/.node-red/settings.js",
+                "module.exports = {\n"
+                "    uiHost: \"127.0.0.1\", // see http://example.invalid\n"
+                "};\n")
+        c = s.check("nodered-admin-http")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("loopback", c["findings"][0]["detail"])
+
     def test_http_admin_auth_only_is_review(self):
         self._require()
         s = self.s
