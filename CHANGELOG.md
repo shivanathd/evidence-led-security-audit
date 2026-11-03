@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.6 - 2026-11-03
+
+### Added
+
+- `scripts/host_checks.py`: two read-only checks (51 checks total). `nodered-admin-http` classifies Node-RED editor auth from `settings.js` (comment-stripped `adminAuth` / loopback `uiHost` / deprecated `httpAdminAuth`) plus package, global `node-red/package.json`, systemd unit names, and `/proc/<pid>/comm`. Siemens Industrial OS / SIMATIC / IoT2050 markers with Node-RED are extra review (SSA-834709 firmware V4.3.4.1 is not compared). `cryptopayment-gateway-81648` classifies only `cryptopayment-gateway.php` (WPScan 1.2.1-1.2.2 affected; any other parsed version review; no fixed release).
+- Dated profiles: `nodered-siemens-2026-08-11.md`, `cryptopayment-gateway-2026-09-10.md`.
+
+### Changed
+
+- `linux-tcp-uaf-98432` now classifies Ubuntu generic ABI rows (proposed / WIP / pending) and RHEL NVRs only when `ID=rhel` and the dist tag is `el8_10`, `el9_8` or `el10_2`. Ubuntu at or above a proposed ABI is review, not a released `-updates`/`-security` fix. Ubuntu 26.10 stays review. Title no longer says "review only".
+- Shared helper `ubuntu_generic_abi_state` (Fragnesia unchanged).
+- Reviewed public hosts: `cert-portal.siemens.com`, `nodered.org`, `access.redhat.com`, `wpscan.com`.
+- `profiles/golang-mptcp-2026-10-29.md` and `profiles/dev-endpoint-2026-10-30.md`: Ubuntu fixes in -proposed (2 Nov 2026); RHEL fixed via RHSA-2026:93412/93413/93414 (1 Nov 2026).
+- `nodered-admin-http`: `adminAuth` set to `false`, `null` or `undefined` counts as no adminAuth. Plain `'` / `"` quote state ends at a newline.
+
+### Known limits
+
+- A backtick template string containing an apostrophe followed by `/*` on the same line can still hide a commented `adminAuth` block.
+
 ## 0.4.5 - 2026-11-02
 
 ### Added
