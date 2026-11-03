@@ -2338,7 +2338,7 @@ class NodeRedAdminHttp(SimCase):
         s = self.sim("linux")
         s.write("/proc/99/comm", "node\n")
         s.write("/proc/99/cmdline", "node-red\n")
-        s.write("/proc/99/environ", "SECRET=wallet\n")
+        s.write("/proc/99/environ", "PLACEHOLDER=example\n")
         self.assertStatus(s.check("nodered-admin-http"), "NOT_APPLICABLE")
         s.write("/proc/42/comm", "node-red\n")
         c = s.check("nodered-admin-http")

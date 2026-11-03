@@ -116,6 +116,10 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "clickhouse.com",  # CVE-2026-116366 security changelog
     "wordpress.org", "www.wordpress.org",  # WordPress 7.1.4 news and HelpHub
     "discourse.ubuntu.com",  # cited by profiles/lxd-microcloud-2026-10-28.md
+    "cert-portal.siemens.com",  # Siemens ProductCERT SSA-834709
+    "nodered.org",  # Node-RED securing guide
+    "access.redhat.com",  # RHSA-2026:93412/93413/93414 and Red Hat CVE-2026-98432
+    "wpscan.com",  # CryptoPayment Gateway CVE-2026-81648
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

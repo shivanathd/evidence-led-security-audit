@@ -79,8 +79,13 @@ LIMITS = [
     "Ubuntu kernel ABI is compared as (release, major.minor, abi[, upload]). The Ubuntu table applies only to "
     "official x.y.0-N-generic strings (N = 1-999, no leading zero). Mainline-PPA, N >= 1000, and other strings are review. "
     "parse_version nums ignore the ABI, so 6.8.0-90 and 6.8.0-124 are not treated as equal.",
-    "linux-tcp-uaf-98432 records the running kernel as review: no released Ubuntu fixed build was retrieved. "
-    "cve.org floors published 15 Oct 2026, updated 30 Oct 2026 are not Ubuntu package floors. It never claims patched.",
+    "linux-tcp-uaf-98432 classifies the running Ubuntu generic ABI against proposed or WIP rows and RHEL NVRs "
+    "only when ID=rhel and the dist tag matches the RHSA stream (el8_10, el9_8, el10_2). Ubuntu at or above a "
+    "proposed ABI is review, not a released -updates/-security fix. Ubuntu 26.10 stays review (blog vs CVE page). "
+    "Rocky/Alma/CentOS stay review. kernel-rt (.rt) stays review. Unreadable running osrelease with other kernel "
+    "metadata is unknown.",
+    "nodered-admin-http reads ~/.node-red and /root/.node-red only; a custom --userDir, a container image or "
+    "another network namespace is not seen.",
     "drupal-commerce-118539 reads composer.lock, vendor/composer/installed.json and the packaged Commerce "
     "info.yml (project: commerce, case-insensitive). composer.json is not evidence. A lock mentions "
     "drupal/commerce only when a package is named drupal/commerce. Stale copies under releases/ or *.bak can FAIL. "
@@ -234,8 +239,32 @@ SRC = {
                      "https://ubuntu.com/security/CVE-2026-46300"),
     "ubuntu-98432": ("Ubuntu Security CVE-2026-98432",
                      "https://ubuntu.com/security/CVE-2026-98432"),
+    "ubuntu-98432-proposed": ("Ubuntu: fixes available in the proposed pocket for CVE-2026-98432 (2 Nov 2026)",
+                              "https://ubuntu.com/blog/fixes-available-in-proposed-pocket-for-cve-2026-98432"),
     "cve-98432": ("CVE Record CVE-2026-98432 (published 15 Oct 2026, updated 30 Oct 2026)",
                   "https://www.cve.org/CVERecord?id=CVE-2026-98432"),
+    "rhsa-93414": ("RHSA-2026:93414 (RHEL 8 kernel, CVE-2026-98432)",
+                   "https://access.redhat.com/errata/RHSA-2026:93414"),
+    "rhsa-93412": ("RHSA-2026:93412 (RHEL 9 kernel, CVE-2026-98432)",
+                   "https://access.redhat.com/errata/RHSA-2026:93412"),
+    "rhsa-93413": ("RHSA-2026:93413 (RHEL 10 kernel, CVE-2026-98432)",
+                   "https://access.redhat.com/errata/RHSA-2026:93413"),
+    "redhat-cve-98432": ("Red Hat CVE-2026-98432",
+                         "https://access.redhat.com/security/cve/CVE-2026-98432"),
+    "ssa-834709": ("Siemens ProductCERT SSA-834709 (CVE-2026-58115)",
+                   "https://cert-portal.siemens.com/productcert/html/ssa-834709.html"),
+    "icsa-26-237-03": ("CISA ICSA-26-237-03: SIMATIC IoT2050 Advanced",
+                       "https://www.cisa.gov/news-events/ics-advisories/icsa-26-237-03"),
+    "nodered-securing": ("Node-RED user guide: Securing Node-RED",
+                         "https://nodered.org/docs/user-guide/runtime/securing-node-red"),
+    "thn-nodered-58115": ("The Hacker News: attackers exploit Siemens Node-RED (pointer)",
+                          "https://thehackernews.com/2026/11/attackers-exploit-critical-siemens.html"),
+    "cve-81648": ("CVE Record CVE-2026-81648",
+                  "https://www.cve.org/CVERecord?id=CVE-2026-81648"),
+    "wpscan-81648": ("WPScan: CryptoPayment Gateway missing authorization",
+                     "https://wpscan.com/vulnerability/9b1490a0-1381-4d22-8086-f75aade4e898/"),
+    "thn-cryptopay-81648": ("The Hacker News: attackers target unpatched CryptoPayment Gateway (pointer)",
+                            "https://thehackernews.com/2026/11/attackers-target-unpatched.html"),
     "sa-contrib-2026-254": ("Drupal SA-CONTRIB-2026-254: Commerce Core access bypass (CVE-2026-118539)",
                             "https://www.drupal.org/sa-contrib-2026-254"),
     "commerce-rel-3-3-13": ("Drupal.org: Commerce Core 3.3.13",
@@ -557,6 +586,7 @@ class Index:
         self.conda_envs = []
         self.large = []
         self.updraft = []
+        self.cryptopayment = []
         self.magento = []
         self.nextcloud = []
         self.qdrant_cfg = []
@@ -636,6 +666,8 @@ def build_index(host):
             child_skip.add("pkg")
         if plow[-2:] == ["wp-content", "plugins"] and "updraftplus" in low:
             idx.updraft.append(os.path.join(path, low["updraftplus"]))
+        if plow[-2:] == ["wp-content", "plugins"] and "cryptopayment-gateway" in low:
+            idx.cryptopayment.append(os.path.join(path, low["cryptopayment-gateway"]))
         if "wp-includes" in low and ("wp-settings.php" in low or "wp-load.php" in low):
             inc = os.path.join(path, low["wp-includes"])
             ver = os.path.join(inc, "version.php")
@@ -2795,6 +2827,37 @@ def check_updraft(host, r):
               path=host.display(d), version=m.group(1) if m else None)
 
 
+def check_cryptopayment_gateway(host, r):
+    for d in index(host).cryptopayment:
+        main = os.path.join(d, "cryptopayment-gateway.php")
+        if not hs.exists_nofollow(main):
+            r.add("unknown", "CryptoPayment Gateway",
+                  "plugin directory present; cryptopayment-gateway.php missing or unreadable",
+                  path=host.display(d))
+            continue
+        text = hs.read_text(main, 256 * 1024, host.gaps)
+        if text is None:
+            r.add("unknown", "CryptoPayment Gateway",
+                  "cryptopayment-gateway.php could not be read",
+                  path=host.display(main))
+            continue
+        m = re.search(r"(?mi)^\s*\*?\s*Version:\s*(\S+)", text)
+        if not m:
+            r.add("unknown", "CryptoPayment Gateway",
+                  "no Version header in cryptopayment-gateway.php",
+                  path=host.display(main))
+            continue
+        ver = m.group(1)
+        if ver in ("1.2.1", "1.2.2"):
+            r.add("affected", "CryptoPayment Gateway",
+                  "WPScan lists 1.2.1-1.2.2; no fixed release; plugin closed on wordpress.org",
+                  path=host.display(d), version=ver)
+        else:
+            r.add("review", "CryptoPayment Gateway",
+                  "outside WPScan's listed range; no fixed release exists",
+                  path=host.display(d), version=ver)
+
+
 def check_magento(host, r):
     for d in index(host).magento:
         r.add("review", "Magento store code", "check cms_block for code nobody added and apply Adobe's PolyShell fix "
@@ -3459,6 +3522,25 @@ FRAGNESIA_UBUNTU_ABI = {
 FRAGNESIA_UPSTREAM = ["5.10.257", "5.15.208", "6.1.174", "6.6.141", "6.12.91", "6.18.33", "7.0.10"]
 TCP_UAF_UPSTREAM = ["5.10.272", "5.15.223", "6.1.190", "6.6.159", "6.12.113", "6.18.56", "7.2.10"]
 _UBUNTU_GENERIC_NOT_AFFECTED = frozenset({"26.10", "20.04", "18.04", "16.04", "14.04"})
+TCP_UAF_UBUNTU_ABI = {
+    ("22.04", (5, 15)): (203, 213, "linux 5.15.0-203.213"),
+    ("24.04", (6, 8)): (149, 149, "linux 6.8.0-149.149"),
+    ("26.04", (7, 0)): (43, 43, "linux 7.0.0-43.43"),
+    ("20.04", (5, 15)): (203, 213, "linux-hwe-5.15 5.15.0-203.213~20.04.1"),
+    ("22.04", (6, 8)): (149, 149, "linux-hwe-6.8 6.8.0-149.149~22.04.1"),
+    ("24.04", (7, 0)): (43, 43, "linux-hwe-7.0 7.0.0-43.43~24.04.1"),
+    ("26.10", (7, 3)): (10, 10, "linux 7.3.0-10.10"),
+}
+TCP_UAF_UBUNTU_PROPOSED = frozenset({("22.04", (5, 15)), ("24.04", (6, 8)), ("26.04", (7, 0))})
+TCP_UAF_UBUNTU_HWE = frozenset({("20.04", (5, 15)), ("22.04", (6, 8)), ("24.04", (7, 0))})
+TCP_UAF_UBUNTU_PENDING = frozenset({"16.04", "18.04", "20.04"})
+TCP_UAF_RHEL = {
+    "el8_10": ("4.18.0", (553, 182, 1), "RHSA-2026:93414", "4.18.0-553.182.1.el8_10"),
+    "el9_8": ("5.14.0", (687, 64, 1), "RHSA-2026:93412", "5.14.0-687.64.1.el9_8"),
+    "el10_2": ("6.12.0", (211, 72, 1), "RHSA-2026:93413", "6.12.0-211.72.1.el10_2"),
+}
+_RHEL_EL_TAG = re.compile(r"\.(el(?:8|9|10)(?:_\d+)?)(?:\.|$|\+)")
+_RHEL_UPSTREAM = re.compile(r"^(\d+\.\d+\.\d+)-")
 
 
 def os_release_fields(host):
@@ -3492,6 +3574,33 @@ def ubuntu_upload_fields(host):
         sm = re.match(r"(\d+\.\d+)", m.group(2))
         series = sm.group(1) if sm else None
     return int(m.group(1)), series
+
+
+def ubuntu_generic_abi_state(osrel, version_id, upload, table, upload_series=None):
+    """Compare an official Ubuntu x.y.0-N-generic string to a (VERSION_ID, series) table.
+
+    table rows are (floor_abi, floor_upload, label), same shape as FRAGNESIA_UBUNTU_ABI.
+    Returns (state, row) where state is below, at_or_above, no_row, non_generic,
+    upload_unreadable, or suffix_mismatch.
+    """
+    generic = _UBUNTU_GENERIC.match(osrel or "")
+    if not generic:
+        return "non_generic", None
+    series = (int(generic.group(1)), int(generic.group(2)))
+    running_abi_n = int(generic.group(3))
+    row = table.get((version_id, series))
+    if row is None:
+        return "no_row", None
+    floor_abi, floor_upload, _label = row
+    if upload_series and version_id and upload_series != version_id:
+        return "suffix_mismatch", row
+    if running_abi_n == floor_abi and upload is None and floor_upload != floor_abi:
+        return "upload_unreadable", row
+    below = running_abi_n < floor_abi or (
+        running_abi_n == floor_abi and upload is not None and upload < floor_upload)
+    if below:
+        return "below", row
+    return "at_or_above", row
 
 
 def linux_image_abis(host):
@@ -3722,8 +3831,10 @@ def check_fragnesia(host, r):
                   "Ubuntu os-release has no VERSION_ID; match the package to the Ubuntu page",
                   path="/proc/sys/kernel/osrelease", version=osrel)
             return
-        row = FRAGNESIA_UBUNTU_ABI.get((version_id, (running_abi[0], running_abi[1])))
-        if row is None:
+        upload, upload_series = ubuntu_upload_fields(host)
+        state, row = ubuntu_generic_abi_state(
+            osrel, version_id, upload, FRAGNESIA_UBUNTU_ABI, upload_series)
+        if state == "no_row":
             if version_id in _UBUNTU_GENERIC_NOT_AFFECTED:
                 detail = ("no matching Ubuntu fixed-ABI row for release %s; confirm the running kernel "
                           "against the Ubuntu page" % version_id)
@@ -3733,33 +3844,35 @@ def check_fragnesia(host, r):
             r.add("review", "Linux kernel (Ubuntu)", detail,
                   path="/proc/sys/kernel/osrelease", version=osrel)
             return
-        floor_abi, floor_upload, label = row
-        upload, upload_series = ubuntu_upload_fields(host)
-        if upload_series and version_id and upload_series != version_id:
+        if state == "suffix_mismatch":
             r.add("review", "Linux kernel (Ubuntu)",
                   "upload suffix ~%s does not match VERSION_ID %s; match the package to the Ubuntu page"
                   % (upload_series, version_id),
                   path="/proc/sys/kernel/osrelease", version=osrel)
             return
-        if running_abi[3] == floor_abi and upload is None and floor_upload != floor_abi:
+        floor_abi, floor_upload, label = row
+        if state == "upload_unreadable":
             r.add("review", "Linux kernel (Ubuntu)",
                   "ABI matches Ubuntu fixed build %s but the upload number is unreadable; "
                   "confirm the package version on the Ubuntu page" % label,
                   path="/proc/sys/kernel/osrelease", version=osrel)
             return
-        below = running_abi[3] < floor_abi or (
-            running_abi[3] == floor_abi and upload is not None and upload < floor_upload)
-        if below:
+        if state == "below":
             if running_abi[3] < floor_abi:
                 detail = "below Ubuntu fixed build %s (ABI %d < %d)" % (label, running_abi[3], floor_abi)
             else:
                 detail = "below Ubuntu fixed build %s (upload %d < %d)" % (label, upload, floor_upload)
             r.add("affected", "Linux kernel (Ubuntu)", detail,
                   path="/proc/sys/kernel/osrelease", version=osrel)
-        else:
+            return
+        if state == "at_or_above":
             r.add("info", "Linux kernel (Ubuntu)",
                   "at or above Ubuntu fixed build %s" % label,
                   path="/proc/sys/kernel/osrelease", version=osrel)
+            return
+        r.add("review", "Linux kernel (Ubuntu)",
+              "Ubuntu kernel state %s; match the package to the Ubuntu page" % state,
+              path="/proc/sys/kernel/osrelease", version=osrel)
         return
     if not _PLAIN_UPSTREAM.match(osrel):
         r.add("review", "Linux kernel",
@@ -3778,6 +3891,135 @@ def check_fragnesia(host, r):
     classify_version(r, "Linux kernel", osrel, "/proc/sys/kernel/osrelease", FRAGNESIA_UPSTREAM, 2)
 
 
+def _rhel_nvr_fields(osrel):
+    tag_m = _RHEL_EL_TAG.search(osrel or "")
+    up_m = _RHEL_UPSTREAM.match(osrel or "")
+    if not tag_m or not up_m:
+        return None
+    rest = osrel[up_m.end():]
+    build_m = re.match(r"(\d+(?:\.\d+)*)", rest)
+    if not build_m:
+        return None
+    build = tuple(int(p) for p in build_m.group(1).split("."))
+    return up_m.group(1), build, tag_m.group(1), ".rt" in rest
+
+
+def _tuple_cmp(left, right):
+    n = max(len(left), len(right))
+    a = left + (0,) * (n - len(left))
+    b = right + (0,) * (n - len(right))
+    if a < b:
+        return -1
+    if a > b:
+        return 1
+    return 0
+
+
+def _tcp_uaf_ubuntu(host, r, osrel, version_id):
+    upload, upload_series = ubuntu_upload_fields(host)
+    generic = _UBUNTU_GENERIC.match(osrel)
+    series = (int(generic.group(1)), int(generic.group(2))) if generic else None
+    key = (version_id, series) if series else None
+    state, row = ubuntu_generic_abi_state(
+        osrel, version_id, upload, TCP_UAF_UBUNTU_ABI, upload_series)
+    if state == "non_generic":
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "non-generic Ubuntu kernel flavour; not compared to the generic ABI table",
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    if state == "suffix_mismatch":
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "upload suffix ~%s does not match VERSION_ID %s"
+              % (upload_series, version_id),
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    if state == "upload_unreadable":
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "ABI matches %s but the upload number is unreadable"
+              % row[2],
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    if state == "no_row":
+        if version_id == "14.04" and series == (3, 13):
+            r.add("info", "Linux kernel (CVE-2026-98432)",
+                  "Ubuntu 14.04 3.13 series; not in the introduced range (Ubuntu, 2 Nov 2026)",
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+            return
+        if version_id == "14.04":
+            r.add("review", "Linux kernel (CVE-2026-98432)",
+                  "no Ubuntu fix information for this series",
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+            return
+        if version_id in TCP_UAF_UBUNTU_PENDING:
+            r.add("review", "Linux kernel (CVE-2026-98432)",
+                  "fix pending (Ubuntu, 2 Nov 2026)",
+                  path="/proc/sys/kernel/osrelease", version=osrel)
+            return
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "no Ubuntu CVE-2026-98432 row for release %s kernel %s"
+              % (version_id or "?", osrel[:80]),
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    label = row[2]
+    if key == ("26.10", (7, 3)):
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "Ubuntu 26.10 kernel %s; Ubuntu blog (2 Nov 2026) names 7.3.0-10.10 in -proposed "
+              "while the Ubuntu CVE page (3 Nov 2026) still lists work in progress. Both pages cited; "
+              "not treated as released in -updates or -security"
+              % osrel,
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    if key in TCP_UAF_UBUNTU_PROPOSED:
+        wording = ("fix is in -proposed per the Ubuntu blog (2 Nov 2026), "
+                   "not in -updates or -security")
+    else:
+        wording = "WIP target on the Ubuntu CVE page"
+    if state == "below":
+        r.add("affected", "Linux kernel (CVE-2026-98432)",
+              "below %s; %s" % (label, wording),
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    r.add("review", "Linux kernel (CVE-2026-98432)",
+          "at or above %s; %s" % (label, wording),
+          path="/proc/sys/kernel/osrelease", version=osrel)
+
+
+def _tcp_uaf_rhel(r, osrel):
+    parsed = _rhel_nvr_fields(osrel)
+    if parsed is None:
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "RHEL kernel string could not be parsed; check Red Hat's CVE page",
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    upstream, build, tag, is_rt = parsed
+    if is_rt:
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "RHEL kernel-rt release; the RHSA for kernel-rt was not read; check Red Hat's CVE page",
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    floor = TCP_UAF_RHEL.get(tag)
+    if floor is None:
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "RHEL %s stream; the RHSA for this stream was not read; check Red Hat's CVE page" % tag,
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    floor_up, floor_build, rhsa, nvr = floor
+    if upstream != floor_up:
+        r.add("review", "Linux kernel (CVE-2026-98432)",
+              "RHEL %s stream upstream %s does not match %s; check Red Hat's CVE page"
+              % (tag, upstream, rhsa),
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    if _tuple_cmp(build, floor_build) < 0:
+        r.add("affected", "Linux kernel (CVE-2026-98432)",
+              "below %s kernel %s" % (rhsa, nvr),
+              path="/proc/sys/kernel/osrelease", version=osrel)
+        return
+    r.add("info", "Linux kernel (CVE-2026-98432)",
+          "at or above %s kernel %s" % (rhsa, nvr),
+          path="/proc/sys/kernel/osrelease", version=osrel)
+
+
 def check_linux_tcp_uaf(host, r):
     if host.platform != "linux":
         r.notes.append("CVE-2026-98432 is a Linux kernel TCP use-after-free; not applicable on %s" % host.platform)
@@ -3785,29 +4027,239 @@ def check_linux_tcp_uaf(host, r):
     osrel = running_osrelease(host)
     procver = (hs.read_text(host.sys("/proc/version"), 4096, host.gaps) or "").strip()
     fields = os_release_fields(host)
-    images = []
-    for name, entries in linux_packages(host).items():
-        if name.startswith("linux-image"):
-            images.extend((name, ver, src) for ver, src in entries)
-    if not osrel and not procver and not fields and not images:
+    images = linux_image_abis(host)
+    for name, ver, src, _abi in images:
+        r.notes.append("linux-image package %s %s (%s); classification uses the running osrelease only" %
+                       (name, ver, src))
+    if not osrel:
+        if fields or procver or images:
+            r.add("unknown", "Linux kernel",
+                  "running kernel release could not be read",
+                  path="/proc/sys/kernel/osrelease")
         return
-    bits = []
-    if osrel:
-        bits.append("running osrelease %s" % osrel[:80])
-    if fields.get("ID") or fields.get("VERSION_ID"):
-        bits.append("distro %s %s" % (fields.get("ID", "?"), fields.get("VERSION_ID", "?")))
-    if images:
-        bits.append("package %s %s" % (images[0][0], images[0][1]))
-    detail = (
-        "%s. Ubuntu CVE-2026-98432 last updated 29 Oct 2026 lists current releases as vulnerable "
-        "work in progress; no released fixed build was retrieved this run. WIP targets are not floors. "
-        "cve.org record published 15 Oct 2026, updated 30 Oct 2026 lists upstream floors %s (7.3+ unaffected; introduced 4.4); "
-        "those are not Ubuntu package floors. Do not claim a fix from the string alone."
-        % ("; ".join(bits) or "kernel metadata readable", ", ".join(TCP_UAF_UPSTREAM))
-    )
-    r.add("review", "Linux kernel (CVE-2026-98432)", detail,
-          path="/proc/sys/kernel/osrelease" if osrel else None,
-          version=osrel or None)
+    distro_id = fields.get("ID", "")
+    version_id = fields.get("VERSION_ID", "")
+    if distro_id == "ubuntu":
+        _tcp_uaf_ubuntu(host, r, osrel, version_id)
+        return
+    if distro_id == "rhel":
+        _tcp_uaf_rhel(r, osrel)
+        return
+    r.add("review", "Linux kernel (CVE-2026-98432)",
+          "running osrelease %s; distro %s %s. cve.org upstream floors %s are not distro package floors."
+          % (osrel[:80], distro_id or "?", version_id or "?", ", ".join(TCP_UAF_UPSTREAM)),
+          path="/proc/sys/kernel/osrelease", version=osrel)
+
+
+# --------------------------------------------------------------------------
+# Node-RED editor / Siemens SIMATIC IoT2050 (CVE-2026-58115 class)
+# --------------------------------------------------------------------------
+
+_NODERED_ADMIN_AUTH = re.compile(r"(?m)^\s*adminAuth\s*:")
+_NODERED_HTTP_ADMIN_AUTH = re.compile(r"(?m)^\s*httpAdminAuth\s*:")
+_NODERED_UI_HOST = re.compile(r"(?m)^\s*uiHost\s*:\s*(['\"])([^'\"]+)\1")
+_NODERED_SIEMENS = re.compile(r"industrial os|simatic|iot2050", re.I)
+_NODERED_MODEL = "6ES7647-0BA00-1YA2"
+_NODERED_UNITS = ("nodered.service", "node-red.service")
+_NODERED_UNIT_DIRS = (
+    "/etc/systemd/system",
+    "/lib/systemd/system",
+    "/usr/lib/systemd/system",
+)
+_NODERED_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _strip_js_comments(text):
+    """Remove /* */ and // comments; keep // inside a quoted string on that line."""
+    out = []
+    i = 0
+    n = len(text)
+    in_str = None
+    escape = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == in_str:
+                in_str = None
+            i += 1
+            continue
+        if c in ("'", '"'):
+            in_str = c
+            out.append(c)
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                i += 1
+            i = min(n, i + 2)
+            out.append(" ")
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _nodered_settings_paths(host):
+    paths = [host.h(".node-red", "settings.js")]
+    if host.platform == "linux":
+        paths.append(host.sys("/root/.node-red/settings.js"))
+    seen = set()
+    out = []
+    for path in paths:
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
+def _nodered_global_pkg(host):
+    for nm in global_node_modules(host):
+        pj = os.path.join(nm, "node-red", "package.json")
+        if hs.exists_nofollow(pj):
+            return pj
+    return None
+
+
+def _nodered_package_version(host):
+    pkgs = linux_packages(host)
+    for name in ("node-red", "nodered"):
+        hits = pkgs.get(name, [])
+        if hits:
+            return hits[0][0]
+    pj = _nodered_global_pkg(host)
+    if pj and hs.is_regular(pj):
+        doc = hs.read_json(pj, 256 * 1024, host.gaps)
+        if isinstance(doc, dict) and doc.get("version"):
+            return str(doc["version"])
+    return None
+
+
+def _nodered_units(host):
+    if host.platform != "linux":
+        return []
+    found = []
+    for raw in _NODERED_UNIT_DIRS:
+        base = host.sys(raw)
+        for name in _NODERED_UNITS:
+            path = os.path.join(base, name)
+            if hs.exists_nofollow(path):
+                found.append(path)
+        for wants in glob_dirs(host, base, "*.wants"):
+            for name in _NODERED_UNITS:
+                path = os.path.join(wants, name)
+                if hs.exists_nofollow(path):
+                    found.append(path)
+    return found
+
+
+def _nodered_comm(host):
+    if host.platform != "linux":
+        return False
+    proc = host.sys("/proc")
+    for name in hs.listdir(proc):
+        if not name.isdigit():
+            continue
+        comm = hs.read_text(os.path.join(proc, name, "comm"), 256)
+        if comm is not None and comm.strip() == "node-red":
+            return True
+    return False
+
+
+def _nodered_present(host):
+    pkgs = linux_packages(host)
+    if pkgs.get("node-red") or pkgs.get("nodered"):
+        return True
+    if _nodered_global_pkg(host):
+        return True
+    if any(hs.exists_nofollow(p) for p in _nodered_settings_paths(host)):
+        return True
+    if _nodered_units(host):
+        return True
+    return _nodered_comm(host)
+
+
+def _nodered_siemens(host):
+    fields = os_release_fields(host)
+    blob = " ".join(fields.get(k, "") for k in ("ID", "NAME", "PRETTY_NAME"))
+    return bool(_NODERED_SIEMENS.search(blob) or _NODERED_MODEL in blob)
+
+
+def _nodered_classify_settings(host, r, path, pkg_ver):
+    text = hs.read_text(path, 256 * 1024, host.gaps)
+    if text is None:
+        r.add("unknown", "Node-RED editor",
+              "settings.js could not be read",
+              path=host.display(path), version=pkg_ver)
+        return
+    stripped = _strip_js_comments(text)
+    has_auth = bool(_NODERED_ADMIN_AUTH.search(stripped))
+    has_http = bool(_NODERED_HTTP_ADMIN_AUTH.search(stripped))
+    ui_m = _NODERED_UI_HOST.search(stripped)
+    ui_val = ui_m.group(2) if ui_m else None
+    loopback = bool(ui_val and ui_val.lower() in _NODERED_LOOPBACK)
+    extras = {
+        "adminAuth_set": has_auth,
+        "loopback": loopback,
+        "httpAdminAuth_only": has_http and not has_auth,
+    }
+    if has_auth:
+        r.add("info", "Node-RED editor", "adminAuth set",
+              path=host.display(path), version=pkg_ver, **extras)
+        return
+    if has_http:
+        r.add("review", "Node-RED editor",
+              "deprecated httpAdminAuth; move to adminAuth",
+              path=host.display(path), version=pkg_ver, **extras)
+        return
+    if loopback:
+        r.add("info", "Node-RED editor",
+              "editor bound to loopback; no adminAuth",
+              path=host.display(path), version=pkg_ver, **extras)
+        return
+    r.add("review", "Node-RED editor",
+          "Node-RED editor has no adminAuth; by default it listens on all interfaces "
+          "(nodered.org securing guide)",
+          path=host.display(path), version=pkg_ver, **extras)
+
+
+def check_nodered_admin_http(host, r):
+    siemens = _nodered_siemens(host)
+    present = _nodered_present(host)
+    if siemens and not present:
+        r.notes.append(
+            "Siemens Industrial OS / SIMATIC / IoT2050 marker without Node-RED; "
+            "SSA-834709 applies only when Node-RED is installed")
+        return
+    if not present:
+        return
+    pkg_ver = _nodered_package_version(host)
+    settings_seen = False
+    for path in _nodered_settings_paths(host):
+        if not hs.exists_nofollow(path):
+            continue
+        settings_seen = True
+        _nodered_classify_settings(host, r, path, pkg_ver)
+    if not settings_seen:
+        r.add("review", "Node-RED editor",
+              "Node-RED present; settings.js not found in ~/.node-red or /root/.node-red; "
+              "the default editor has no adminAuth",
+              version=pkg_ver)
+    if siemens:
+        r.add("review", "SIMATIC IoT2050 with Node-RED",
+              "SIMATIC IoT2050 with Node-RED: SSA-834709 fix is firmware V4.3.4.1; "
+              "firmware version not read; adminAuth is a mitigation, not the fix")
 
 
 # --------------------------------------------------------------------------
@@ -4599,15 +5051,42 @@ CHECKS = [
                "Install the Ubuntu fixed ABI for the running (release, series) pair, or the upstream stable floor. "
                "Also run php2shell. This tool never loads modules or writes sysctl.",
                "Linux only", check_fragnesia, uses_walk=False),
-    check_meta("linux-tcp-uaf-98432", "Linux kernel TCP UAF CVE-2026-98432 (review only)",
-               "check_if_used", "confirmed", "runtime", ["ubuntu-98432", "golang-announce-98432", "cve-98432"],
-               "CVE-2026-98432 is a Linux IPv4 TCP use-after-free. Ubuntu last updated 29 Oct 2026 lists current "
-               "releases as vulnerable work in progress with no released fixed build. The cve.org record published "
-               "15 Oct 2026, updated 30 Oct 2026 lists upstream floors that are not Ubuntu package floors. This check records the "
-               "running kernel and distro as review. It does not invent a floor. Go toolchains stay on go-mptcp-linux.",
-               "Wait for a released distro build, then confirm the running kernel. WIP targets are not floors. "
-               "Do not treat a Go-only change as a kernel fix.",
+    check_meta("linux-tcp-uaf-98432", "Linux kernel TCP UAF CVE-2026-98432",
+               "check_if_used", "confirmed", "runtime",
+               ["ubuntu-98432", "ubuntu-98432-proposed", "golang-announce-98432", "cve-98432",
+                "rhsa-93414", "rhsa-93412", "rhsa-93413", "redhat-cve-98432"],
+               "CVE-2026-98432 is a Linux IPv4 TCP use-after-free. Ubuntu blog (2 Nov 2026) lists generic "
+               "ABI rows in -proposed; those are not -updates or -security. Ubuntu 26.10 stays review "
+               "(blog vs CVE page). RHEL floors apply only when ID=rhel and the dist tag is el8_10, "
+               "el9_8 or el10_2 (RHSA-2026:93414/93412/93413). Other RHEL streams, kernel-rt and ID "
+               "other than rhel stay review. Go toolchains stay on go-mptcp-linux.",
+               "Install the fixed kernel when Ubuntu publishes it to -updates/-security, or the RHSA "
+               "kernel on RHEL, then reboot. Enabling -proposed is an owner decision; this skill never "
+               "enables it. Ubuntu says disabling MPTCP is not a full mitigation.",
                "Linux only", check_linux_tcp_uaf, uses_walk=False),
+    check_meta("nodered-admin-http",
+               "Node-RED editor missing adminAuth (CVE-2026-58115 class)",
+               "check_if_used", "confirmed", "config",
+               ["ssa-834709", "icsa-26-237-03", "nodered-securing", "thn-nodered-58115"],
+               "CVE-2026-58115 is the Siemens SIMATIC IoT2050 Advanced product CVE (SSA-834709): "
+               "Industrial OS with Node-RED ships an unauthenticated HTTP editor. Generic Node-RED "
+               "without adminAuth is the same exploited missing-auth class (nodered.org securing "
+               "guide). CISA KEV did not list CVE-2026-58115 as of 3 Nov 2026. This check never "
+               "makes an HTTP request and never executes settings.js.",
+               "Set adminAuth (or bind the editor to loopback) per the Node-RED securing guide. "
+               "On SIMATIC IoT2050, adminAuth is a mitigation; the vendor fix is firmware V4.3.4.1. "
+               "This tool never writes settings.js or contacts the editor.",
+               ALL_OS, check_nodered_admin_http, uses_walk=False),
+    check_meta("cryptopayment-gateway-81648",
+               "WordPress CryptoPayment Gateway 1.2.1-1.2.2 (CVE-2026-81648)",
+               "check_if_used", "confirmed", "dependency",
+               ["cve-81648", "wpscan-81648", "thn-cryptopay-81648"],
+               "CVE-2026-81648: missing authorization in CryptoPayment Gateway. WPScan lists "
+               "1.2.1-1.2.2; no fixed release; plugin closed on wordpress.org. Other parsed "
+               "versions are review. Reads only cryptopayment-gateway.php.",
+               "Remove or replace the plugin; no fixed release exists. This tool never calls "
+               "the plugin AJAX router.",
+               ALL_OS, check_cryptopayment_gateway),
     check_meta("jetbrains-jbr-emudhra",
                "JetBrains IDE / JBR / Toolbox / jetbrainsd eMudhra trust-store floors (30 Oct 2026)",
                "check_if_used", "confirmed", "runtime",
