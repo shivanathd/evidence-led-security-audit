@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.6 - 2026-11-03
 
 ### Added
 
@@ -13,6 +13,11 @@
 - Shared helper `ubuntu_generic_abi_state` (Fragnesia unchanged).
 - Reviewed public hosts: `cert-portal.siemens.com`, `nodered.org`, `access.redhat.com`, `wpscan.com`.
 - `profiles/golang-mptcp-2026-10-29.md` and `profiles/dev-endpoint-2026-10-30.md`: Ubuntu fixes in -proposed (2 Nov 2026); RHEL fixed via RHSA-2026:93412/93413/93414 (1 Nov 2026).
+- `nodered-admin-http`: `adminAuth` set to `false`, `null` or `undefined` counts as no adminAuth. Plain `'` / `"` quote state ends at a newline.
+
+### Known limits
+
+- A backtick template string containing an apostrophe followed by `/*` on the same line can still hide a commented `adminAuth` block.
 
 ## 0.4.5 - 2026-11-02
 
