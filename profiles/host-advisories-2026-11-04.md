@@ -10,7 +10,7 @@ Last checked: 2026-11-05. This profile is a dated snapshot, not a standing rule.
 - **DSA / DLA**: Debian Security Advisory (stable) / Debian LTS Advisory (here DSA-6607-1 and DLA-4880-1).
 - **ESM**: Ubuntu Expanded Security Maintenance; Pro/ESM version strings are not archive `-security` builds.
 - **KEV**: CISA Known Exploited Vulnerabilities catalog; a KEV listing is evidence of exploitation, not a version floor.
-- **PAC**: proxy auto-config; not used by these checks.
+- **PAC**: Pointer Authentication Codes (arm64e); CVE-2024-27834 is a WebKit PAC bypass.
 - **MDM**: mobile-device management inventory; required for Apple phones and tablets, which this helper does not scan.
 
 ## Primary sources
@@ -23,7 +23,7 @@ Last checked: 2026-11-05. This profile is a dated snapshot, not a standing rule.
 - Apple HT214103 (Safari 17.5): [HT214103](https://support.apple.com/en-us/HT214103)
 - Apple HT214106 (macOS Sonoma 14.5): [HT214106](https://support.apple.com/en-us/HT214106)
 - CISA KEV (4 Nov 2026): [CVE-2024-27834 added](https://www.cisa.gov/news-events/alerts/2026/11/04/cisa-adds-one-known-exploited-vulnerability-catalog)
-- Ruby on Rails (4 Nov 2026): [v8.0.5.2 and v8.1.4.1](https://rubyonrails.org/)
+- Ruby on Rails (4 Nov 2026): [v8.0.5.2 and v8.1.4.1](https://rubyonrails.org/2026/11/4/Rails-8.0.5%2E2-and-8.1.4%2E1-have-been-released)
 - GitHub advisory GHSA-f3w6-w445-fwh9: [Active Storage](https://github.com/rails/rails/security/advisories/GHSA-f3w6-w445-fwh9)
 - Better Auth (3 Nov 2026): [security release](https://better-auth.com/blog/security-release-2026-11-03)
 
@@ -33,7 +33,7 @@ Skipped (see below): Xen [XSA-523](https://xenbits.xen.org/xsa/advisory-523.html
 
 **apt / CVE-2026-109518.** An on-path attacker who can manipulate HTTP between an apt client and an archive (including a malicious mirror or proxy) can cause the client to install an unverified package as root. The USN and DSA name the package floors below. A non-zero retry count is required for the bug; that setting is mitigation, never a vendor fix, and this check does not read it.
 
-**Apple CVE-2024-27834.** CISA added this CVE to KEV on 4 Nov 2026. Desktop floors remain the May 2024 Apple bulletins: macOS Sonoma 14.5 and Safari 17.5. iOS / iPadOS / visionOS need MDM and are out of scope.
+**Apple CVE-2024-27834.** CISA added this CVE to KEV on 4 Nov 2026. Desktop floors remain the May 2024 Apple bulletins: macOS Sonoma 14.5 and Safari 17.5. iOS / iPadOS / tvOS / watchOS need MDM and are out of scope.
 
 **Active Storage / GHSA-f3w6-w445-fwh9.** Possible arbitrary file write and read in image analysis. Fixed in Rails v8.0.5.2 and v8.1.4.1. Processor choice (vips vs ImageMagick) is not detected; version-only matches the repo pattern.
 

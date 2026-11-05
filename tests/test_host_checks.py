@@ -3464,6 +3464,8 @@ class Activestorage122006(SimCase):
         c = self._check(_gem_lock(gems=[("activestorage", "7.2.3")]))
         self.assertEqual(results(c), ["review"])
         self.assertStatus(c, "FAIL")
+        self.assertIn("affected range per GHSA", c["findings"][0]["detail"])
+        self.assertIn("no patched release on this line", c["findings"][0]["detail"])
 
     def test_missing_lock_is_not_applicable(self):
         self.s.write("~/code/app/Gemfile", "gem 'activestorage', '~> 8.0'\n")
@@ -3497,6 +3499,16 @@ class Activestorage122006(SimCase):
         os.chmod(p, 0)
         c = self.s.check("activestorage-122006")
         self.assertStatus(c, "BLOCKED")
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_lock_with_fixed_readable_lock_is_blocked(self):
+        self.s.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2))]))
+        p = self.s.write("~/code/other/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        os.chmod(p, 0)
+        c = self.s.check("activestorage-122006")
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("could not read a Gemfile.lock", c["reason"])
+        self.assertIn("info", results(c))
 
 
 class BetterAuth20261103(SimCase):

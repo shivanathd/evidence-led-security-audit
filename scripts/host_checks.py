@@ -382,7 +382,7 @@ SKIPPED = [
      "Vendor / mobile account; needs the vendor console or MDM, not a laptop scan."),
     ("Crédit Mutuel Arkéa",
      "Financial-institution incident; no local developer-endpoint artifact."),
-    ("Apple mobile OS (iOS / iPadOS / visionOS) for CVE-2024-27834",
+    ("Apple mobile OS (iOS / iPadOS / tvOS / watchOS) for CVE-2024-27834",
      "Mobile devices; needs MDM inventory, not a laptop scan. apple-27834 covers macOS and desktop Safari only."),
 ]
 
@@ -5065,16 +5065,16 @@ def check_activestorage_122006(host, r):
                       " (GHSA-f3w6-w445-fwh9)", path=host.display(path), version=ver)
             else:
                 r.add("review", "activestorage",
-                      "release line is not 8.0 or 8.1; GHSA-f3w6-w445-fwh9 names those lines",
+                      "affected range per GHSA (< " + AS_8_0_FLOOR + "), no patched release on this line; "
+                      "upgrade to " + AS_8_0_FLOOR + "+",
                       path=host.display(path), version=ver)
-        if gem_hits or as_hits:
-            for hit in found.get("mini_magick") or []:
-                mv = hs.parse_version(hit["version"])
-                if mv is not None and hs.below(mv, "5.1"):
-                    r.add("review", "mini_magick",
-                          "below 5.1 next to activestorage; processor choice is not detected",
-                          path=host.display(path), version=hit["version"])
-    if needed_unreadable and not r.findings:
+        for hit in found.get("mini_magick") or []:
+            mv = hs.parse_version(hit["version"])
+            if mv is not None and hs.below(mv, "5.1"):
+                r.add("review", "mini_magick",
+                      "below 5.1 next to activestorage; processor choice is not detected",
+                      path=host.display(path), version=hit["version"])
+    if needed_unreadable:
         r.blocked.append("could not read a Gemfile.lock that the walk indexed")
 
 
@@ -5405,7 +5405,7 @@ CHECKS = [
                "Desktop floors from HT214106 (macOS Sonoma 14.5) and HT214103 (Safari 17.5). "
                "macOS 15+ is info on the OS line; Safari is still classified. macOS 11 and older "
                "are review. macOS 12/13 classify Safari, or review if Safari is unreadable. "
-               "iOS / iPadOS / visionOS need MDM and are skipped.",
+               "iOS / iPadOS / tvOS / watchOS need MDM and are skipped.",
                "Update macOS to 14.5 or later and Safari to 17.5 or later. This tool never starts Safari.",
                "macOS only", check_apple_27834, uses_walk=False),
     check_meta("activestorage-122006",

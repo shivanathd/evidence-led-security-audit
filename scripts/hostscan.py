@@ -147,8 +147,13 @@ def parse_debian_version(raw):
 
 
 def _deb_order(ch):
+    # Debian Policy 5.6.12 / dpkg: '~' first, then empty or a digit (0), then
+    # letters, then other non-digits at ASCII+256. A digit in the non-digit
+    # loop is the start of the next numeric run, not a symbol.
     if ch == "~":
         return -1
+    if ch.isdigit():
+        return 0
     if ch.isalpha():
         return ord(ch)
     return ord(ch) + 256
@@ -159,13 +164,15 @@ def _deb_cmp_part(left, right):
     n, m = len(left), len(right)
     while i < n or j < m:
         while (i < n and not left[i].isdigit()) or (j < m and not right[j].isdigit()):
-            ac = _deb_order(left[i]) if i < n else 0
-            bc = _deb_order(right[j]) if j < m else 0
+            left_sym = i < n and not left[i].isdigit()
+            right_sym = j < m and not right[j].isdigit()
+            ac = _deb_order(left[i]) if left_sym else 0
+            bc = _deb_order(right[j]) if right_sym else 0
             if ac != bc:
                 return (ac > bc) - (ac < bc)
-            if i < n:
+            if left_sym:
                 i += 1
-            if j < m:
+            if right_sym:
                 j += 1
         aval = bval = 0
         while i < n and left[i].isdigit():

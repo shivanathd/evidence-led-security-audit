@@ -72,6 +72,12 @@ class Versions(unittest.TestCase):
             ("2.0.12+esm1", "2.0.11", 1),
             ("1:2.8.4", "2.8.4", 1),
             ("2.8.4", "2.8.4", 0),
+            ("1.0+1", "1.0+a", -1),
+            ("1.0a", "1.0+1", -1),
+            ("1.0-1", "1.0-a", -1),
+            ("1.0~", "1.0", -1),
+            ("1.0~~", "1.0~", -1),
+            ("1.0~a", "1.0~", 1),
         ]
         for a, b, expected in cases:
             self.assertEqual(hs.debian_version_cmp(a, b), expected, "%s vs %s" % (a, b))
