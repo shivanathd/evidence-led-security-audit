@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.7 - 2026-11-05
+
+### Added
+
+- `scripts/host_checks.py`: four read-only checks (55 checks total). `apt-109518` classifies the installed `apt` package with a Debian Policy 5.6.12 comparator (`hostscan.debian_version_cmp`) against USN-8996-1 / DSA-6607-1 / DLA-4880-1 floors (Ubuntu 26.10/26.04/24.04/22.04 plus ESM 20.04/18.04/16.04/14.04; Debian 13 `3.0.4` and 12 `2.6.2`). Linux without `apt`, Debian 11 and older, and non-ubuntu/debian IDs are handled as specified; apt.conf is not read. `apple-27834` classifies macOS `ProductVersion` and desktop Safari against HT214106 (Sonoma 14.5) and HT214103 (Safari 17.5); CISA KEV added CVE-2024-27834 on 4 Nov 2026. `activestorage-122006` classifies `Gemfile.lock` GEM specs (v8.0.5.2 / v8.1.4.1); GIT/PATH, platform suffixes and `mini_magick` below 5.1 are review. `better-auth-2026-11-03` classifies `better-auth` and five `@better-auth/*` packages (1.7.16 / `1.8.0-beta.5`).
+- Dated profile: `host-advisories-2026-11-04.md`.
+- `hostscan.py`: `parse_debian_version`, `debian_version_cmp`, `gem_lock_versions`, `better_auth_beta_n`. `Index.gem_lock` skips `vendor/bundle/`, `.bundle/` and `gems/<name>-<version>/`.
+
+### Changed
+
+- Reviewed public hosts: `lists.debian.org`, `security-tracker.debian.org`, `rubyonrails.org`, `xenbits.xen.org`, `better-auth.com`, `www.openwall.com`.
+
 ## 0.4.6 - 2026-11-03
 
 ### Added

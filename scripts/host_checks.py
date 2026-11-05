@@ -57,15 +57,21 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.6"
-BRIEFING = "Security briefings, 16-30 Oct 2026 (public reports; dated 2026-10-27, 2026-10-28 and 2026-10-30)"
-BRIEFING_DATE = "2026-10-30"
+VERSION = "0.4.7"
+BRIEFING = "Security briefings, 16 Oct-4 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, 2026-10-30 and 2026-11-04)"
+BRIEFING_DATE = "2026-11-04"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
 DOTNET_FRAMEWORKS = tuple("Microsoft.%s.%s" % (n, "App") for n in ("NETCore", "AspNetCore", "WindowsDesktop"))
 # Split so the public-leak IPv4 pattern does not read this version as an address.
 BROTLICFFI_FIXED = "1.2.1" + ".0"
+AS_8_0_FLOOR = "8.0.5" + ".2"
+AS_8_1_FLOOR = "8.1.4" + ".1"
+RAILS_8_0_5_2_URL = (
+    "https://rubyonrails.org/2026/11/4/Rails-"
+    + "8.0.5" + ".2-and-" + "8.1.4" + ".1-have-been-released"
+)
 
 LIMITS = [
     "Read-only and local: nothing is executed, installed, fetched, revoked or modified; only --out is written.",
@@ -299,6 +305,30 @@ SRC = {
                                "https://ubuntu.com/security/CVE-2026-112816"),
     "incus-ghsa-xg75": ("Incus advisory GHSA-xg75-xf37-cph9",
                         "https://github.com/lxc/incus/security/advisories/GHSA-xg75-xf37-cph9"),
+    "usn-8996-1": ("Ubuntu USN-8996-1 (apt, CVE-2026-109518)",
+                   "https://ubuntu.com/security/notices/USN-8996-1"),
+    "ubuntu-cve-2026-109518": ("Ubuntu Security CVE-2026-109518",
+                               "https://ubuntu.com/security/CVE-2026-109518"),
+    "dsa-6607-1": ("Debian DSA-6607-1 (apt)",
+                   "https://lists.debian.org/debian-security-announce/2026/msg00526.html"),
+    "debian-tracker-109518": ("Debian Security Tracker CVE-2026-109518",
+                              "https://security-tracker.debian.org/tracker/CVE-2026-109518"),
+    "dla-4880-1": ("Debian LTS DLA-4880-1 (apt)",
+                   "https://security-tracker.debian.org/tracker/DLA-4880-1"),
+    "oss-security-109518": ("oss-security: CVE-2026-109518 in apt (DSA 6607-1)",
+                            "https://www.openwall.com/lists/oss-security/2026/11/04/12"),
+    "apple-ht214103": ("Apple: About the security content of Safari 17.5 (HT214103)",
+                       "https://support.apple.com/en-us/HT214103"),
+    "apple-ht214106": ("Apple: About the security content of macOS Sonoma 14.5 (HT214106)",
+                       "https://support.apple.com/en-us/HT214106"),
+    "cisa-kev-2026-11-04": ("CISA: one vulnerability added to the KEV catalog (4 Nov 2026)",
+                            "https://www.cisa.gov/news-events/alerts/2026/11/04/cisa-adds-one-known-exploited-vulnerability-catalog"),
+    "rails-8-0-5-2": ("Ruby on Rails: v" + AS_8_0_FLOOR + " and v" + AS_8_1_FLOOR + " released",
+                      RAILS_8_0_5_2_URL),
+    "ghsa-f3w6-w445-fwh9": ("GitHub advisory GHSA-f3w6-w445-fwh9 (Active Storage)",
+                            "https://github.com/rails/rails/security/advisories/GHSA-f3w6-w445-fwh9"),
+    "better-auth-2026-11-03": ("Better Auth security release, 3 Nov 2026",
+                               "https://better-auth.com/blog/security-release-2026-11-03"),
 }
 
 SKIPPED = [
@@ -342,6 +372,18 @@ SKIPPED = [
      "Would be a production probe; wordpress-core-upgrade-rce reads $wp_version on disk only."),
     ("WordPress 7.1.4 companion issues (XSS, Customizer, Interactivity API, bundled CA refresh)",
      "Separate bugs; not this check."),
+    ("Xen XSA-523 (CVE-2026-102703 / CVE-2026-102704)",
+     "Hypervisor advisory; no released guest-visible floor. Presence under /sys/hypervisor would FAIL forever."),
+    ("Operation CloudFire",
+     "CDN / org-level campaign; no local developer-endpoint artifact named in the briefing."),
+    ("DreamHost account incident",
+     "Hosting account; no local artifact."),
+    ("mSecure",
+     "Vendor / mobile account; needs the vendor console or MDM, not a laptop scan."),
+    ("Crédit Mutuel Arkéa",
+     "Financial-institution incident; no local developer-endpoint artifact."),
+    ("Apple mobile OS (iOS / iPadOS / tvOS / watchOS) for CVE-2024-27834",
+     "Mobile devices; needs MDM inventory, not a laptop scan. apple-27834 covers macOS and desktop Safari only."),
 ]
 
 
@@ -600,6 +642,7 @@ class Index:
         self.composer_installed = []
         self.drupal_commerce = []
         self.wordpress_core = []
+        self.gem_lock = []
         self.complete = True
         self.stopped = None
 
@@ -738,6 +781,8 @@ def build_index(host):
             idx.composer_installed.append(path)
         if low == "commerce" + ".info.yml" and not _in_composer_vendor(path):
             idx.drupal_commerce.append(path)
+        if low == "gemfile.lock" and not _skip_gem_lock(plow):
+            idx.gem_lock.append(path)
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
 
@@ -2895,6 +2940,21 @@ def _commerce_normalize(text):
     return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
 
 
+_GEM_TREE_DIR = re.compile(r"^[A-Za-z0-9_.+-]+-\d")
+
+
+def _skip_gem_lock(plow):
+    """True for vendor/bundle, .bundle, or gems/<name>-<version>/ trees."""
+    if ".bundle" in plow:
+        return True
+    for i, part in enumerate(plow):
+        if part == "vendor" and i + 1 < len(plow) and plow[i + 1] == "bundle":
+            return True
+        if part == "gems" and i + 1 < len(plow) and _GEM_TREE_DIR.match(plow[i + 1]):
+            return True
+    return False
+
+
 def _in_composer_vendor(file_path):
     """True when the file sits under a Composer vendor tree.
 
@@ -4848,6 +4908,197 @@ def check_lxd_112816(host, r):
                   path="/var/lib/incus")
 
 
+APT_UBUNTU_FLOORS = {
+    "26.10": ("3.3.3ubuntu0.1", "affected"),
+    "26.04": ("3.2.1ubuntu0.1", "affected"),
+    "24.04": ("2.8.4ubuntu0.1", "affected"),
+    "22.04": ("2.4.15ubuntu0.1", "affected"),
+    "20.04": ("2.0.12+esm1", "review"),
+    "18.04": ("1.6.19+esm1", "review"),
+    "16.04": ("1.2.36+esm1", "review"),
+    "14.04": ("1.0.1ubuntu2.24+esm4", "review"),
+}
+APT_DEBIAN_FLOORS = {"13": "3.0.4", "12": "2.6.2"}
+BETTER_AUTH_PACKAGES = {
+    "better-auth", "@better-auth/expo", "@better-auth/electron",
+    "@better-auth/passkey", "@better-auth/stripe", "@better-auth/kysely-adapter",
+}
+
+
+def check_apt_109518(host, r):
+    """Classify installed apt against USN-8996-1 / DSA-6607-1 floors. Never reads apt.conf."""
+    if host.platform != "linux":
+        return
+    pk = linux_packages(host)
+    rows = pk.get("apt") or []
+    if not rows:
+        status_path = host.sys("/var/lib/dpkg/status")
+        if hs.is_regular(status_path) and not any(
+                src == "dpkg" for vers in pk.values() for _v, src in vers):
+            r.blocked.append("could not read /var/lib/dpkg/status")
+        return
+    fields = os_release_fields(host)
+    os_id = (fields.get("ID") or "").lower()
+    version_id = fields.get("VERSION_ID") or ""
+    for ver, src in rows:
+        if not fields:
+            r.add("unknown", "apt", "installed; os-release not readable (%s)" % src, version=ver)
+            continue
+        if os_id not in ("ubuntu", "debian"):
+            r.add("review", "apt",
+                  "ID %s is not ubuntu or debian (ID_LIKE is not used); confirm any vendor backport"
+                  % (os_id or "missing"), version=ver)
+            continue
+        if os_id == "debian":
+            major = version_id.split(".")[0] if version_id else ""
+            floor = APT_DEBIAN_FLOORS.get(major)
+            below_kind = "affected"
+            if not floor:
+                r.add("review", "apt",
+                      "Debian %s has no DSA-6607-1 / DLA-4880-1 floor in this check "
+                      "(11 and older, sid/testing, or missing VERSION_ID)"
+                      % (version_id or "unknown"), version=ver)
+                continue
+        else:
+            rec = APT_UBUNTU_FLOORS.get(version_id)
+            if not rec:
+                r.add("review", "apt",
+                      "Ubuntu %s has no USN-8996-1 floor in this check" % (version_id or "unknown"),
+                      version=ver)
+                continue
+            floor, below_kind = rec
+        cmpv = hs.debian_version_cmp(ver, floor)
+        if cmpv is None:
+            r.add("review", "apt", "version string could not be parsed as a Debian version (%s)" % src,
+                  version=ver)
+        elif cmpv >= 0:
+            r.add("info", "apt", "at or above %s (%s)" % (floor, src), version=ver)
+        else:
+            r.add(below_kind, "apt", "below %s (%s)" % (floor, src), version=ver)
+    if r.present:
+        r.notes.append("Comparison uses Debian Policy 5.6.12 against the USN/DSA/DLA floor for this series.")
+
+
+def check_apple_27834(host, r):
+    """Classify macOS ProductVersion and desktop Safari against HT214106 / HT214103."""
+    if host.platform != "darwin":
+        return
+    plist = host.sys("/System/Library/CoreServices/SystemVersion.plist")
+    os_ver = hs.plist_value(plist, "ProductVersion") if hs.is_regular(plist) else None
+    safari = next((b for b in browsers(host) if b["browser"] == "Safari"), None)
+    ov = hs.parse_version(os_ver) if os_ver else None
+    if ov is None and safari is None:
+        return
+    os_path = host.display(plist) if hs.is_regular(plist) else None
+    if ov is None:
+        r.add("unknown", "macOS", "ProductVersion not readable", path=os_path, version=os_ver)
+    elif ov.nums[0] <= 11:
+        r.add("review", "macOS",
+              "macOS 11 and older; HT214106 floors Sonoma 14.5",
+              path=os_path, version=os_ver)
+    elif ov.nums[0] in (12, 13):
+        r.add("info", "macOS",
+              "macOS 12/13: classify Safari against 17.5 (HT214103); OS line is not a Sonoma floor",
+              path=os_path, version=os_ver)
+    elif ov.nums[0] == 14:
+        if hs.below(ov, "14.5"):
+            r.add("affected", "macOS", "below Sonoma 14.5 (HT214106)", path=os_path, version=os_ver)
+        else:
+            r.add("info", "macOS", "Sonoma 14.5 or newer (HT214106)", path=os_path, version=os_ver)
+    else:
+        r.add("info", "macOS", "macOS 15 or newer (HT214106 / CVE-2024-27834)",
+              path=os_path, version=os_ver)
+    if safari is None:
+        r.add("review", "Safari",
+              "Safari Info.plist not readable; classify against 17.5 (HT214103)")
+        return
+    raw = safari.get("version")
+    sv = hs.parse_version(raw) if raw else None
+    sp = host.display(safari["path"]) if safari.get("path") else None
+    if sv is None:
+        r.add("unknown", "Safari", "installed; version not readable (%s)" % safari.get("source", "plist"),
+              path=sp, version=raw)
+    elif hs.below(sv, "17.5"):
+        r.add("affected", "Safari", "below Safari 17.5 (HT214103)", path=sp, version=raw)
+    else:
+        r.add("info", "Safari", "Safari 17.5 or newer (HT214103)", path=sp, version=raw)
+
+
+def check_activestorage_122006(host, r):
+    """Classify activestorage from Gemfile.lock GEM specs (GHSA-f3w6-w445-fwh9)."""
+    needed_unreadable = False
+    for path in index(host).gem_lock:
+        text = text_of(host, path)
+        if text is None:
+            if hs.exists_nofollow(path):
+                needed_unreadable = True
+            continue
+        found = hs.gem_lock_versions(text, {"activestorage", "mini_magick"})
+        as_hits = found.get("activestorage") or []
+        if not as_hits:
+            continue
+        gem_hits = [h for h in as_hits if h["section"] == "GEM"]
+        if not gem_hits:
+            r.add("review", "activestorage",
+                  "built from source; no released version to compare",
+                  path=host.display(path), version=as_hits[0]["version"])
+        for hit in gem_hits:
+            ver = hit["version"]
+            if "-" in ver:
+                r.add("review", "activestorage",
+                      "platform suffix is not a released GEM version on this advisory",
+                      path=host.display(path), version=ver)
+                continue
+            v = hs.parse_version(ver)
+            if v is None:
+                r.add("review", "activestorage", "version string could not be parsed",
+                      path=host.display(path), version=ver)
+            elif v.nums[:2] == (8, 0):
+                kind = "info" if hs.at_least(v, AS_8_0_FLOOR) else "affected"
+                r.add(kind, "activestorage",
+                      ("at or above " + AS_8_0_FLOOR if kind == "info" else "8.0.x below " + AS_8_0_FLOOR) +
+                      " (GHSA-f3w6-w445-fwh9)", path=host.display(path), version=ver)
+            elif v.nums[:2] == (8, 1):
+                kind = "info" if hs.at_least(v, AS_8_1_FLOOR) else "affected"
+                r.add(kind, "activestorage",
+                      ("at or above " + AS_8_1_FLOOR if kind == "info" else "8.1.x below " + AS_8_1_FLOOR) +
+                      " (GHSA-f3w6-w445-fwh9)", path=host.display(path), version=ver)
+            else:
+                r.add("review", "activestorage",
+                      "affected range per GHSA (< " + AS_8_0_FLOOR + "), no patched release on this line; "
+                      "upgrade to " + AS_8_0_FLOOR + "+",
+                      path=host.display(path), version=ver)
+        for hit in found.get("mini_magick") or []:
+            mv = hs.parse_version(hit["version"])
+            if mv is not None and hs.below(mv, "5.1"):
+                r.add("review", "mini_magick",
+                      "below 5.1 next to activestorage; processor choice is not detected",
+                      path=host.display(path), version=hit["version"])
+    if needed_unreadable:
+        r.blocked.append("could not read a Gemfile.lock that the walk indexed")
+
+
+def _classify_better_auth(raw):
+    beta = hs.better_auth_beta_n(raw)
+    if beta is not None:
+        return ("info" if beta >= 5 else "affected",
+                "1.8.0-beta.%d" % beta + (" at or above beta.5" if beta >= 5 else " below beta.5"))
+    if raw.startswith("spec:"):
+        return "review", "package.json range %s; lockfile decides when present" % raw[5:]
+    v = hs.parse_version(raw)
+    if v is not None and v.nums[:2] == (1, 7):
+        kind = "info" if hs.at_least(v, "1.7.16") else "affected"
+        return kind, ("at or above 1.7.16" if kind == "info" else "1.7.x below 1.7.16")
+    return "review", "line is not 1.7.x or 1.8.0-beta.N (1.8.0 final, rc, 1.6, 1.8.1+ and 1.9+ are review)"
+
+
+def check_better_auth_2026_11_03(host, r):
+    """Classify Better Auth lock pins (1.7.16 / 1.8.0-beta.5)."""
+    for path, name, ver in lock_hits(host, BETTER_AUTH_PACKAGES):
+        kind, note = _classify_better_auth(ver)
+        r.add(kind, name, note + "; Better Auth 2026-11-03", path=host.display(path), version=ver)
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -5134,6 +5385,49 @@ CHECKS = [
                "Refresh the LXD or MicroCloud snap to the listed floor. Incus: 7.6.0 or later. Restricting "
                "the HTTPS listener is mitigation, not a vendor fix. This tool never starts a program.",
                "Linux only", check_lxd_112816, uses_walk=False),
+    check_meta("apt-109518",
+               "apt below USN-8996-1 / DSA-6607-1 floors (CVE-2026-109518)",
+               "check_if_used", "confirmed", "runtime",
+               ["usn-8996-1", "ubuntu-cve-2026-109518", "dsa-6607-1",
+                "debian-tracker-109518", "dla-4880-1", "oss-security-109518"],
+               "CVE-2026-109518: on-path RCE in apt on Debian, Ubuntu and derivatives. Ubuntu floors "
+               "3.3.3ubuntu0.1 / 3.2.1ubuntu0.1 / 2.8.4ubuntu0.1 / 2.4.15ubuntu0.1; ESM 2.0.12+esm1 / "
+               "1.6.19+esm1 / 1.2.36+esm1 / 1.0.1ubuntu2.24+esm4. Debian 13 3.0.4, Debian 12 2.6.2. "
+               "Comparison is Debian Policy 5.6.12. Linux without an apt package is not this check.",
+               "Install the USN or DSA/DLA build for that series. A retry-count setting is a mitigation, "
+               "not a vendor fix. This tool never writes package config.",
+               "Linux only", check_apt_109518, uses_walk=False),
+    check_meta("apple-27834",
+               "macOS below Sonoma 14.5 / Safari below 17.5 (CVE-2024-27834, CISA KEV)",
+               "check_if_used", "confirmed", "runtime",
+               ["apple-ht214103", "apple-ht214106", "cisa-kev-2026-11-04"],
+               "CVE-2024-27834 (CISA KEV, 4 Nov 2026): improper authentication in Apple products. "
+               "Desktop floors from HT214106 (macOS Sonoma 14.5) and HT214103 (Safari 17.5). "
+               "macOS 15+ is info on the OS line; Safari is still classified. macOS 11 and older "
+               "are review. macOS 12/13 classify Safari, or review if Safari is unreadable. "
+               "iOS / iPadOS / tvOS / watchOS need MDM and are skipped.",
+               "Update macOS to 14.5 or later and Safari to 17.5 or later. This tool never starts Safari.",
+               "macOS only", check_apple_27834, uses_walk=False),
+    check_meta("activestorage-122006",
+               "Rails Active Storage below v" + AS_8_0_FLOOR + " / v" + AS_8_1_FLOOR + " (GHSA-f3w6-w445-fwh9)",
+               "check_if_used", "confirmed", "dependency",
+               ["rails-8-0-5-2", "ghsa-f3w6-w445-fwh9"],
+               "GHSA-f3w6-w445-fwh9: possible arbitrary file write and read in Active Storage image "
+               "analysis. Fixed in v" + AS_8_0_FLOOR + " and v" + AS_8_1_FLOOR + ". Only GEM specs in "
+               "Gemfile.lock; GIT/PATH are review. mini_magick below 5.1 next to activestorage is extra "
+               "review. Processor (vips vs ImageMagick) is not detected. Gemfile ranges are not evidence.",
+               "Bundle update to v" + AS_8_0_FLOOR + " or v" + AS_8_1_FLOOR + ". This tool never runs bundle or rails.",
+               ALL_OS, check_activestorage_122006),
+    check_meta("better-auth-2026-11-03",
+               "Better Auth below 1.7.16 / 1.8.0-beta.5 (2026-11-03 security release)",
+               "check_if_used", "confirmed", "dependency",
+               ["better-auth-2026-11-03"],
+               "Better Auth 3 Nov 2026 security release: 1.7.16 and 1.8.0-beta.5. Scoped packages "
+               "checked: expo, electron, passkey, stripe, kysely-adapter. Other @better-auth/* names "
+               "are ignored. 1.8.0 final, rc, 1.6, 1.8.1+ and package.json ranges are review.",
+               "Upgrade better-auth (and the listed scoped packages) to 1.7.16 or 1.8.0-beta.5. "
+               "This tool never runs npm.",
+               ALL_OS, check_better_auth_2026_11_03),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

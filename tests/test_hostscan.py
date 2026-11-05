@@ -57,6 +57,49 @@ class Versions(unittest.TestCase):
         self.assertEqual(hs.classify_lines(hs.parse_version("8.1.30"), php, 2)[0], "review")
         self.assertEqual(hs.classify_lines(hs.parse_version("1.43.2.9999"), ["1.43.3.10861"], 0)[0], "affected")
 
+    def test_debian_version_cmp_policy(self):
+        cases = [
+            ("2.8.4", "2.8.4ubuntu0.1", -1),
+            ("2.4.15", "2.4.15ubuntu0.1", -1),
+            ("3.3.3ubuntu0.1", "3.3.3", 1),
+            ("2.6.2", "2.6.1+deb12u1", 1),
+            ("2.8.4~rc1", "2.8.4", -1),
+            ("1:2.0", "3.0", 1),
+            ("2.0.12+esm1", "2.0.12", 1),
+            ("2.8.4ubuntu0.1", "2.8.4", 1),
+            ("2.8.4", "2.8.3", 1),
+            ("2.6.2", "2.6.1", 1),
+            ("2.0.12+esm1", "2.0.11", 1),
+            ("1:2.8.4", "2.8.4", 1),
+            ("2.8.4", "2.8.4", 0),
+            ("1.0+1", "1.0+a", -1),
+            ("1.0a", "1.0+1", -1),
+            ("1.0-1", "1.0-a", -1),
+            ("1.0~", "1.0", -1),
+            ("1.0~~", "1.0~", -1),
+            ("1.0~a", "1.0~", 1),
+        ]
+        for a, b, expected in cases:
+            self.assertEqual(hs.debian_version_cmp(a, b), expected, "%s vs %s" % (a, b))
+
+    def test_debian_version_unparsable(self):
+        self.assertIsNone(hs.debian_version_cmp("", "1.0"))
+        self.assertIsNone(hs.debian_version_cmp("2.x!", "1.0"))
+        self.assertIsNone(hs.debian_version_cmp("1.0", "2.x!"))
+        self.assertIsNone(hs.debian_version_cmp(None, "1.0"))
+        self.assertIsNone(hs.parse_debian_version(""))
+        self.assertIsNone(hs.parse_debian_version("2.x!"))
+        self.assertIsNone(hs.parse_debian_version("x:1.0"))
+
+    def test_better_auth_beta_n(self):
+        self.assertEqual(hs.better_auth_beta_n("1.8.0-beta.5"), 5)
+        self.assertEqual(hs.better_auth_beta_n("1.8.0-beta.4"), 4)
+        self.assertGreaterEqual(hs.better_auth_beta_n("1.8.0-beta.5"), 5)
+        self.assertLess(hs.better_auth_beta_n("1.8.0-beta.4"), 5)
+        for raw in ("1.8.0", "1.8.0-rc.1", "1.8.1", "1.9.0", "1.6.9", "unknown",
+                    "1.8.0-beta.5-extra", "1.8.0-beta.x"):
+            self.assertIsNone(hs.better_auth_beta_n(raw), raw)
+
 
 class SafeReading(unittest.TestCase):
     def setUp(self):
@@ -226,6 +269,62 @@ class Parsers(unittest.TestCase):
                                    "dockerfile", {"litellm"}), {"litellm": {"1.106.2"}})
         self.assertEqual(hs.cargo_lock_versions('[[package]]\nname = "wasmtime"\nversion = "48.0.6"\n', {"wasmtime"}),
                          {"wasmtime": {"48.0.6"}})
+
+    def test_gem_lock_versions_gem_specs(self):
+        v801 = hostfix.dotted(8, 0, 5, 1)
+        text = (
+            "GEM\n"
+            "  remote: https://gems.example.invalid/\n"
+            "  specs:\n"
+            "    actionpack (%s)\n"
+            "      rack (>= 2.2.4)\n"
+            "    activestorage (%s)\n"
+            "      actionpack (= %s)\n"
+            "    mini_magick (4.13.2)\n"
+            "DEPENDENCIES\n"
+            "  activestorage (~> 8.0)\n"
+        ) % (v801, v801, v801)
+        found = hs.gem_lock_versions(text, {"activestorage", "mini_magick", "actionpack"})
+        self.assertEqual({n: {hit["version"] for hit in hits} for n, hits in found.items()},
+                         {"activestorage": {v801}, "mini_magick": {"4.13.2"}, "actionpack": {v801}})
+        self.assertEqual({hit["section"] for hit in found["activestorage"]}, {"GEM"})
+
+    def test_gem_lock_versions_git_and_path_sections(self):
+        v814 = hostfix.dotted(8, 1, 4, 1)
+        v802 = hostfix.dotted(8, 0, 5, 2)
+        text = (
+            "GIT\n"
+            "  remote: https://git.example.invalid/rails.git\n"
+            "  revision: abcdef\n"
+            "  specs:\n"
+            "    activestorage (%s)\n"
+            "PATH\n"
+            "  remote: engines/storage\n"
+            "  specs:\n"
+            "    activestorage (%s)\n"
+            "GEM\n"
+            "  remote: https://gems.example.invalid/\n"
+            "  specs:\n"
+            "    mini_magick (5.1.0)\n"
+            "DEPENDENCIES\n"
+            "  activestorage!\n"
+        ) % (v814, v802)
+        found = hs.gem_lock_versions(text, {"activestorage", "mini_magick"})
+        sections = {(hit["version"], hit["section"]) for hit in found["activestorage"]}
+        self.assertEqual(sections, {(v814, "GIT"), (v802, "PATH")})
+        self.assertEqual({hit["section"] for hit in found["mini_magick"]}, {"GEM"})
+
+    def test_gem_lock_versions_ignores_ranges_and_bad_text(self):
+        self.assertEqual(hs.gem_lock_versions("gem 'activestorage', '~> 8.0'\n", {"activestorage"}), {})
+        self.assertEqual(hs.gem_lock_versions(
+            "DEPENDENCIES\n  activestorage (~> 8.0)\n  mini_magick (>= 5.1)\n",
+            {"activestorage", "mini_magick"}), {})
+        self.assertEqual(hs.gem_lock_versions(
+            "GEM\n  specs:\n    activestorage (%s" % hostfix.dotted(8, 0, 5, 1), {"activestorage"}), {})
+        self.assertEqual(hs.gem_lock_versions("", {"activestorage"}), {})
+        plat = "GEM\n  specs:\n    activestorage (1.2.3-x86_64-linux)\n"
+        found = hs.gem_lock_versions(plat, {"activestorage"})
+        self.assertEqual(found["activestorage"][0]["version"], "1.2.3-x86_64-linux")
 
     def test_pe_and_go_and_plist(self):
         self.assertEqual(hs.pe_file_version(self.put("a.dll", hostfix.pe_with_version(hostfix.dotted(8, 4, 27, 0)))), hostfix.dotted(8, 4, 27, 0))

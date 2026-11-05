@@ -3251,6 +3251,315 @@ class Lxd112816(SimCase):
 
 
 # --------------------------------------------------------------------------
+# 3-4 Nov 2026 host advisories
+# --------------------------------------------------------------------------
+
+def _gem_lock(gems=(), git=(), path=(), extras=""):
+    """Synthetic Gemfile.lock. gems/git/path are (name, version) lists."""
+    parts = []
+    if gems:
+        parts.append("GEM\n  remote: https://gems.example.invalid/\n  specs:\n")
+        for name, ver in gems:
+            parts.append("    %s (%s)\n" % (name, ver))
+    if git:
+        parts.append("GIT\n  remote: https://git.example.invalid/app.git\n  revision: abc\n  specs:\n")
+        for name, ver in git:
+            parts.append("    %s (%s)\n" % (name, ver))
+    if path:
+        parts.append("PATH\n  remote: engines/storage\n  specs:\n")
+        for name, ver in path:
+            parts.append("    %s (%s)\n" % (name, ver))
+    parts.append("PLATFORMS\n  ruby\nDEPENDENCIES\n")
+    names = {n for n, _v in list(gems) + list(git) + list(path)}
+    for name in sorted(names):
+        parts.append("  %s\n" % name)
+    parts.append(extras)
+    return "".join(parts)
+
+
+class Apt109518(SimCase):
+    def _linux(self, os_id, version_id, apt_ver=None, extra_os="", packages=None):
+        s = self.sim("linux")
+        body = "ID=%s\n" % os_id
+        if version_id is not None:
+            body += 'VERSION_ID="%s"\n' % version_id
+        s.write("/etc/os-release", body + extra_os)
+        pkgs = dict(packages or {})
+        if apt_ver is not None:
+            pkgs["apt"] = apt_ver
+        if pkgs:
+            s.dpkg(pkgs)
+        return s.check("apt-109518")
+
+    def test_other_os_not_applicable(self):
+        self.assertStatus(self.sim("darwin").check("apt-109518"), "NOT_APPLICABLE")
+        self.assertStatus(self.sim("windows").check("apt-109518"), "NOT_APPLICABLE")
+
+    def test_linux_without_apt_package_is_not_applicable(self):
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        s.dpkg({"bash": "5.2.21-2ubuntu4"})
+        self.assertStatus(s.check("apt-109518"), "NOT_APPLICABLE")
+
+    def test_ubuntu_24_04_below_and_at_floor(self):
+        low = self._linux("ubuntu", "24.04", "2.8.4")
+        self.assertStatus(low, "FAIL")
+        self.assertEqual(results(low), ["affected"])
+        ok = self._linux("ubuntu", "24.04", "2.8.4ubuntu0.1")
+        self.assertStatus(ok, "PASS")
+        self.assertEqual(results(ok), ["info"])
+
+    def test_ubuntu_22_04_and_26_lines(self):
+        self.assertEqual(results(self._linux("ubuntu", "22.04", "2.4.15")), ["affected"])
+        self.assertEqual(results(self._linux("ubuntu", "22.04", "2.4.15ubuntu0.1")), ["info"])
+        self.assertEqual(results(self._linux("ubuntu", "26.04", "3.2.1")), ["affected"])
+        self.assertEqual(results(self._linux("ubuntu", "26.04", "3.2.1ubuntu0.1")), ["info"])
+        self.assertEqual(results(self._linux("ubuntu", "26.10", "3.3.3")), ["affected"])
+        self.assertEqual(results(self._linux("ubuntu", "26.10", "3.3.3ubuntu0.1")), ["info"])
+
+    def test_debian_13_and_12(self):
+        self.assertEqual(results(self._linux("debian", "13", "3.0.3")), ["affected"])
+        self.assertEqual(results(self._linux("debian", "13", "3.0.4")), ["info"])
+        self.assertEqual(results(self._linux("debian", "12", "2.6.1")), ["affected"])
+        self.assertEqual(results(self._linux("debian", "12", "2.6.2")), ["info"])
+
+    def test_ubuntu_20_04_esm_is_review_below_and_info_at_floor(self):
+        low = self._linux("ubuntu", "20.04", "2.0.9")
+        self.assertStatus(low, "FAIL")
+        self.assertEqual(results(low), ["review"])
+        ok = self._linux("ubuntu", "20.04", "2.0.12+esm1")
+        self.assertStatus(ok, "PASS")
+        self.assertEqual(results(ok), ["info"])
+
+    def test_ubuntu_esm_other_series(self):
+        self.assertEqual(results(self._linux("ubuntu", "18.04", "1.6.12")), ["review"])
+        self.assertEqual(results(self._linux("ubuntu", "18.04", "1.6.19+esm1")), ["info"])
+        self.assertEqual(results(self._linux("ubuntu", "16.04", "1.2.35")), ["review"])
+        self.assertEqual(results(self._linux("ubuntu", "16.04", "1.2.36+esm1")), ["info"])
+        self.assertEqual(results(self._linux("ubuntu", "14.04", "1.0.1ubuntu2.23")), ["review"])
+        self.assertEqual(results(self._linux("ubuntu", "14.04", "1.0.1ubuntu2.24+esm4")), ["info"])
+
+    def test_unparsed_version_is_review(self):
+        c = self._linux("ubuntu", "24.04", "2.x!")
+        self.assertEqual(results(c), ["review"])
+        self.assertStatus(c, "FAIL")
+
+    def test_debian_11_or_lower_is_review(self):
+        self.assertEqual(results(self._linux("debian", "11", "2.2.4")), ["review"])
+        self.assertEqual(results(self._linux("debian", "10", "1.8.2")), ["review"])
+
+    def test_id_like_only_and_other_ids_are_review(self):
+        mint = self._linux("linuxmint", "21.3", "2.4.15", extra_os="ID_LIKE=ubuntu\n")
+        self.assertEqual(results(mint), ["review"])
+        self.assertNotEqual(mint["status"], "PASS")
+        self.assertEqual(results(self._linux("fedora", "41", "2.8.4")), ["review"])
+
+    def test_missing_os_release_with_apt_is_unknown(self):
+        s = self.sim("linux")
+        s.dpkg({"apt": "2.8.4"})
+        c = s.check("apt-109518")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_debian_no_version_id_and_sid_are_review(self):
+        self.assertEqual(results(self._linux("debian", None, "3.3.5", extra_os="VERSION_CODENAME=sid\n")),
+                         ["review"])
+        self.assertEqual(results(self._linux("debian", None, "3.3.5", extra_os="VERSION_CODENAME=forky\n")),
+                         ["review"])
+
+    def test_does_not_read_apt_conf(self):
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        s.dpkg({"apt": "2.8.4"})
+        s.write("/etc/apt/apt.conf", 'Acquire::Retries "0";\n')
+        c = s.check("apt-109518")
+        self.assertEqual(results(c), ["affected"])
+        blob = json.dumps(c)
+        self.assertNotIn("Retries", blob)
+        self.assertNotIn("apt.conf", blob)
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_dpkg_status_is_blocked(self):
+        s = self.sim("linux")
+        s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        s.dpkg({"apt": "2.8.4"})
+        os.chmod(s.path("/var/lib/dpkg/status"), 0)
+        c = s.check("apt-109518")
+        self.assertStatus(c, "BLOCKED")
+
+
+class Apple27834(SimCase):
+    def _mac(self, os_ver, safari=None):
+        s = self.sim("darwin")
+        s.plist("/System/Library/CoreServices/SystemVersion.plist", {"ProductVersion": os_ver})
+        if safari is not None:
+            s.plist("/Applications/Safari" + APP + "/Contents/Info.plist",
+                    {"CFBundleShortVersionString": safari})
+        return s.check("apple-27834")
+
+    def test_linux_and_windows_not_applicable(self):
+        self.assertStatus(self.sim("linux").check("apple-27834"), "NOT_APPLICABLE")
+        self.assertStatus(self.sim("windows").check("apple-27834"), "NOT_APPLICABLE")
+
+    def test_sonoma_14_4_fail_and_14_5_pass(self):
+        low = self._mac("14.4", "17.4")
+        self.assertStatus(low, "FAIL")
+        self.assertIn("affected", results(low))
+        self.assertEqual(len(low["findings"]), 2)
+        ok = self._mac("14.5", "17.5")
+        self.assertStatus(ok, "PASS")
+        self.assertEqual(sorted(results(ok)), ["info", "info"])
+
+    def test_safari_17_4_fail_17_5_pass(self):
+        self.assertIn("affected", results(self._mac("14.5", "17.4")))
+        self.assertStatus(self._mac("15.0", "17.5"), "PASS")
+
+    def test_ventura_with_safari_17_5_passes(self):
+        c = self._mac("13.6.7", "17.5")
+        self.assertStatus(c, "PASS")
+        self.assertTrue(any(f["component"] == "Safari" and f["result"] == "info" for f in c["findings"]))
+
+    def test_macos_11_is_review(self):
+        c = self._mac("11.7.10", "16.6")
+        self.assertIn("review", results(c))
+        self.assertStatus(c, "FAIL")
+
+    def test_macos_12_unreadable_safari_is_review(self):
+        c = self._mac("12.7.4")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("review", results(c))
+
+    def test_macos_15_os_is_info_safari_still_classified(self):
+        c = self._mac("15.1", "17.4")
+        self.assertStatus(c, "FAIL")
+        os_line = next(f for f in c["findings"] if f["component"] == "macOS")
+        safari = next(f for f in c["findings"] if f["component"] == "Safari")
+        self.assertEqual(os_line["result"], "info")
+        self.assertEqual(safari["result"], "affected")
+
+
+class Activestorage122006(SimCase):
+    def _check(self, lock_text, rel="~/code/app/Gemfile.lock"):
+        self.s.write(rel, lock_text)
+        return self.s.check("activestorage-122006")
+
+    def test_8_0_5_1_fail_and_8_0_5_2_pass(self):
+        low = self._check(_gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        self.assertStatus(low, "FAIL")
+        self.assertEqual(results(low), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2))]))
+        c = ok.check("activestorage-122006")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_8_1_line(self):
+        low = self._check(_gem_lock(gems=[("activestorage", dotted(8, 1, 4, 0))]))
+        self.assertEqual(results(low), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 1, 4, 1))]))
+        self.assertEqual(results(ok.check("activestorage-122006")), ["info"])
+
+    def test_7_x_is_review(self):
+        c = self._check(_gem_lock(gems=[("activestorage", "7.2.3")]))
+        self.assertEqual(results(c), ["review"])
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected range per GHSA", c["findings"][0]["detail"])
+        self.assertIn("no patched release on this line", c["findings"][0]["detail"])
+
+    def test_missing_lock_is_not_applicable(self):
+        self.s.write("~/code/app/Gemfile", "gem 'activestorage', '~> 8.0'\n")
+        self.assertStatus(self.s.check("activestorage-122006"), "NOT_APPLICABLE")
+
+    def test_mini_magick_below_5_1_with_fixed_activestorage_is_review(self):
+        c = self._check(_gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2)), ("mini_magick", "4.13.2")]))
+        self.assertStatus(c, "FAIL")
+        self.assertIn("review", results(c))
+
+    def test_git_only_activestorage_is_review(self):
+        c = self._check(_gem_lock(git=[("activestorage", dotted(8, 1, 4, 1))]))
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("built from source", c["findings"][0]["detail"])
+
+    def test_platform_suffix_is_review(self):
+        c = self._check(_gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2) + "-x86_64-linux")]))
+        self.assertEqual(results(c), ["review"])
+
+    def test_vendor_bundle_and_gem_tree_locks_are_skipped(self):
+        self.s.write("~/code/app/vendor/bundle/ruby/3.3.0/Gemfile.lock",
+                     _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        self.s.write("~/.bundle/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        self.s.write("~/code/app/vendor/bundle/ruby/3.3.0/gems/activestorage-" + dotted(8, 0, 5, 1) + "/Gemfile.lock",
+                     _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        self.assertStatus(self.s.check("activestorage-122006"), "NOT_APPLICABLE")
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_needed_lock_is_blocked(self):
+        p = self.s.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        os.chmod(p, 0)
+        c = self.s.check("activestorage-122006")
+        self.assertStatus(c, "BLOCKED")
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_lock_with_fixed_readable_lock_is_blocked(self):
+        self.s.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2))]))
+        p = self.s.write("~/code/other/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        os.chmod(p, 0)
+        c = self.s.check("activestorage-122006")
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("could not read a Gemfile.lock", c["reason"])
+        self.assertIn("info", results(c))
+
+
+class BetterAuth20261103(SimCase):
+    def _npm(self, name, version, rel="~/code/app/package-lock.json"):
+        self.s.write(rel, json.dumps({"packages": {"": {"name": "app"},
+                                                   "node_modules/%s" % name: {"version": version}}}))
+        return self.s.check("better-auth-2026-11-03")
+
+    def test_1_7_15_fail_and_1_7_16_pass(self):
+        low = self._npm("better-auth", "1.7.15")
+        self.assertStatus(low, "FAIL")
+        self.assertEqual(results(low), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/app/package-lock.json",
+                 json.dumps({"packages": {"node_modules/better-auth": {"version": "1.7.16"}}}))
+        c = ok.check("better-auth-2026-11-03")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_beta_line(self):
+        low = self._npm("better-auth", "1.8.0-beta.4")
+        self.assertEqual(results(low), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/app/package-lock.json",
+                 json.dumps({"packages": {"node_modules/better-auth": {"version": "1.8.0-beta.5"}}}))
+        self.assertEqual(results(ok.check("better-auth-2026-11-03")), ["info"])
+
+    def test_1_6_and_final_1_8_and_ranges_are_review(self):
+        self.assertEqual(results(self._npm("better-auth", "1.6.9")), ["review"])
+        other = self.sim("linux")
+        other.write("~/code/app/package-lock.json",
+                    json.dumps({"packages": {"node_modules/better-auth": {"version": "1.8.0"}}}))
+        self.assertEqual(results(other.check("better-auth-2026-11-03")), ["review"])
+        rng = self.sim("linux")
+        rng.write("~/code/app/package.json", json.dumps({"dependencies": {"better-auth": "^1.7.0"}}))
+        self.assertEqual(results(rng.check("better-auth-2026-11-03")), ["review"])
+
+    def test_scoped_packages_only(self):
+        self.s.write("~/code/app/package-lock.json",
+                     json.dumps({"packages": {"node_modules/@better-auth/cli": {"version": "1.7.15"}}}))
+        self.assertStatus(self.s.check("better-auth-2026-11-03"), "NOT_APPLICABLE")
+        ok = self.sim("linux")
+        ok.write("~/code/app/package-lock.json",
+                 json.dumps({"packages": {"node_modules/@better-auth/expo": {"version": "1.7.16"}}}))
+        self.assertEqual(results(ok.check("better-auth-2026-11-03")), ["info"])
+
+    def test_absent_is_not_applicable(self):
+        self.assertStatus(self.s.check("better-auth-2026-11-03"), "NOT_APPLICABLE")
+
+
+# --------------------------------------------------------------------------
 # Whole-run behaviour: no crash, read only, bounded, redacted
 # --------------------------------------------------------------------------
 
@@ -3391,9 +3700,13 @@ class WholeRun(SimCase):
             if m["id"] != "plex-media-server":
                 self.assertTrue(m["sources"], m["id"])
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
-        self.assertEqual(len(hc.CHECK_IDS), 51)
+        self.assertEqual(len(hc.CHECK_IDS), 55)
         self.assertIn("nodered-admin-http", hc.CHECK_IDS)
         self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
+        self.assertIn("apt-109518", hc.CHECK_IDS)
+        self.assertIn("apple-27834", hc.CHECK_IDS)
+        self.assertIn("activestorage-122006", hc.CHECK_IDS)
+        self.assertIn("better-auth-2026-11-03", hc.CHECK_IDS)
         self.assertTrue(all(reason for _item, reason in hc.SKIPPED))
 
     def test_report_fragments_validate_in_a_report(self):
