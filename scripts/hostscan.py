@@ -199,6 +199,74 @@ def debian_version_cmp(a, b):
     return _deb_cmp_part(pa[2], pb[2])
 
 
+_APK_VER = re.compile(r"^(\d+(?:\.\d+)*)(?:_(alpha|beta|pre|rc|p)(\d*))?-r(\d+)$")
+_APK_SUFFIX_RANK = {"alpha": 0, "beta": 1, "pre": 2, "rc": 3, None: 4, "p": 5}
+_OPENSSH_PORTABLE = re.compile(r"^(?:(\d+):)?(\d+(?:\.\d+)*)_?p(\d+)(.*)$")
+
+
+def parse_apk_version(raw):
+    """Return (nums, suffix_rank, suffix_n, revision) or None.
+
+    Accepts only ``N(.N)*(_(alpha|beta|pre|rc|p)N*)?-rN``. Suffix order is
+    ``_alpha`` < ``_beta`` < ``_pre`` < ``_rc`` < no suffix < ``_p``.
+    """
+    if raw is None:
+        return None
+    m = _APK_VER.match(str(raw).strip())
+    if not m:
+        return None
+    nums = tuple(int(p) for p in m.group(1).split("."))
+    suffix = m.group(2)
+    suffix_n = int(m.group(3) or 0) if suffix is not None else 0
+    return nums, _APK_SUFFIX_RANK[suffix], suffix_n, int(m.group(4))
+
+
+def apk_version_cmp(a, b):
+    """Compare two apk versions. -1 / 0 / 1, or None when either side is unparsable."""
+    pa, pb = parse_apk_version(a), parse_apk_version(b)
+    if pa is None or pb is None:
+        return None
+    if pa < pb:
+        return -1
+    if pa > pb:
+        return 1
+    return 0
+
+
+def parse_openssh_portable(raw):
+    """Return (nums, pN, prerelease) or None.
+
+    Strips a leading ``N:`` epoch and an optional ``-...`` tail. Accepts an
+    optional ``_`` before ``p``. ``10.6`` (no p) is None.
+    """
+    if raw is None:
+        return None
+    m = _OPENSSH_PORTABLE.match(str(raw).strip())
+    if not m:
+        return None
+    nums = tuple(int(p) for p in m.group(2).split("."))
+    patch = int(m.group(3))
+    rest = m.group(4) or ""
+    if rest.startswith("-"):
+        rest = ""
+    return nums, patch, bool(rest)
+
+
+def openssh_portable_cmp(a, b):
+    """Compare portable OpenSSH versions. -1 / 0 / 1, or None when unparsable."""
+    pa, pb = parse_openssh_portable(a), parse_openssh_portable(b)
+    if pa is None or pb is None:
+        return None
+    c = cmp_nums(pa[0], pb[0])
+    if c:
+        return c
+    if pa[1] != pb[1]:
+        return (pa[1] > pb[1]) - (pa[1] < pb[1])
+    if pa[2] != pb[2]:
+        return (1 if pb[2] else 0) - (1 if pa[2] else 0)
+    return 0
+
+
 def better_auth_beta_n(raw):
     """Integer N from a ``1.8.0-beta.N`` string, or None."""
     if raw is None:

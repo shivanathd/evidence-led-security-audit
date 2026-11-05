@@ -126,6 +126,10 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "xenbits.xen.org",  # XSA-523 (skipped hypervisor advisory)
     "better-auth.com",  # Better Auth 2026-11-03 security release
     "www.openwall.com",  # oss-security quote of DSA-6607-1
+    "alpinelinux.org",  # OpenSSH musl / Alpine advisory 5 Nov 2026
+    "www.openssh.org",  # portable OpenSSH 10.6p2 release text
+    "blog.litespeedtech.com",  # LiteSpeed Cache CVE-2026-93389 vendor post
+    "www.wordfence.com",  # LiteSpeed Cache CVE-2026-93389 Wordfence page
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

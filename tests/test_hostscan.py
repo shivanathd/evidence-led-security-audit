@@ -90,6 +90,30 @@ class Versions(unittest.TestCase):
         self.assertIsNone(hs.parse_debian_version(""))
         self.assertIsNone(hs.parse_debian_version("2.x!"))
         self.assertIsNone(hs.parse_debian_version("x:1.0"))
+        self.assertIsNone(hs.parse_debian_version("10.3_p1-r2"))
+
+    def test_apk_version_cmp(self):
+        self.assertGreater(hs.apk_version_cmp("10.3_p1-r2", "10.3_p1-r1"), 0)
+        self.assertGreater(hs.apk_version_cmp("10.0_p1-r11", "10.0_p1-r10"), 0)
+        self.assertGreater(hs.apk_version_cmp("10.6_p2-r0", "10.6_p1-r0"), 0)
+        self.assertLess(hs.apk_version_cmp("10.6_rc1-r0", "10.6-r0"), 0)
+        self.assertLess(hs.apk_version_cmp("10.6-r0", "10.6_p1-r0"), 0)
+        self.assertGreater(hs.apk_version_cmp("9.10_p1-r0", "9.9_p2-r1"), 0)
+        self.assertEqual(hs.apk_version_cmp("10.3_p1-r2", "10.3_p1-r2"), 0)
+        self.assertIsNone(hs.parse_apk_version("10.3_p1"))
+        self.assertIsNone(hs.parse_apk_version("10.3_git1-r0"))
+        self.assertIsNone(hs.apk_version_cmp("10.3_p1", "10.3_p1-r2"))
+
+    def test_openssh_portable_cmp(self):
+        self.assertLess(hs.openssh_portable_cmp("10.6p1", "10.6p2"), 0)
+        self.assertLess(hs.openssh_portable_cmp("1:10.6p1-1", "10.6p2"), 0)
+        self.assertGreater(hs.openssh_portable_cmp("10.6p2", "10.6p1"), 0)
+        self.assertGreater(hs.openssh_portable_cmp("10.7p1", "10.6p2"), 0)
+        self.assertEqual(hs.openssh_portable_cmp("10.6_p2", "10.6p2"), 0)
+        self.assertEqual(hs.openssh_portable_cmp("1:10.6p2-1", "10.6p2"), 0)
+        self.assertLess(hs.openssh_portable_cmp("10.6p2rc1", "10.6p2"), 0)
+        self.assertIsNone(hs.parse_openssh_portable("10.6"))
+        self.assertIsNone(hs.openssh_portable_cmp("10.6", "10.6p2"))
 
     def test_better_auth_beta_n(self):
         self.assertEqual(hs.better_auth_beta_n("1.8.0-beta.5"), 5)
