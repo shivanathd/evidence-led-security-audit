@@ -2614,6 +2614,47 @@ class JetBrainsJbrEmudhra(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["review"])
 
+    def test_eap_with_digit_and_rc1_are_review(self):
+        self._mac_app("IntelliJ IDEA", "IU", "2026.3 EAP9")
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        other = self.sim("darwin")
+        self._info("/Applications/IntelliJ IDEA%s/Contents/Resources/product-info.json" % APP,
+                   "IU", "2026.3", "RC1", host=other)
+        c = other.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_payment_gateway_app_without_product_info_is_ignored(self):
+        self.s.mkdir("/Applications/Payment Gateway" + APP)
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertEqual(c["findings"], [])
+
+    def test_jetbrains_named_apps_without_product_info_are_unknown(self):
+        self.s.mkdir("/Applications/JetBrains Gateway" + APP)
+        c = self.s.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        other = self.sim("darwin")
+        other.mkdir("/Applications/PyCharm CE" + APP)
+        c = other.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_windows_jetbrains_folder_unknown_only_for_app_names(self):
+        w = self.sim("windows")
+        w.mkdir("C:/Program Files/JetBrains/PyCharm 2026.2")
+        c = w.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        other = self.sim("windows")
+        other.mkdir("C:/Program Files/JetBrains/Shared")
+        c = other.check("jetbrains-jbr-emudhra")
+        self.assertStatus(c, "NOT_APPLICABLE")
+        self.assertEqual(c["findings"], [])
+
     def test_rider_2026_3_final_is_info(self):
         self._mac_app("Rider", "RD", "2026.3")
         c = self.s.check("jetbrains-jbr-emudhra")
@@ -3467,6 +3508,21 @@ class Activestorage122006(SimCase):
         self.assertIn("affected range per GHSA", c["findings"][0]["detail"])
         self.assertIn("no patched release on this line", c["findings"][0]["detail"])
 
+    def test_7_1_3_keeps_current_ghsa_text(self):
+        c = self._check(_gem_lock(gems=[("activestorage", "7.1.3")]))
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("affected range per GHSA", c["findings"][0]["detail"])
+        self.assertIn("no patched release on this line", c["findings"][0]["detail"])
+
+    def test_newer_than_named_ghsa_lines_is_review(self):
+        for ver in ("8.2.0", "9.0.1"):
+            s = self.sim("linux")
+            s.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", ver)]))
+            c = s.check("activestorage-122006")
+            self.assertEqual(results(c), ["review"], ver)
+            self.assertIn("release line newer than the lines GHSA-f3w6-w445-fwh9 names",
+                          c["findings"][0]["detail"], ver)
+
     def test_missing_lock_is_not_applicable(self):
         self.s.write("~/code/app/Gemfile", "gem 'activestorage', '~> 8.0'\n")
         self.assertStatus(self.s.check("activestorage-122006"), "NOT_APPLICABLE")
@@ -3560,8 +3616,288 @@ class BetterAuth20261103(SimCase):
 
 
 # --------------------------------------------------------------------------
-# Whole-run behaviour: no crash, read only, bounded, redacted
+# OpenSSH musl password-auth bypass / LiteSpeed Cache CVE-2026-93389
 # --------------------------------------------------------------------------
+
+class OpensshMuslPwauth(SimCase):
+    def _alpine(self, version_id="3.24.3", packages=None, sshd=None, host=None, musl=True):
+        s = host or self.s
+        lines = ["ID=alpine\n"]
+        if version_id is not None:
+            lines.append("VERSION_ID=%s\n" % version_id)
+        s.write("/etc/os-release", "".join(lines))
+        if packages:
+            s.apk(packages)
+        if musl:
+            s.write("/lib/ld-musl-x86_64.so.1", b"")
+        if sshd is not None:
+            s.write("/etc/ssh/sshd_config", sshd)
+        return s
+
+    def test_empty_hosts_not_applicable(self):
+        self.assertIn("openssh-musl-pwauth", hc.CHECK_IDS)
+        for platform in ("darwin", "linux", "windows"):
+            self.assertStatus(self.sim(platform).check("openssh-musl-pwauth"), "NOT_APPLICABLE")
+
+    def test_walk_flag_and_sources(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "openssh-musl-pwauth")
+        self.assertFalse(meta["uses_walk"])
+        for key in meta["sources"]:
+            self.assertIn(key, hc.SRC)
+
+    def test_ubuntu_glibc_openssh_is_not_applicable(self):
+        self.s.write("/etc/os-release", 'ID=ubuntu\nVERSION_ID="24.04"\n')
+        self.s.dpkg({"openssh-server": "1:9.6p1-3ubuntu13"})
+        self.assertStatus(self.s.check("openssh-musl-pwauth"), "NOT_APPLICABLE")
+
+    def test_debian_with_musl_and_glibc_loaders_is_not_applicable(self):
+        self.s.write("/etc/os-release", 'ID=debian\nVERSION_ID="12"\n')
+        self.s.dpkg({"openssh-server": "1:9.6p1-3"})
+        self.s.write("/lib/ld-musl-x86_64.so.1", b"")
+        self.s.write("/lib64/ld-linux-x86-64.so.2", b"")
+        self.assertStatus(self.s.check("openssh-musl-pwauth"), "NOT_APPLICABLE")
+
+    def test_alpine_3_24_below_and_at_floor(self):
+        self._alpine(packages={"openssh-server": "10.3_p1-r1"})
+        low = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(low, "FAIL")
+        self.assertEqual(results(low), ["affected"])
+        ok = self.sim("linux")
+        self._alpine(packages={"openssh-server": "10.3_p1-r2"}, host=ok)
+        c = ok.check("openssh-musl-pwauth")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_alpine_password_auth_no_is_review_not_vendor_patch(self):
+        self._alpine(packages={"openssh-server": "10.3_p1-r1"}, sshd="PasswordAuthentication no\n")
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertIn("mitigation", c["findings"][0]["detail"])
+
+    def test_alpine_pam_yes_is_info_and_usepam_first_wins(self):
+        self._alpine(packages={"openssh-server-pam": "10.3_p1-r1"}, sshd="UsePAM yes\n")
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        no_then_yes = self.sim("linux")
+        self._alpine(packages={"openssh-server-pam": "10.3_p1-r1"},
+                     sshd="UsePAM no\nUsePAM yes\n", host=no_then_yes)
+        c = no_then_yes.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_alpine_pam_explicit_no_is_affected(self):
+        self._alpine(packages={"openssh-server-pam": "10.3_p1-r1"}, sshd="UsePAM no\n")
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_alpine_3_22_revision_floor(self):
+        self._alpine(version_id="3.22.7", packages={"openssh-server": "10.0_p1-r10"})
+        self.assertEqual(results(self.s.check("openssh-musl-pwauth")), ["affected"])
+        ok = self.sim("linux")
+        self._alpine(version_id="3.22.8", packages={"openssh-server": "10.0_p1-r11"}, host=ok)
+        self.assertEqual(results(ok.check("openssh-musl-pwauth")), ["info"])
+
+    def test_alpine_edge_alpha_and_missing_version_id(self):
+        self._alpine(version_id="3.25_alpha20261001", packages={"openssh-server": "10.6_p2-r0"})
+        self.assertStatus(self.s.check("openssh-musl-pwauth"), "PASS")
+        low = self.sim("linux")
+        self._alpine(version_id="3.25_alpha20261001", packages={"openssh-server": "10.6_p1-r0"}, host=low)
+        c = low.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        missing = self.sim("linux")
+        self._alpine(version_id=None, packages={"openssh-server": "10.6_p2-r0"}, host=missing)
+        self.assertStatus(missing.check("openssh-musl-pwauth"), "PASS")
+
+    def test_alpine_3_15_is_review(self):
+        self._alpine(version_id="3.15.0", packages={"openssh-server": "9.0_p1-r5"})
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_client_only_is_not_applicable(self):
+        self._alpine(packages={"openssh-client-default": "10.3_p1-r2"})
+        self.assertStatus(self.s.check("openssh-musl-pwauth"), "NOT_APPLICABLE")
+
+    def test_server_common_without_server_is_unknown(self):
+        self._alpine(packages={"openssh-server-common": "10.3_p1-r1"})
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_non_alpine_musl_portable_floor(self):
+        self.s.write("/etc/os-release", "ID=void\n")
+        self.s.write("/lib/ld-musl-x86_64.so.1", b"")
+        self.s.dpkg({"openssh-server": "1:10.6p1-1"})
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.write("/etc/os-release", "ID=void\n")
+        ok.write("/lib/ld-musl-x86_64.so.1", b"")
+        ok.dpkg({"openssh-server": "1:10.6p2-1"})
+        c = ok.check("openssh-musl-pwauth")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_false_pass_guards(self):
+        self._alpine(packages={"openssh-server": "10.3_p1-r1"})
+        self.assertEqual(results(self.s.check("openssh-musl-pwauth")), ["affected"])
+        musl = self.sim("linux")
+        musl.write("/lib/ld-musl-x86_64.so.1", b"")
+        musl.dpkg({"openssh-server": "10.6p1"})
+        self.assertEqual(results(musl.check("openssh-musl-pwauth")), ["affected"])
+
+    def test_dot_d_txt_is_ignored(self):
+        self._alpine(packages={"openssh-server": "10.3_p1-r1"})
+        self.s.write("/etc/ssh/sshd_config.d/x.txt", "PasswordAuthentication no\n")
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_apk_db_is_blocked(self):
+        self._alpine(packages={"openssh-server": "10.3_p1-r1"})
+        os.chmod(self.s.path("/lib/apk/db/installed"), 0)
+        c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "BLOCKED")
+
+    def test_never_starts_a_process(self):
+        self._alpine(packages={"openssh-server": "10.3_p1-r1"})
+        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+            c = self.s.check("openssh-musl-pwauth")
+        self.assertStatus(c, "FAIL")
+
+
+class LitespeedCache93389(SimCase):
+    PLUGIN = (
+        "<?php\n"
+        "/**\n"
+        " * Plugin Name: LiteSpeed Cache\n"
+        " * Version: %s\n"
+        " */\n"
+    )
+
+    def _plugin(self, version, spec="/var/www/html/wp-content/plugins/litespeed-cache/litespeed-cache.php",
+                host=None, body=None):
+        s = host or self.s
+        s.write(spec, body if body is not None else self.PLUGIN % version)
+        return s
+
+    def test_empty_hosts_not_applicable(self):
+        self.assertIn("litespeed-cache-93389", hc.CHECK_IDS)
+        for platform in ("darwin", "linux", "windows"):
+            self.assertStatus(self.sim(platform).check("litespeed-cache-93389"), "NOT_APPLICABLE")
+
+    def test_walk_flag_and_sources(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "litespeed-cache-93389")
+        self.assertTrue(meta["uses_walk"])
+        for key in meta["sources"]:
+            self.assertIn(key, hc.SRC)
+
+    def test_7_9_1_affected_and_7_9_2_info(self):
+        self._plugin("7.9.1")
+        c = self.s.check("litespeed-cache-93389")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        self._plugin("7.9.2", host=ok)
+        c = ok.check("litespeed-cache-93389")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_7_9_0_and_rc_and_6_5_4_are_affected(self):
+        self._plugin("7.9.0")
+        self.assertEqual(results(self.s.check("litespeed-cache-93389")), ["affected"])
+        rc = self.sim("linux")
+        self._plugin("7.9.2-RC1", host=rc)
+        self.assertEqual(results(rc.check("litespeed-cache-93389")), ["affected"])
+        old = self.sim("linux")
+        self._plugin("6.5.4", host=old)
+        c = old.check("litespeed-cache-93389")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_7_10_0_and_8_0_are_info(self):
+        self._plugin("7.10.0")
+        c = self.s.check("litespeed-cache-93389")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        newer = self.sim("linux")
+        self._plugin("8.0", host=newer)
+        self.assertEqual(results(newer.check("litespeed-cache-93389")), ["info"])
+
+    def test_directory_without_main_file_is_blocked_unknown(self):
+        self.s.mkdir("/var/www/html/wp-content/plugins/litespeed-cache")
+        c = self.s.check("litespeed-cache-93389")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "FAIL")
+
+    def test_plugin_only_tree_without_wordpress_core(self):
+        self._plugin("7.9.1", spec="~/site/wp-content/plugins/litespeed-cache/litespeed-cache.php")
+        c = self.s.check("litespeed-cache-93389")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_no_version_header_is_unknown(self):
+        self._plugin(None, body="<?php\n/* Plugin Name: LiteSpeed Cache */\n")
+        c = self.s.check("litespeed-cache-93389")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_main_file_is_blocked(self):
+        path = self.s.write("/var/www/html/wp-content/plugins/litespeed-cache/litespeed-cache.php",
+                            self.PLUGIN % "7.9.1")
+        os.chmod(path, 0)
+        c = self.s.check("litespeed-cache-93389")
+        self.assertStatus(c, "BLOCKED")
+
+    def test_never_http_or_exec(self):
+        self._plugin("7.9.1")
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")), \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+            c = self.s.check("litespeed-cache-93389")
+        self.assertStatus(c, "FAIL")
+
+
+class SecretPathGuard(SimCase):
+    def test_alpine_and_litespeed_never_read_secret_or_store_paths(self):
+        s = self.s
+        s.write("/etc/os-release", "ID=alpine\nVERSION_ID=3.24.3\n")
+        s.apk({"openssh-server": "10.3_p1-r1"})
+        s.write("/lib/ld-musl-x86_64.so.1", b"")
+        s.write("/etc/ssh/sshd_config", "PasswordAuthentication yes\n")
+        s.write("/var/www/html/wp-content/plugins/litespeed-cache/litespeed-cache.php",
+                "<?php\n/* Version: 7.9.1 */\n")
+        seen = []
+        orig_text, orig_bytes = hs.read_text, hs.read_bytes
+
+        def rec_text(path, *a, **k):
+            seen.append(path)
+            return orig_text(path, *a, **k)
+
+        def rec_bytes(path, *a, **k):
+            seen.append(path)
+            return orig_bytes(path, *a, **k)
+
+        with mock.patch.object(hs, "read_text", rec_text), \
+                mock.patch.object(hs, "read_bytes", rec_bytes), \
+                mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")):
+            s.doc(only={"openssh-musl-pwauth", "litespeed-cache-93389"})
+        banned_names = ("shadow", "passwd", "gshadow")
+        for path in seen:
+            base = os.path.basename(str(path)).lower()
+            self.assertNotIn(base, banned_names, path)
+            norm = str(path).replace("\\", "/")
+            self.assertNotIn("/var/log/", norm)
+            self.assertNotIn("/wc/store/", norm)
 
 class WholeRun(SimCase):
     def populate(self, s):
@@ -3700,13 +4036,15 @@ class WholeRun(SimCase):
             if m["id"] != "plex-media-server":
                 self.assertTrue(m["sources"], m["id"])
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
-        self.assertEqual(len(hc.CHECK_IDS), 55)
+        self.assertEqual(len(hc.CHECK_IDS), 57)
         self.assertIn("nodered-admin-http", hc.CHECK_IDS)
         self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
         self.assertIn("apt-109518", hc.CHECK_IDS)
         self.assertIn("apple-27834", hc.CHECK_IDS)
         self.assertIn("activestorage-122006", hc.CHECK_IDS)
         self.assertIn("better-auth-2026-11-03", hc.CHECK_IDS)
+        self.assertIn("openssh-musl-pwauth", hc.CHECK_IDS)
+        self.assertIn("litespeed-cache-93389", hc.CHECK_IDS)
         self.assertTrue(all(reason for _item, reason in hc.SKIPPED))
 
     def test_report_fragments_validate_in_a_report(self):

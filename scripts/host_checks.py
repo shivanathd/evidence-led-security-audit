@@ -57,9 +57,10 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.7"
-BRIEFING = "Security briefings, 16 Oct-4 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, 2026-10-30 and 2026-11-04)"
-BRIEFING_DATE = "2026-11-04"
+VERSION = "0.4.8"
+BRIEFING = ("Security briefings, 16 Oct-5 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+            "2026-10-30, 2026-11-04 and 2026-11-05)")
+BRIEFING_DATE = "2026-11-05"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -99,6 +100,11 @@ LIMITS = [
     "Symlinked files and module folders (for example Composer path repos) are not followed. "
     "A directory named vendor is a Composer vendor tree only if it contains autoload.php or composer/installed.json. "
     "Drupal 7 commerce INI files are out of scope.",
+    "openssh-musl-pwauth never reads /etc/shadow, /etc/passwd or sshd logs (may over-FAIL when no * "
+    "account or no $5$/$6$ hash is present). An sshd restart after a package upgrade is not visible. "
+    "Match blocks in sshd_config are not evaluated. PasswordAuthentication no is mitigation, never a vendor patch.",
+    "litespeed-cache-93389 reads only litespeed-cache.php Version. Cache REST off and WooCommerce Store API "
+    "state are not read; those settings are mitigation, never a vendor patch. No Store API HTTP is made.",
     "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
     "PE FileVersion, Info.plist, linux packages, snap metadata and Flatpak are not IDE version sources. "
     "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
@@ -329,6 +335,17 @@ SRC = {
                             "https://github.com/rails/rails/security/advisories/GHSA-f3w6-w445-fwh9"),
     "better-auth-2026-11-03": ("Better Auth security release, 3 Nov 2026",
                                "https://better-auth.com/blog/security-release-2026-11-03"),
+    "alpine-openssh-bypass": ("Alpine Linux: OpenSSH password authentication bypass (5 Nov 2026)",
+                             "https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/"),
+    "openssh-10-6-p2": ("Portable OpenSSH 10.6p2 release notes",
+                        "https://www.openssh.org/txt/release-10.6p2"),
+    "wordfence-93389": ("Wordfence: LiteSpeed Cache 7.9.1 Store API PII via public REST caching",
+                        "https://www.wordfence.com/threat-intel/vulnerabilities/wordpress-plugins/litespeed-cache/"
+                        "litespeed-cache-791-unauthenticated-sensitive-information-disclosure-woocommerce-store-api-"
+                        "cartcheckout-pii-cart-token-via-public-rest-caching"),
+    "litespeed-93389-blog": ("LiteSpeed: security update for LSCWP CVE-2026-93389",
+                            "https://blog.litespeedtech.com/2026/11/04/security-update-for-lscwp-cve-2026-93389/"),
+    "cve-93389": ("CVE-2026-93389", "https://www.cve.org/CVERecord?id=CVE-2026-93389"),
 }
 
 SKIPPED = [
@@ -384,6 +401,24 @@ SKIPPED = [
      "Financial-institution incident; no local developer-endpoint artifact."),
     ("Apple mobile OS (iOS / iPadOS / tvOS / watchOS) for CVE-2024-27834",
      "Mobile devices; needs MDM inventory, not a laptop scan. apple-27834 covers macOS and desktop Safari only."),
+    ("OpenSSH musl bypass on Dropbear",
+     "Vendor/Copa: not affected; not this check."),
+    ("OpenSSH musl bypass login / shadow / log review",
+     "Would read secrets or usernames; human only."),
+    ("LiteSpeed Cache REST / WooCommerce runtime probe",
+     "Production HTTP; this check reads Version: only."),
+    ("Other LSCWP CVEs closed in 7.9.2 (109215, 116763, 113501, 113499, 113500, …)",
+     "Separate bugs; same upgrade may cover them; not this check."),
+    ("French blood bank / fridge claims",
+     "Press/org; no local developer-endpoint artifact."),
+    ("Zyxel GS1900 patch-failure claims",
+     "Appliance; no prior host profile fits this helper."),
+    ("Tata Motors IRA",
+     "Org/vehicle; no local artifact."),
+    ("CERT-In Crafty Falcon / ARTEX (as a CERT-In campaign)",
+     "No local developer-endpoint artifact; ARTEX remains a ConnectWise news pointer only."),
+    ("eMudhra Python ecosystem write-up",
+     "Already emudhra-certifi / emudhra-trust-store; not a new check."),
 ]
 
 
@@ -629,6 +664,7 @@ class Index:
         self.large = []
         self.updraft = []
         self.cryptopayment = []
+        self.litespeed_cache = []
         self.magento = []
         self.nextcloud = []
         self.qdrant_cfg = []
@@ -711,6 +747,8 @@ def build_index(host):
             idx.updraft.append(os.path.join(path, low["updraftplus"]))
         if plow[-2:] == ["wp-content", "plugins"] and "cryptopayment-gateway" in low:
             idx.cryptopayment.append(os.path.join(path, low["cryptopayment-gateway"]))
+        if plow[-2:] == ["wp-content", "plugins"] and "litespeed-cache" in low:
+            idx.litespeed_cache.append(os.path.join(path, low["litespeed-cache"]))
         if "wp-includes" in low and ("wp-settings.php" in low or "wp-load.php" in low):
             inc = os.path.join(path, low["wp-includes"])
             ver = os.path.join(inc, "version.php")
@@ -4357,7 +4395,7 @@ JB_FLOORS = {
     "Gateway": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 4), _ver(2025, 3, 3), _ver(2025, 2, 6)),
     "ReSharper": (_ver(2026, 3), _ver(2026, 2, 4), _ver(2026, 1, 5, 3), _ver(2025, 3, 5, 3)),
 }
-JB_PRE_RE = re.compile(r"(?i)\b(EAP|RC)\b")
+JB_PRE_RE = re.compile(r"(?i)\b(EAP|RC)\d*\b")
 JB_JCEF_GOOGLE = "JCEF certificate updates depend on the IDE reaching Google's update servers"
 JB_PRE_DETAIL = ("pre-release build; local metadata cannot show whether it is the fixed RC/EAP; "
                  "update to the latest RC/EAP or the 2026.3 release")
@@ -4445,7 +4483,7 @@ def _jb_read_product_info(host, path, r):
 
 def _jb_looks_like_app(name):
     stem = name[:-len(APP)] if name.endswith(APP) else name
-    return any(stem.startswith(k) or k in stem for k in JB_APP_NAMES)
+    return any(stem.startswith(k) or stem.startswith("JetBrains " + k) for k in JB_APP_NAMES)
 
 
 def _jb_scan_app_dir(host, base, r):
@@ -4504,7 +4542,7 @@ def _jb_collect_ides(host, r):
             info = os.path.join(child, "product-info.json")
             if hs.exists_nofollow(info):
                 _jb_read_product_info(host, info, r)
-            else:
+            elif _jb_looks_like_app(name):
                 r.add("unknown", "JetBrains IDE", "JetBrains folder present; product-info.json missing",
                       path=host.display(child))
     local = host.localappdata()
@@ -5024,6 +5062,241 @@ def check_apple_27834(host, r):
         r.add("info", "Safari", "Safari 17.5 or newer (HT214103)", path=sp, version=raw)
 
 
+OPENSSH_ALPINE_FLOORS = {
+    "3.24": "10.3_p1-r2",
+    "3.23": "10.2_p1-r1",
+    "3.22": "10.0_p1-r11",
+    "3.21": "9.9_p2-r1",
+    "3.20": "9.7_p1-r6",
+    "3.19": "9.6_p1-r3",
+    "3.18": "9.3_p2-r4",
+    "3.17": "9.1_p1-r7",
+    "3.16": "9.0_p1-r6",
+}
+OPENSSH_EDGE_FLOOR = "10.6_p2-r0"
+OPENSSH_PORTABLE_FLOOR = "10.6p2"
+_ALPINE_BRANCH = re.compile(r"^(\d+)\.(\d+)(?:\.\d+)?$")
+LS_CACHE_FLOOR = "7.9.2"
+LS_CACHE_VER_RE = re.compile(r"(?mi)^\s*\*?\s*Version:\s*(\S+)")
+
+
+def _loader_name(host, directories, pattern):
+    for spec in directories:
+        root = host.sys(spec)
+        for name in hs.listdir(root):
+            if fnmatch.fnmatch(name, pattern) and hs.is_regular(os.path.join(root, name)):
+                return True
+    return False
+
+
+def _glibc_loader(host):
+    if _loader_name(host, ("/lib", "/lib64", "/usr/lib", "/usr/lib64"), "ld-linux*.so*"):
+        return True
+    lib = host.sys("/lib")
+    for name in hs.listdir(lib):
+        child = os.path.join(lib, name)
+        if not hs.is_plain_dir(child):
+            continue
+        for inner in hs.listdir(child):
+            if fnmatch.fnmatch(inner, "ld-linux*.so*") and hs.is_regular(os.path.join(child, inner)):
+                return True
+    return False
+
+
+def _musl_without_glibc(host):
+    return _loader_name(host, ("/lib", "/usr/lib"), "ld-musl-*.so*") and not _glibc_loader(host)
+
+
+def _sshd_file_pairs(text):
+    pairs = []
+    for raw in (text or "").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        parts = line.split()
+        key = parts[0].lower()
+        if key == "match":
+            break
+        pairs.append((key, parts[1].lower() if len(parts) > 1 else ""))
+    return pairs
+
+
+def sshd_auth_flags(host):
+    """Return (usepam_yes, password_auth_on) from sshd_config plus sshd_config.d/*.conf."""
+    main = host.sys("/etc/ssh/sshd_config")
+    ddir = host.sys("/etc/ssh/sshd_config.d")
+    dot_paths = []
+    for name in hs.listdir(ddir, host.gaps):
+        if not name.endswith(".conf"):
+            continue
+        path = os.path.join(ddir, name)
+        if hs.is_regular(path):
+            dot_paths.append(path)
+    main_pairs = _sshd_file_pairs(hs.read_text(main, 256 * 1024, host.gaps) if hs.exists_nofollow(main) else "")
+    has_include = any(k == "include" for k, _ in main_pairs)
+    stream = []
+    inserted = False
+    for key, val in main_pairs:
+        if key == "include" and not inserted:
+            for path in dot_paths:
+                stream.extend(_sshd_file_pairs(hs.read_text(path, 256 * 1024, host.gaps)))
+            inserted = True
+            continue
+        stream.append((key, val))
+    if not has_include:
+        for path in dot_paths:
+            stream.extend(_sshd_file_pairs(hs.read_text(path, 256 * 1024, host.gaps)))
+    usepam = None
+    pw_yes = False
+    pw_no = False
+    for key, val in stream:
+        if key == "usepam" and usepam is None:
+            usepam = val == "yes"
+        elif key == "passwordauthentication":
+            if val == "yes":
+                pw_yes = True
+            elif val == "no":
+                pw_no = True
+    return bool(usepam), True if pw_yes else (False if pw_no else True)
+
+
+def _alpine_openssh_floor(fields):
+    if (fields.get("ID") or "").lower() != "alpine":
+        return None
+    vid = (fields.get("VERSION_ID") or "").strip()
+    if not vid or "_alpha" in vid:
+        return OPENSSH_EDGE_FLOOR
+    m = _ALPINE_BRANCH.match(vid)
+    if not m:
+        return "review"
+    return OPENSSH_ALPINE_FLOORS.get("%s.%s" % (m.group(1), m.group(2)), "review")
+
+
+def _apk_db_unreadable(host):
+    path = host.sys("/lib/apk/db/installed")
+    if not (hs.exists_nofollow(path) and hs.is_regular(path)):
+        return False
+    return hs.read_text(path, 64 * MIB, host.gaps) is None
+
+
+def _add_openssh_version(r, component, ver, floor, pw_on, alpine):
+    if floor == "review":
+        r.add("review", component,
+              "Alpine VERSION_ID is outside the 3.16-3.24 / edge table; review",
+              version=ver)
+        return
+    if alpine:
+        cmpv = hs.apk_version_cmp(ver, floor)
+        if cmpv is None:
+            r.add("review", component, "apk version string could not be parsed", version=ver)
+            return
+        if cmpv >= 0:
+            r.add("info", component,
+                  "at or above Alpine floor %s (package metadata); sshd restart is not visible" % floor,
+                  version=ver)
+            return
+        if pw_on:
+            r.add("affected", component,
+                  "below Alpine floor %s; PasswordAuthentication on or default" % floor,
+                  version=ver)
+        else:
+            r.add("review", component,
+                  "below Alpine floor %s; PasswordAuthentication no is mitigation, not a vendor patch" % floor,
+                  version=ver)
+        return
+    cmpv = hs.openssh_portable_cmp(ver, floor)
+    if cmpv is None:
+        r.add("review", component, "portable OpenSSH version string could not be parsed", version=ver)
+        return
+    if cmpv >= 0:
+        r.add("info", component,
+              "at or above portable OpenSSH %s (package metadata); sshd restart is not visible" % floor,
+              version=ver)
+        return
+    if pw_on:
+        r.add("affected", component,
+              "below portable OpenSSH %s; PasswordAuthentication on or default" % floor,
+              version=ver)
+    else:
+        r.add("review", component,
+              "below portable OpenSSH %s; PasswordAuthentication no is mitigation, not a vendor patch" % floor,
+              version=ver)
+
+
+def check_openssh_musl_pwauth(host, r):
+    """Classify musl/Alpine OpenSSH server packages (5 Nov 2026 advisory; no CVE)."""
+    if host.platform != "linux":
+        return
+    fields = os_release_fields(host)
+    alpine = (fields.get("ID") or "").lower() == "alpine"
+    if not alpine and not _musl_without_glibc(host):
+        return
+    pk = linux_packages(host)
+    server = pk.get("openssh-server") or []
+    pam = pk.get("openssh-server-pam") or []
+    common = pk.get("openssh-server-common") or []
+    if not server and not pam:
+        if common:
+            r.add("unknown", "openssh-server-common",
+                  "openssh-server-common present; server package stanza missing")
+        elif _apk_db_unreadable(host):
+            r.blocked.append("could not read /lib/apk/db/installed")
+        return
+    usepam, pw_on = sshd_auth_flags(host)
+    if pam and usepam and not server:
+        r.add("info", "openssh-server-pam",
+              "UsePAM yes; Alpine advisory: not this bug", version=pam[0][0])
+        return
+    if pam and usepam:
+        r.add("info", "openssh-server-pam",
+              "UsePAM yes; Alpine advisory: not this bug", version=pam[0][0])
+    floor = _alpine_openssh_floor(fields) if alpine else OPENSSH_PORTABLE_FLOOR
+    entries = list(server)
+    if not (pam and usepam):
+        entries.extend(pam)
+    for ver, src in entries:
+        _add_openssh_version(r, "openssh-server" if (ver, src) in server else "openssh-server-pam",
+                             ver, floor, pw_on, alpine)
+
+
+def check_litespeed_cache_93389(host, r):
+    """Classify LiteSpeed Cache plugin Version against 7.9.2 (CVE-2026-93389)."""
+    for d in index(host).litespeed_cache:
+        main = os.path.join(d, "litespeed-cache.php")
+        if not hs.exists_nofollow(main):
+            r.add("unknown", "LiteSpeed Cache",
+                  "plugin directory present; litespeed-cache.php missing or unreadable",
+                  path=host.display(d))
+            continue
+        text = hs.read_text(main, 256 * 1024, host.gaps)
+        if text is None:
+            r.add("unknown", "LiteSpeed Cache",
+                  "litespeed-cache.php could not be read",
+                  path=host.display(main))
+            continue
+        m = LS_CACHE_VER_RE.search(text)
+        if not m:
+            r.add("unknown", "LiteSpeed Cache",
+                  "no Version header in litespeed-cache.php",
+                  path=host.display(main))
+            continue
+        ver = m.group(1)
+        v = hs.parse_version(ver)
+        if v is None:
+            r.add("unknown", "LiteSpeed Cache",
+                  "Version header could not be parsed",
+                  path=host.display(main), version=ver)
+            continue
+        if hs.at_least(v, LS_CACHE_FLOOR):
+            r.add("info", "LiteSpeed Cache",
+                  "at or above 7.9.2 (CVE-2026-93389)",
+                  path=host.display(d), version=ver)
+        else:
+            r.add("affected", "LiteSpeed Cache",
+                  "below 7.9.2 (CVE-2026-93389)",
+                  path=host.display(d), version=ver)
+
+
 def check_activestorage_122006(host, r):
     """Classify activestorage from Gemfile.lock GEM specs (GHSA-f3w6-w445-fwh9)."""
     needed_unreadable = False
@@ -5063,10 +5336,14 @@ def check_activestorage_122006(host, r):
                 r.add(kind, "activestorage",
                       ("at or above " + AS_8_1_FLOOR if kind == "info" else "8.1.x below " + AS_8_1_FLOOR) +
                       " (GHSA-f3w6-w445-fwh9)", path=host.display(path), version=ver)
-            else:
+            elif v.nums[:2] < (8, 0):
                 r.add("review", "activestorage",
                       "affected range per GHSA (< " + AS_8_0_FLOOR + "), no patched release on this line; "
                       "upgrade to " + AS_8_0_FLOOR + "+",
+                      path=host.display(path), version=ver)
+            else:
+                r.add("review", "activestorage",
+                      "release line newer than the lines GHSA-f3w6-w445-fwh9 names; review",
                       path=host.display(path), version=ver)
         for hit in found.get("mini_magick") or []:
             mv = hs.parse_version(hit["version"])
@@ -5428,6 +5705,27 @@ CHECKS = [
                "Upgrade better-auth (and the listed scoped packages) to 1.7.16 or 1.8.0-beta.5. "
                "This tool never runs npm.",
                ALL_OS, check_better_auth_2026_11_03),
+    check_meta("openssh-musl-pwauth",
+               "OpenSSH musl / Alpine password-auth bypass (no CVE; Alpine 5 Nov 2026 / OpenSSH 10.6p2)",
+               "check_if_used", "confirmed", "runtime",
+               ["alpine-openssh-bypass", "openssh-10-6-p2"],
+               "On musl without PAM, portable OpenSSH can accept a password login for an account whose "
+               "stored field is *. Alpine openssh-server is built without PAM. Alpine published per-branch "
+               "apk floors on 5 Nov 2026; portable workaround is OpenSSH 10.6p2. No CVE id. "
+               "PasswordAuthentication no is mitigation. This check never starts sshd or reads shadow.",
+               "Upgrade openssh-server (or openssh-server-pam) to the Alpine branch floor or portable "
+               "10.6p2 and restart sshd. PasswordAuthentication no is mitigation, not a vendor patch.",
+               "Linux only", check_openssh_musl_pwauth, uses_walk=False),
+    check_meta("litespeed-cache-93389",
+               "LiteSpeed Cache below 7.9.2 (CVE-2026-93389)",
+               "check_if_used", "confirmed", "dependency",
+               ["wordfence-93389", "litespeed-93389-blog", "cve-93389"],
+               "CVE-2026-93389: unauthenticated WooCommerce Store API cart/checkout PII and Cart-Token "
+               "via public REST caching in LiteSpeed Cache 7.9.1 and older. Floor 7.9.2. "
+               "Reads only litespeed-cache.php Version. Cache REST off is mitigation. No Store API HTTP.",
+               "Upgrade LiteSpeed Cache to 7.9.2 or later. Turning Cache REST off is mitigation, not a fix. "
+               "This tool never requests the Store API.",
+               ALL_OS, check_litespeed_cache_93389),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

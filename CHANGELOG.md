@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.8 - 2026-11-05
+
+### Added
+
+- `scripts/host_checks.py`: two read-only checks (57 checks total). `openssh-musl-pwauth` classifies Alpine `openssh-server` / `openssh-server-pam` with `hostscan.apk_version_cmp` against the 5 Nov 2026 Alpine floors (3.16–3.24 plus edge `10.6_p2-r0`) and non-Alpine musl hosts with `hostscan.openssh_portable_cmp` against portable OpenSSH 10.6p2. Alpine `ID` is enough musl evidence; non-Alpine needs a regular musl loader and no glibc loader. `UsePAM` first-wins; `PasswordAuthentication no` is mitigation. Never reads shadow or starts sshd. `litespeed-cache-93389` classifies only `litespeed-cache.php` `Version:` with `parse_version` / `at_least` against 7.9.2 (CVE-2026-93389). A missing main file is unknown (BLOCKED). No Store API HTTP.
+- Dated profile: `host-advisories-2026-11-05.md`.
+- `hostscan.py`: `parse_apk_version`, `apk_version_cmp`, `parse_openssh_portable`, `openssh_portable_cmp`.
+
+### Changed
+
+- `activestorage-122006`: release lines newer than the GHSA-named 8.0 / 8.1 trains use distinct review text; lines below 8.0 keep the current GHSA wording.
+- `jetbrains-jbr-emudhra`: `JB_PRE_RE` matches `EAP9` / `RC1`; `_jb_looks_like_app` is prefix-only (`JetBrains ` + name or the name); Windows `Program Files\JetBrains` children without `product-info.json` are unknown only when they look like a JetBrains app.
+- `MAX_FILES_TARGET` 65 → 70 (`MAX_FILES_ERROR` stays 100).
+- Briefing window through 5 Nov 2026.
+- Reviewed public hosts: `alpinelinux.org`, `www.openssh.org`, `blog.litespeedtech.com`, `www.wordfence.com`.
+
 ## 0.4.7 - 2026-11-05
 
 ### Added

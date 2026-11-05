@@ -126,6 +126,10 @@ class Sim:
         stanzas = ["Package: %s\nStatus: install ok installed\nVersion: %s\n" % kv for kv in packages.items()]
         self.write("/var/lib/dpkg/status", "\n".join(stanzas))
 
+    def apk(self, packages):
+        stanzas = ["P:%s\nV:%s\n" % kv for kv in packages.items()]
+        self.write("/lib/apk/db/installed", "\n".join(stanzas) + "\n")
+
     def plist(self, spec, values):
         self.write(spec, plistlib.dumps(values))
 

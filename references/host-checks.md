@@ -1,6 +1,6 @@
 # Host checks: one machine, read-only
 
-`scripts/host_checks.py` runs 55 read-only checks of the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 16 Oct–4 Nov 2026 developer-endpoint briefings. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md), [profiles/dev-endpoint-2026-10-30.md](../profiles/dev-endpoint-2026-10-30.md) and [profiles/host-advisories-2026-11-04.md](../profiles/host-advisories-2026-11-04.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
+`scripts/host_checks.py` runs 57 read-only checks of the machine it runs on (macOS, Linux or Windows) for the locally visible items in the 16 Oct–5 Nov 2026 developer-endpoint briefings. The dated briefing facts and source links are in [profiles/dev-endpoint-2026-10-27.md](../profiles/dev-endpoint-2026-10-27.md), [profiles/dev-endpoint-2026-10-30.md](../profiles/dev-endpoint-2026-10-30.md), [profiles/host-advisories-2026-11-04.md](../profiles/host-advisories-2026-11-04.md) and [profiles/host-advisories-2026-11-05.md](../profiles/host-advisories-2026-11-05.md). Use it in phase 3 for an `other` (endpoint) target. For a fleet, run it through the collection channels in [endpoint-fleet.md](endpoint-fleet.md) and treat devices that did not report as gaps.
 
 It is a metadata reader, not a scanner. It reads files and the Windows registry, and it never runs the programs it checks.
 
@@ -111,6 +111,8 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `apple-27834` | `ProductVersion` from SystemVersion.plist; Safari `Info.plist` via `browsers()` (Applications and Preboot Cryptex). One line per surface | not applicable | not applicable |
 | `activestorage-122006` | Walk `Gemfile.lock` (not `vendor/bundle/`, `.bundle/`, or `gems/<name>-<version>/`). GEM `specs:` only | same | same |
 | `better-auth-2026-11-03` | Walk npm lockfiles / `package.json` for `better-auth` and `@better-auth/{expo,electron,passkey,stripe,kysely-adapter}` | same | same |
+| `openssh-musl-pwauth` | not applicable | apk / dpkg `openssh-server` and `openssh-server-pam`; os-release Alpine `ID` / `VERSION_ID`; listdir musl and glibc loaders; `/etc/ssh/sshd_config` and `sshd_config.d/*.conf` keywords only. Never reads shadow or starts sshd | not applicable |
+| `litespeed-cache-93389` | Walk plus web roots: `wp-content/plugins/litespeed-cache` (`litespeed-cache.php` Version only) | same | same, plus `C:\inetpub` |
 
 ## Known limits
 
@@ -137,4 +139,6 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 - **Apple CVE-2024-27834 (`apple-27834`).** One finding for macOS and one for Safari; the check status is the worst of the two. macOS 15+ is `info` on the OS line. macOS 12/13 with no readable Safari plist is `review`. iOS / iPadOS / tvOS / watchOS need MDM and are skipped.
 - **Active Storage (`activestorage-122006`).** Only GEM specs in `Gemfile.lock`. GIT/PATH-only is `review`. A platform suffix (`1.2.3-x86_64-linux`) is `review`. `mini_magick` below 5.1 next to activestorage is extra `review`. Processor (vips vs ImageMagick) is not detected. `Gemfile` ranges are not evidence.
 - **Better Auth (`better-auth-2026-11-03`).** Only `better-auth` and the five named `@better-auth/*` packages. `1.8.0-beta.N` uses an integer compare against 5. 1.8.0 final, rc, 1.6, 1.8.1+ and `package.json` ranges are `review`.
+- **OpenSSH musl / Alpine (`openssh-musl-pwauth`).** Alpine `ID` is enough musl evidence. Non-Alpine needs a regular `ld-musl-*.so*` and no glibc loader. apk compare is `hostscan.apk_version_cmp` (not Debian Policy, not `at_least`). Portable compare is `hostscan.openssh_portable_cmp` against 10.6p2. `UsePAM` first uncommented value wins. `PasswordAuthentication no` is mitigation, never a vendor patch. `Match` blocks are not evaluated. Shadow and sshd logs are not read (may over-FAIL). An sshd restart is not visible.
+- **LiteSpeed Cache (`litespeed-cache-93389`).** Opens only `litespeed-cache.php`. `parse_version` + `at_least` against 7.9.2 (covers 6.x, 7.8.x, 7.9.2-RC1). A directory with a missing main file is `unknown` (BLOCKED). Cache REST off is mitigation. No Store API HTTP.
 - **Not covered here:** anything needing network scanning or admin consoles. See the skipped list in the dated profiles.
