@@ -265,44 +265,47 @@ class Parsers(unittest.TestCase):
                          {"wasmtime": {"48.0.6"}})
 
     def test_gem_lock_versions_gem_specs(self):
+        v801 = hostfix.dotted(8, 0, 5, 1)
         text = (
             "GEM\n"
-            "  remote: https://rubygems.org/\n"
+            "  remote: https://gems.example.invalid/\n"
             "  specs:\n"
-            "    actionpack (8.0.5.1)\n"
+            "    actionpack (%s)\n"
             "      rack (>= 2.2.4)\n"
-            "    activestorage (8.0.5.1)\n"
-            "      actionpack (= 8.0.5.1)\n"
+            "    activestorage (%s)\n"
+            "      actionpack (= %s)\n"
             "    mini_magick (4.13.2)\n"
             "DEPENDENCIES\n"
             "  activestorage (~> 8.0)\n"
-        )
+        ) % (v801, v801, v801)
         found = hs.gem_lock_versions(text, {"activestorage", "mini_magick", "actionpack"})
         self.assertEqual({n: {hit["version"] for hit in hits} for n, hits in found.items()},
-                         {"activestorage": {"8.0.5.1"}, "mini_magick": {"4.13.2"}, "actionpack": {"8.0.5.1"}})
+                         {"activestorage": {v801}, "mini_magick": {"4.13.2"}, "actionpack": {v801}})
         self.assertEqual({hit["section"] for hit in found["activestorage"]}, {"GEM"})
 
     def test_gem_lock_versions_git_and_path_sections(self):
+        v814 = hostfix.dotted(8, 1, 4, 1)
+        v802 = hostfix.dotted(8, 0, 5, 2)
         text = (
             "GIT\n"
-            "  remote: https://github.com/rails/rails.git\n"
+            "  remote: https://git.example.invalid/rails.git\n"
             "  revision: abcdef\n"
             "  specs:\n"
-            "    activestorage (8.1.4.1)\n"
+            "    activestorage (%s)\n"
             "PATH\n"
             "  remote: engines/storage\n"
             "  specs:\n"
-            "    activestorage (8.0.5.2)\n"
+            "    activestorage (%s)\n"
             "GEM\n"
-            "  remote: https://rubygems.org/\n"
+            "  remote: https://gems.example.invalid/\n"
             "  specs:\n"
             "    mini_magick (5.1.0)\n"
             "DEPENDENCIES\n"
             "  activestorage!\n"
-        )
+        ) % (v814, v802)
         found = hs.gem_lock_versions(text, {"activestorage", "mini_magick"})
         sections = {(hit["version"], hit["section"]) for hit in found["activestorage"]}
-        self.assertEqual(sections, {("8.1.4.1", "GIT"), ("8.0.5.2", "PATH")})
+        self.assertEqual(sections, {(v814, "GIT"), (v802, "PATH")})
         self.assertEqual({hit["section"] for hit in found["mini_magick"]}, {"GEM"})
 
     def test_gem_lock_versions_ignores_ranges_and_bad_text(self):
@@ -310,7 +313,8 @@ class Parsers(unittest.TestCase):
         self.assertEqual(hs.gem_lock_versions(
             "DEPENDENCIES\n  activestorage (~> 8.0)\n  mini_magick (>= 5.1)\n",
             {"activestorage", "mini_magick"}), {})
-        self.assertEqual(hs.gem_lock_versions("GEM\n  specs:\n    activestorage (8.0.5.1", {"activestorage"}), {})
+        self.assertEqual(hs.gem_lock_versions(
+            "GEM\n  specs:\n    activestorage (%s" % hostfix.dotted(8, 0, 5, 1), {"activestorage"}), {})
         self.assertEqual(hs.gem_lock_versions("", {"activestorage"}), {})
         plat = "GEM\n  specs:\n    activestorage (1.2.3-x86_64-linux)\n"
         found = hs.gem_lock_versions(plat, {"activestorage"})

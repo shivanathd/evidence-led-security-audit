@@ -3258,11 +3258,11 @@ def _gem_lock(gems=(), git=(), path=(), extras=""):
     """Synthetic Gemfile.lock. gems/git/path are (name, version) lists."""
     parts = []
     if gems:
-        parts.append("GEM\n  remote: https://rubygems.org/\n  specs:\n")
+        parts.append("GEM\n  remote: https://gems.example.invalid/\n  specs:\n")
         for name, ver in gems:
             parts.append("    %s (%s)\n" % (name, ver))
     if git:
-        parts.append("GIT\n  remote: https://github.com/example/app.git\n  revision: abc\n  specs:\n")
+        parts.append("GIT\n  remote: https://git.example.invalid/app.git\n  revision: abc\n  specs:\n")
         for name, ver in git:
             parts.append("    %s (%s)\n" % (name, ver))
     if path:
@@ -3444,20 +3444,20 @@ class Activestorage122006(SimCase):
         return self.s.check("activestorage-122006")
 
     def test_8_0_5_1_fail_and_8_0_5_2_pass(self):
-        low = self._check(_gem_lock(gems=[("activestorage", "8.0.5.1")]))
+        low = self._check(_gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
         self.assertStatus(low, "FAIL")
         self.assertEqual(results(low), ["affected"])
         ok = self.sim("linux")
-        ok.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", "8.0.5.2")]))
+        ok.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2))]))
         c = ok.check("activestorage-122006")
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
     def test_8_1_line(self):
-        low = self._check(_gem_lock(gems=[("activestorage", "8.1.4.0")]))
+        low = self._check(_gem_lock(gems=[("activestorage", dotted(8, 1, 4, 0))]))
         self.assertEqual(results(low), ["affected"])
         ok = self.sim("linux")
-        ok.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", "8.1.4.1")]))
+        ok.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 1, 4, 1))]))
         self.assertEqual(results(ok.check("activestorage-122006")), ["info"])
 
     def test_7_x_is_review(self):
@@ -3470,30 +3470,30 @@ class Activestorage122006(SimCase):
         self.assertStatus(self.s.check("activestorage-122006"), "NOT_APPLICABLE")
 
     def test_mini_magick_below_5_1_with_fixed_activestorage_is_review(self):
-        c = self._check(_gem_lock(gems=[("activestorage", "8.0.5.2"), ("mini_magick", "4.13.2")]))
+        c = self._check(_gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2)), ("mini_magick", "4.13.2")]))
         self.assertStatus(c, "FAIL")
         self.assertIn("review", results(c))
 
     def test_git_only_activestorage_is_review(self):
-        c = self._check(_gem_lock(git=[("activestorage", "8.1.4.1")]))
+        c = self._check(_gem_lock(git=[("activestorage", dotted(8, 1, 4, 1))]))
         self.assertEqual(results(c), ["review"])
         self.assertIn("built from source", c["findings"][0]["detail"])
 
     def test_platform_suffix_is_review(self):
-        c = self._check(_gem_lock(gems=[("activestorage", "8.0.5.2-x86_64-linux")]))
+        c = self._check(_gem_lock(gems=[("activestorage", dotted(8, 0, 5, 2) + "-x86_64-linux")]))
         self.assertEqual(results(c), ["review"])
 
     def test_vendor_bundle_and_gem_tree_locks_are_skipped(self):
         self.s.write("~/code/app/vendor/bundle/ruby/3.3.0/Gemfile.lock",
-                     _gem_lock(gems=[("activestorage", "8.0.5.1")]))
-        self.s.write("~/.bundle/Gemfile.lock", _gem_lock(gems=[("activestorage", "8.0.5.1")]))
-        self.s.write("~/code/app/vendor/bundle/ruby/3.3.0/gems/activestorage-8.0.5.1/Gemfile.lock",
-                     _gem_lock(gems=[("activestorage", "8.0.5.1")]))
+                     _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        self.s.write("~/.bundle/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
+        self.s.write("~/code/app/vendor/bundle/ruby/3.3.0/gems/activestorage-" + dotted(8, 0, 5, 1) + "/Gemfile.lock",
+                     _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
         self.assertStatus(self.s.check("activestorage-122006"), "NOT_APPLICABLE")
 
     @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
     def test_unreadable_needed_lock_is_blocked(self):
-        p = self.s.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", "8.0.5.1")]))
+        p = self.s.write("~/code/app/Gemfile.lock", _gem_lock(gems=[("activestorage", dotted(8, 0, 5, 1))]))
         os.chmod(p, 0)
         c = self.s.check("activestorage-122006")
         self.assertStatus(c, "BLOCKED")

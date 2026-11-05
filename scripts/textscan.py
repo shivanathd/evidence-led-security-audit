@@ -120,6 +120,12 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "nodered.org",  # Node-RED securing guide
     "access.redhat.com",  # RHSA-2026:93412/93413/93414 and Red Hat CVE-2026-98432
     "wpscan.com",  # CryptoPayment Gateway CVE-2026-81648
+    "lists.debian.org",  # DSA-6607-1
+    "security-tracker.debian.org",  # CVE-2026-109518 and DLA-4880-1
+    "rubyonrails.org",  # Rails Active Storage 4 Nov 2026 release
+    "xenbits.xen.org",  # XSA-523 (skipped hypervisor advisory)
+    "better-auth.com",  # Better Auth 2026-11-03 security release
+    "www.openwall.com",  # oss-security quote of DSA-6607-1
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

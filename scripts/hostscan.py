@@ -120,6 +120,86 @@ def classify_lines(version, fixed_builds, line_len=1, no_fix_lines=()):
     return "review", "release line %s is not covered by the source's fixed builds" % ".".join(str(n) for n in key)
 
 
+_DEB_VER_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.+~:-")
+_BETTER_AUTH_BETA = re.compile(r"^1\.8\.0-beta\.(\d+)$")
+
+
+def parse_debian_version(raw):
+    """Return (epoch, upstream, revision) or None (Debian Policy 5.6.12)."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or any(c not in _DEB_VER_CHARS for c in s):
+        return None
+    epoch, rest = 0, s
+    if ":" in s:
+        ep, rest = s.split(":", 1)
+        if not ep.isdigit():
+            return None
+        epoch = int(ep)
+    if "-" in rest:
+        upstream, revision = rest.rsplit("-", 1)
+    else:
+        upstream, revision = rest, ""
+    if not upstream:
+        return None
+    return epoch, upstream, revision
+
+
+def _deb_order(ch):
+    if ch == "~":
+        return -1
+    if ch.isalpha():
+        return ord(ch)
+    return ord(ch) + 256
+
+
+def _deb_cmp_part(left, right):
+    i = j = 0
+    n, m = len(left), len(right)
+    while i < n or j < m:
+        while (i < n and not left[i].isdigit()) or (j < m and not right[j].isdigit()):
+            ac = _deb_order(left[i]) if i < n else 0
+            bc = _deb_order(right[j]) if j < m else 0
+            if ac != bc:
+                return (ac > bc) - (ac < bc)
+            if i < n:
+                i += 1
+            if j < m:
+                j += 1
+        aval = bval = 0
+        while i < n and left[i].isdigit():
+            aval = aval * 10 + int(left[i])
+            i += 1
+        while j < m and right[j].isdigit():
+            bval = bval * 10 + int(right[j])
+            j += 1
+        if aval != bval:
+            return (aval > bval) - (aval < bval)
+    return 0
+
+
+def debian_version_cmp(a, b):
+    """Compare two Debian versions. -1 / 0 / 1, or None when either side is unparsable."""
+    pa, pb = parse_debian_version(a), parse_debian_version(b)
+    if pa is None or pb is None:
+        return None
+    if pa[0] != pb[0]:
+        return (pa[0] > pb[0]) - (pa[0] < pb[0])
+    up = _deb_cmp_part(pa[1], pb[1])
+    if up:
+        return up
+    return _deb_cmp_part(pa[2], pb[2])
+
+
+def better_auth_beta_n(raw):
+    """Integer N from a ``1.8.0-beta.N`` string, or None."""
+    if raw is None:
+        return None
+    m = _BETTER_AUTH_BETA.match(str(raw).strip())
+    return int(m.group(1)) if m else None
+
+
 # --------------------------------------------------------------------------
 # Safe reading
 # --------------------------------------------------------------------------
@@ -533,6 +613,39 @@ def cargo_lock_versions(text, wanted):
     for m in re.finditer(r'(?ms)^\[\[package\]\]\s*\nname\s*=\s*"([^"]+)"\s*\nversion\s*=\s*"([^"]+)"', text):
         if m.group(1).lower() in wanted:
             found.setdefault(m.group(1).lower(), set()).add(m.group(2))
+    return found
+
+
+_GEM_SPEC = re.compile(r"^    ([A-Za-z0-9_.+-]+) \(([^)]+)\)\s*$")
+_GEM_SECTIONS = {"GEM", "GIT", "PATH"}
+
+
+def gem_lock_versions(text, wanted):
+    """Return {name: [{"version", "section"}, ...]} from Gemfile.lock specs.
+
+    Only 4-space ``name (version)`` lines under ``specs:`` in GEM, GIT and PATH
+    sections are evidence. Gemfile ranges and DEPENDENCIES are ignored.
+    """
+    found = {}
+    if not text:
+        return found
+    section, in_specs = None, False
+    for line in text.splitlines():
+        if line and not line[0].isspace():
+            section = line.strip() if line.strip() in _GEM_SECTIONS else None
+            in_specs = False
+            continue
+        if section and re.match(r"^  specs:\s*$", line):
+            in_specs = True
+            continue
+        if not in_specs or not section:
+            continue
+        m = _GEM_SPEC.match(line)
+        if not m:
+            continue
+        name = m.group(1)
+        if name in wanted:
+            found.setdefault(name, []).append({"version": m.group(2), "section": section})
     return found
 
 
