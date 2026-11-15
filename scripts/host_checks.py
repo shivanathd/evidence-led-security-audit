@@ -110,8 +110,9 @@ LIMITS = [
     "hot-patch-bundle-20261107 in on-disk labeled-response module bytes. Backup names "
     "(.bak/.old and similar) and uncompiled source (including modules/*.c) are not evidence. "
     "A live module without the token is not cleared by a token in another prefix. An unreadable "
-    "candidate module, or a modules/third directory that cannot be listed, is unknown even if "
-    "another candidate carries the token. Extensionless labeled-response names are not evidence. "
+    "candidate module, or a modules/third path that cannot be listed or is not a directory, is "
+    "unknown even if another candidate carries the token. Extensionless labeled-response names "
+    "are not evidence. "
     "blacklist-module is mitigation, not a vendor patch. Windows has no vendor hot-patch "
     "(upgrade only); a token on Windows is ignored.",
     "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
@@ -2574,11 +2575,12 @@ def check_claude_code_vsx(host, r):
                 doc = hs.read_json(pj, MIB) if hs.is_regular(pj) else None
                 ver = doc.get("version") if isinstance(doc, dict) else None
             name_hit = next((b for b in CLAUDE_VSX_BAD if b in name), None)
-            if (ver in CLAUDE_VSX_BAD) or name_hit:
+            ver_hit = isinstance(ver, str) and ver in CLAUDE_VSX_BAD
+            if ver_hit or name_hit:
                 r.add("affected", "Anthropic.claude-code extension",
                       "2.1.312 and 2.1.313 are tampered Cursor Marketplace builds in the vendor notice",
-                      path=host.display(path), version=ver or name_hit)
-            elif ver:
+                      path=host.display(path), version=ver if ver_hit else name_hit)
+            elif isinstance(ver, str) and ver:
                 r.add("info", "Anthropic.claude-code extension",
                       "installed; not a 2.1.312 or 2.1.313 build named in the vendor notice",
                       path=host.display(path), version=ver)
@@ -5371,7 +5373,8 @@ def _unrealircd_hotpatch(prefix):
     """Return (seen, unreadable, unpatched) for installed labeled-response modules.
 
     Source trees, `.c` names, and extensionless files are not evidence.
-    A failed listing of `modules/` or `modules/third/` is unreadable.
+    A failed listing of `modules/` or `modules/third/`, or an existing
+    `modules/third` that is not a plain directory, is unreadable.
     A readable live module without the token means this prefix is
     unpatched, even if another file carries the token.
     """
@@ -5380,6 +5383,8 @@ def _unrealircd_hotpatch(prefix):
     for sub in ("modules", os.path.join("modules", "third")):
         base = os.path.join(prefix, sub)
         if not hs.is_plain_dir(base):
+            if sub == os.path.join("modules", "third") and hs.exists_nofollow(base):
+                unreadable = True
             continue
         try:
             listed = sorted(os.listdir(base))

@@ -51,7 +51,7 @@ No distro-named backport floor was retrieved for this profile. An NVR that keeps
 | nothing found | `NOT_APPLICABLE` |
 
 - A prerelease of v6.2.7.1 is not fixed. A newer minor prerelease such as 6.2.8-rc1 is `info`.
-- An unreadable labeled-response module, or a `modules/third` directory that cannot be listed, next to 5.x / 6.x below the floor is `unknown`, even if another candidate carries the token. Never a silent PASS.
+- An unreadable labeled-response module, or a `modules/third` path that cannot be listed or is not a directory, next to 5.x / 6.x below the floor is `unknown`, even if another candidate carries the token. Never a silent PASS.
 - Moving image tags (`latest`) are `info`.
 
 ## Known limits

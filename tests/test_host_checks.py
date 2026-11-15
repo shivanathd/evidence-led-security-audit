@@ -1433,6 +1433,18 @@ class ClaudeCodeVsx(SimCase):
     def test_empty_host_passes(self):
         self.assertStatus(self.s.check("claude-code-vsx-21313"), "PASS")
 
+    def test_non_string_package_json_version_still_checks_persistence(self):
+        self.s.write("~/.cursor/extensions/anthropic.claude-code/package.json",
+                     '{"name": "anthropic.claude-code", "version": []}\n')
+        self.s.write("~/.config/.smt", "placeholder\n")
+        c = self.s.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        self.assertNotIn("check error", c["reason"])
+        self.assertNotIn("incomplete", c["reason"])
+        kinds = {f["component"] for f in c["findings"]}
+        self.assertIn("persistence script", kinds)
+        self.assertTrue(all("placeholder" not in (f.get("detail") or "") for f in c["findings"]))
+
 
 class YobaFakeApps(SimCase):
     def test_themed_sideload_pair_is_affected(self):
@@ -4013,6 +4025,24 @@ class UnrealIrcd114713(SimCase):
         self._prefix("6.2.7", hotpatch=True)
         self.s.mkdir("~/unrealircd/modules/third")
         os.chmod(self.s.path("~/unrealircd/modules/third"), 0)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    def test_file_at_modules_third_blocks_token(self):
+        self._prefix("6.2.7", hotpatch=True)
+        self.s.write("~/unrealircd/modules/third", "not a directory\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    @unittest.skipUnless(CAN_SYMLINK, "symlink not available")
+    def test_symlink_at_modules_third_blocks_token(self):
+        self._prefix("6.2.7", hotpatch=True)
+        target = self.s.mkdir("~/elsewhere/third")
+        os.symlink(target, self.s.path("~/unrealircd/modules/third"))
         c = self.s.check("unrealircd-114713")
         self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["unknown"])
