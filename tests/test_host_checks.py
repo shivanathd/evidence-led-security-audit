@@ -3914,6 +3914,28 @@ class UnrealIrcd114713(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_dpkg_fixed_with_distro_module_dir_is_info(self):
+        self.s.dpkg({"unrealircd": dotted(6, 2, 7, 1) + "-1"})
+        self.s.write("/usr/lib/unrealircd/modules/labeled-response.so", "labeled-response 5.0\n")
+        self.s.write("/etc/unrealircd/unrealircd.conf", "me {};\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_distro_blacklist_does_not_fail_fixed_package(self):
+        self.s.dpkg({"unrealircd": dotted(6, 2, 7, 1) + "-1"})
+        self.s.write("/etc/unrealircd/unrealircd.conf",
+                     "blacklist-module labeled-response;\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_distro_module_dir_without_package_is_unknown(self):
+        self.s.write("/usr/lib/unrealircd/modules/labeled-response.so", "labeled-response 5.0\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
     def test_prefix_6_2_7_with_hotpatch_token_is_info(self):
         self._prefix("6.2.7", hotpatch=True)
         c = self.s.check("unrealircd-114713")
@@ -3937,6 +3959,13 @@ class UnrealIrcd114713(SimCase):
 
     def test_prefix_6_2_7_readable_without_token_is_affected(self):
         self._prefix("6.2.7", hotpatch=False)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_backup_module_token_does_not_clear_unpatched_so(self):
+        self._prefix("6.2.7", hotpatch=False)
+        self.s.write("~/unrealircd/modules/labeled-response.so.bak", self.HOTPATCH + "\n")
         c = self.s.check("unrealircd-114713")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
@@ -3987,6 +4016,16 @@ class UnrealIrcd114713(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_windows_hotpatch_token_is_not_a_patch(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/UnrealIRCd 6/UnrealIRCd.exe",
+                hostfix.pe_with_version(dotted(6, 2, 7, 0)))
+        w.write("C:/Program Files/UnrealIRCd 6/modules/labeled-response.dll",
+                self.HOTPATCH + "\n")
+        c = w.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
     def test_windows_pe_6_2_7_1_is_info(self):
         w = self.sim("windows")
         w.write("C:/Program Files/UnrealIRCd 6/UnrealIRCd.exe",
@@ -4027,6 +4066,9 @@ class UnrealIrcd114713(SimCase):
                 mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")):
             c = self.s.check("unrealircd-114713", runner=runner)
         self.assertStatus(c, "FAIL")
+        self.assertNotIn("check error", c["reason"])
+        self.assertNotIn("incomplete", c["reason"])
+        self.assertEqual(results(c), ["affected"])
 
 
 class SecretPathGuard(SimCase):

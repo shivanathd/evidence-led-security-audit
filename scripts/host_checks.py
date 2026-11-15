@@ -107,8 +107,9 @@ LIMITS = [
     "state are not read; those settings are mitigation, never a vendor patch. No Store API HTTP is made.",
     "unrealircd-114713 never starts UnrealIRCd, never runs module-status or a hot-patch installer, and never "
     "opens an IRC socket. 6.2.7 is not " + "6.2.7" + ".1. The hot-patch signal is the ASCII token "
-    "hot-patch-bundle-20261107 in on-disk labeled-response module or source bytes. blacklist-module is "
-    "mitigation, not a vendor patch. Windows has no vendor hot-patch (upgrade only).",
+    "hot-patch-bundle-20261107 in on-disk labeled-response module or source bytes. Backup names "
+    "(.bak/.old and similar) are not evidence. blacklist-module is mitigation, not a vendor patch. "
+    "Windows has no vendor hot-patch (upgrade only); a token on Windows is ignored.",
     "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
     "PE FileVersion, Info.plist, linux packages, snap metadata and Flatpak are not IDE version sources. "
     "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
@@ -5323,6 +5324,10 @@ _UNREAL_VERSIONONLY_RE = re.compile(r'(?im)^\s*#\s*define\s+VERSIONONLY\s+"([^"]
 _UNREAL_AC_INIT_RE = re.compile(r"(?is)AC_INIT\s*\(\s*\[UnrealIRCd\]\s*,\s*\[([^\]]+)\]")
 _UNREAL_ASSIGN_RE = re.compile(r'(?im)unrealircd_version\s*=\s*"([^"]+)"')
 _UNREAL_BLACKLIST_RE = re.compile(r"(?im)^\s*blacklist-module\s+[^\n]*labeled-response")
+_UNREAL_LABELED_NAME = re.compile(r"(?i)^labeled-response(?:\.(?:so(?:\.\d+)*|dll|c))?$")
+_UNREAL_DISTRO_PREFIX_SPECS = (
+    "/etc/unrealircd", "/usr/lib/unrealircd", "/usr/lib64/unrealircd", "/usr/share/unrealircd",
+)
 
 
 def _unrealircd_version_from_text(text):
@@ -5365,7 +5370,7 @@ def _unrealircd_hotpatch(prefix):
     for sub in ("modules", os.path.join("modules", "third"), os.path.join("src", "modules")):
         base = os.path.join(prefix, sub)
         for name in hs.listdir(base):
-            if name.lower().startswith("labeled-response"):
+            if _UNREAL_LABELED_NAME.match(name):
                 names.append(os.path.join(base, name))
     for rel in ("modules/labeled-response.so", "modules/labeled-response.dll",
                 "src/modules/labeled-response.c"):
@@ -5464,12 +5469,28 @@ def unrealircd_classify(r, component, ver, path, source, hotpatch_seen=False, ho
     return "review"
 
 
+def _unreal_distro_prefix(host, prefix):
+    want = os.path.normcase(os.path.abspath(prefix))
+    return any(want == os.path.normcase(os.path.abspath(host.sys(spec)))
+               for spec in _UNREAL_DISTRO_PREFIX_SPECS)
+
+
+def _unreal_pkg_present(host):
+    if host.platform != "linux":
+        return False
+    pk = linux_packages(host)
+    return any(pk.get(name) for name in UNREAL_PKGS)
+
+
 def check_unrealircd_114713(host, r):
     """Classify installed UnrealIRCd against UNREAL_FLOOR / hot-patch-bundle-20261107. Never start the daemon."""
     prefixes = _unrealircd_prefixes(host)
+    pkg_present = _unreal_pkg_present(host)
     for prefix in prefixes:
         ver, vpath, src = _unrealircd_version_in_prefix(host, prefix)
         seen, unread = _unrealircd_hotpatch(prefix)
+        if host.platform == "windows":
+            seen = False
         disp = host.display(vpath or prefix)
         if ver is None and vpath is None and not seen and not unread and not hs.listdir(os.path.join(prefix, "modules")):
             if not any(hs.exists_nofollow(os.path.join(prefix, n)) for n in ("unrealircd.conf", "conf/unrealircd.conf")):
@@ -5479,17 +5500,18 @@ def check_unrealircd_114713(host, r):
             unrealircd_classify(r, "UnrealIRCd", None, disp, "PE", seen, unread)
         elif ver:
             unrealircd_classify(r, "UnrealIRCd", ver, disp, src or "prefix", seen, unread)
-        else:
+        elif not (pkg_present and _unreal_distro_prefix(host, prefix)):
             r.add("unknown", "UnrealIRCd",
                   "install directory present; version not in source or PE metadata (not executed)",
                   path=host.display(prefix))
         bl = _unrealircd_blacklist(prefix)
-        if bl and any(f["result"] in ("affected", "review", "unknown") for f in r.findings
-                      if f.get("path") in (disp, host.display(prefix))):
+        prefix_open = any(f["result"] in ("affected", "review", "unknown") for f in r.findings
+                          if f.get("path") in (disp, host.display(prefix)))
+        if bl and prefix_open:
             r.add("review", "labeled-response blacklist-module",
                   "blacklist-module labeled-response is mitigation, not a vendor patch",
                   path=host.display(bl))
-        elif bl and not ver:
+        elif bl and not ver and not (pkg_present and _unreal_distro_prefix(host, prefix)):
             r.add("review", "labeled-response blacklist-module",
                   "blacklist-module labeled-response is mitigation, not a vendor patch",
                   path=host.display(bl))

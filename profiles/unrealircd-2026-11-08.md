@@ -57,12 +57,14 @@ No distro-named backport floor was retrieved for this profile. An NVR that keeps
 ## Known limits
 
 - Version spoofing and a hot-patch `.so` that lacks the ASCII token over-FAIL as affected (safe direction).
+- A retained `labeled-response.so.bak` (or `.old` / similar) is not hot-patch evidence.
+- Windows: a token in `labeled-response.dll` is not a vendor patch.
 - Linked-server preconditions are not evaluated.
 - Distro backports that keep the 6.2.7 number without the token are not treated as fixed.
 
 ## Closing a finding under this profile
 
-Use `verification_basis: vendor_patch` only with the vendor forum or oss-security retrieved this run, plus evidence the install is v6.2.7.1 or the hot-patch token is readable on disk.
+Use `verification_basis: vendor_patch` only with the vendor forum or oss-security retrieved this run, plus evidence the install is v6.2.7.1, or that the **installed** labeled-response module contains the hot-patch token. A token only in uncompiled source (`src/modules/labeled-response.c`) is not enough to close; it needs a separate human check that the running module was rebuilt. Windows has no vendor hot-patch: close only on v6.2.7.1.
 
 ## What needs a human
 
