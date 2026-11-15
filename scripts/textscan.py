@@ -130,6 +130,8 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.openssh.org",  # portable OpenSSH 10.6p2 release text
     "blog.litespeedtech.com",  # LiteSpeed Cache CVE-2026-93389 vendor post
     "www.wordfence.com",  # LiteSpeed Cache CVE-2026-93389 Wordfence page
+    "forums.unrealircd.org",  # CVE-2026-114713 vendor forum advisory
+    "www.unrealircd.org",  # UnrealIRCd v6.2.7.1 release / FAQ
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

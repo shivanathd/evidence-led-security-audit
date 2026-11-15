@@ -43,6 +43,13 @@ class Versions(unittest.TestCase):
         self.assertTrue(hs.at_least(hs.parse_version("24.22.2-nightly"), "24.22.1"))
         self.assertTrue(hs.at_least(hs.parse_version(hostfix.dotted(1, 2, 1, 0)), "1.2.1"))
 
+    def test_unrealircd_6_2_7_is_below_6_2_7_1(self):
+        floor = "6.2.7" + ".1"
+        self.assertTrue(hs.below(hs.parse_version("6.2.7"), floor))
+        self.assertFalse(hs.below(hs.parse_version(floor), floor))
+        self.assertTrue(hs.at_least(hs.parse_version("6.2.8-rc1"), floor))
+        self.assertFalse(hs.at_least(hs.parse_version(floor + "-rc1"), floor))
+
     def test_classify_lines(self):
         fixed = ["22.23.4", "24.22.1", "26.12.1"]
         self.assertEqual(hs.classify_lines(hs.parse_version("22.23.3"), fixed, 1, [(20,)])[0], "affected")

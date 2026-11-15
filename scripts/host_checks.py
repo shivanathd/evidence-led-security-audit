@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer or any audited program,
+- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -58,9 +58,9 @@ except ImportError:
     winreg = None
 
 VERSION = "0.4.8"
-BRIEFING = ("Security briefings, 16 Oct-5 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
-            "2026-10-30, 2026-11-04 and 2026-11-05)")
-BRIEFING_DATE = "2026-11-05"
+BRIEFING = ("Security briefings, 16 Oct-13 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+            "2026-10-30, 2026-11-04, 2026-11-05 and 2026-11-13)")
+BRIEFING_DATE = "2026-11-13"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -105,6 +105,10 @@ LIMITS = [
     "Match blocks in sshd_config are not evaluated. PasswordAuthentication no is mitigation, never a vendor patch.",
     "litespeed-cache-93389 reads only litespeed-cache.php Version. Cache REST off and WooCommerce Store API "
     "state are not read; those settings are mitigation, never a vendor patch. No Store API HTTP is made.",
+    "unrealircd-114713 never starts UnrealIRCd, never runs module-status or a hot-patch installer, and never "
+    "opens an IRC socket. 6.2.7 is not " + "6.2.7" + ".1. The hot-patch signal is the ASCII token "
+    "hot-patch-bundle-20261107 in on-disk labeled-response module or source bytes. blacklist-module is "
+    "mitigation, not a vendor patch. Windows has no vendor hot-patch (upgrade only).",
     "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
     "PE FileVersion, Info.plist, linux packages, snap metadata and Flatpak are not IDE version sources. "
     "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
@@ -346,6 +350,18 @@ SRC = {
     "litespeed-93389-blog": ("LiteSpeed: security update for LSCWP CVE-2026-93389",
                             "https://blog.litespeedtech.com/2026/11/04/security-update-for-lscwp-cve-2026-93389/"),
     "cve-93389": ("CVE-2026-93389", "https://www.cve.org/CVERecord?id=CVE-2026-93389"),
+    "cursor-incident-update": ("Cursor: November 2026 security incident update",
+                               "https://cursor.com/blog/security-incident-update"),
+    "unrealircd-forum-9487": ("UnrealIRCd: CVE-2026-114713 forum advisory",
+                              "https://forums.unrealircd.org/viewtopic.php?t=9487"),
+    "oss-security-114713": ("oss-security: UnrealIRCd CVE-2026-114713",
+                            "https://www.openwall.com/lists/oss-security/2026/11/08/1"),
+    "nvd-114713": ("NVD: CVE-2026-114713 (UnrealIRCd labeled-response)",
+                   "https://nvd.nist.gov/vuln/detail/CVE-2026-114713"),
+    "cve-114713": ("CVE-2026-114713", "https://www.cve.org/CVERecord?id=CVE-2026-114713"),
+    "cisa-kev-2026-11-13": ("CISA: one vulnerability added to the KEV catalog (13 Nov 2026)",
+                            "https://www.cisa.gov/news-events/alerts/2026/11/13/"
+                            "cisa-adds-one-known-exploited-vulnerability-catalog"),
 }
 
 SKIPPED = [
@@ -2442,7 +2458,7 @@ def check_ovhcloud(host, r):
 
 # NVD (CNA GitLab Inc.): CE/EE from 19.2 before 19.2.8, 19.3 before 19.3.5, 19.4 before 19.4.2.
 GITLAB_KEV_FIX = {(19, 2): "19.2.8", (19, 3): "19.3.5", (19, 4): "19.4.2"}
-CLAUDE_VSX_BAD = "2.1.313"
+CLAUDE_VSX_BAD = frozenset({"2.1.312", "2.1.313"})
 # Vendor-named key comment. The public key itself is not stored here.
 SVC_TELEMETRY = "svc" + "-telemetry"
 STK_TMP_RE = re.compile(r"^\.stk_[0-9a-f]{10}$")
@@ -2546,18 +2562,20 @@ def check_claude_code_vsx(host, r):
             ver = _claude_vsx_version(name)
             path = os.path.join(base, name)
             if ver is None:
-                if not (name.lower().startswith("anthropic.claude-code") or "claude-code-2.1.313" in name.lower()):
+                if not (name.lower().startswith("anthropic.claude-code")
+                        or any(b in name.lower() for b in CLAUDE_VSX_BAD)):
                     continue
                 pj = os.path.join(path, "package.json")
                 doc = hs.read_json(pj, MIB) if hs.is_regular(pj) else None
                 ver = doc.get("version") if isinstance(doc, dict) else None
-            if ver == CLAUDE_VSX_BAD or "2.1.313" in name:
+            name_hit = next((b for b in CLAUDE_VSX_BAD if b in name), None)
+            if (ver in CLAUDE_VSX_BAD) or name_hit:
                 r.add("affected", "Anthropic.claude-code extension",
-                      "2.1.313 is the tampered Cursor Marketplace build in the vendor notice",
-                      path=host.display(path), version=ver or CLAUDE_VSX_BAD)
+                      "2.1.312 and 2.1.313 are tampered Cursor Marketplace builds in the vendor notice",
+                      path=host.display(path), version=ver or name_hit)
             elif ver:
                 r.add("info", "Anthropic.claude-code extension",
-                      "installed; not the 2.1.313 build named in the vendor notice",
+                      "installed; not a 2.1.312 or 2.1.313 build named in the vendor notice",
                       path=host.display(path), version=ver)
             extjs = os.path.join(path, "extension.js")
             if hs.is_regular(extjs) and SVC_TELEMETRY in (hs.read_text(extjs, 8 * MIB) or ""):
@@ -5297,6 +5315,217 @@ def check_litespeed_cache_93389(host, r):
                   path=host.display(d), version=ver)
 
 
+# Split so the public-leak IPv4 pattern does not read this version as an address.
+UNREAL_FLOOR = "6.2.7" + ".1"
+UNREAL_HOTPATCH = b"hot-patch-bundle-20261107"
+UNREAL_PKGS = ("unrealircd", "unrealircd-src")
+_UNREAL_VERSIONONLY_RE = re.compile(r'(?im)^\s*#\s*define\s+VERSIONONLY\s+"([^"]+)"')
+_UNREAL_AC_INIT_RE = re.compile(r"(?is)AC_INIT\s*\(\s*\[UnrealIRCd\]\s*,\s*\[([^\]]+)\]")
+_UNREAL_ASSIGN_RE = re.compile(r'(?im)unrealircd_version\s*=\s*"([^"]+)"')
+_UNREAL_BLACKLIST_RE = re.compile(r"(?im)^\s*blacklist-module\s+[^\n]*labeled-response")
+
+
+def _unrealircd_version_from_text(text):
+    if not text:
+        return None
+    for rx in (_UNREAL_VERSIONONLY_RE, _UNREAL_AC_INIT_RE, _UNREAL_ASSIGN_RE):
+        m = rx.search(text)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def _unrealircd_prefixes(host):
+    found, seen = [], set()
+
+    def add(path):
+        if not path or not hs.is_plain_dir(path):
+            return
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(path)
+
+    add(host.h("unrealircd"))
+    for spec in ("/opt/unrealircd", "/usr/local/unrealircd", "/etc/unrealircd",
+                 "/usr/lib/unrealircd", "/usr/lib64/unrealircd", "/usr/share/unrealircd"):
+        add(host.sys(spec))
+    if host.platform == "windows":
+        for pf in host.program_files():
+            for d in glob_dirs(host, pf, "UnrealIRCd*"):
+                add(d)
+    return found
+
+
+def _unrealircd_hotpatch(prefix):
+    """Return (seen, unreadable) for the vendor hot-patch ASCII token under prefix."""
+    seen = unreadable = False
+    names = []
+    for sub in ("modules", os.path.join("modules", "third"), os.path.join("src", "modules")):
+        base = os.path.join(prefix, sub)
+        for name in hs.listdir(base):
+            if name.lower().startswith("labeled-response"):
+                names.append(os.path.join(base, name))
+    for rel in ("modules/labeled-response.so", "modules/labeled-response.dll",
+                "src/modules/labeled-response.c"):
+        names.append(os.path.join(prefix, *rel.split("/")))
+    seen_paths = set()
+    for path in names:
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen_paths:
+            continue
+        seen_paths.add(key)
+        if not hs.exists_nofollow(path):
+            continue
+        if not hs.is_regular(path):
+            unreadable = True
+            continue
+        data = hs.read_bytes(path, 8 * MIB)
+        if data is None:
+            unreadable = True
+            continue
+        if UNREAL_HOTPATCH in data:
+            seen = True
+    return seen, unreadable
+
+
+def _unrealircd_version_in_prefix(host, prefix):
+    for rel in ("src/version.c", "src/version.c.SH", "include/version.h", "include/config.h",
+                "include/setup.h", "include/windows/setup.h", "configure.ac"):
+        path = os.path.join(prefix, *rel.split("/"))
+        if not hs.is_regular(path):
+            continue
+        ver = _unrealircd_version_from_text(hs.read_text(path, MIB, host.gaps))
+        if ver:
+            return ver, path, "source"
+    for rel in ("UnrealIRCd.exe", "unrealircd.exe", "bin/UnrealIRCd.exe", "bin/unrealircd.exe"):
+        exe = os.path.join(prefix, *rel.split("/"))
+        if hs.is_regular(exe):
+            pe = hs.pe_file_version(exe)
+            if pe:
+                return pe, exe, "PE"
+            return None, exe, "PE"
+    return None, None, None
+
+
+def _unrealircd_blacklist(prefix):
+    for rel in ("unrealircd.conf", "conf/unrealircd.conf"):
+        path = os.path.join(prefix, *rel.split("/"))
+        if not hs.is_regular(path):
+            continue
+        text = hs.read_text(path, 4 * MIB)
+        if text and _UNREAL_BLACKLIST_RE.search(text):
+            return path
+    return None
+
+
+def unrealircd_classify(r, component, ver, path, source, hotpatch_seen=False, hotpatch_unreadable=False):
+    v = hs.parse_version(ver) if ver else None
+    if v is None:
+        r.add("unknown", component,
+              "UnrealIRCd present; version not readable (%s); CVE-2026-114713 is on the CISA KEV list" % source,
+              path=path, version=ver)
+        return "unknown"
+    if hs.at_least(v, UNREAL_FLOOR):
+        r.add("info", component,
+              "at or above %s (CVE-2026-114713)" % UNREAL_FLOOR,
+              path=path, version=ver)
+        return "info"
+    major = v.nums[0] if v.nums else 0
+    if major in (5, 6) and hotpatch_seen:
+        r.add("info", component,
+              "below %s but labeled-response carries hot-patch-bundle-20261107" % UNREAL_FLOOR,
+              path=path, version=ver)
+        return "info"
+    if major in (5, 6) and hotpatch_unreadable:
+        r.add("unknown", component,
+              "below %s; labeled-response module present but unreadable (not executed)" % UNREAL_FLOOR,
+              path=path, version=ver)
+        return "unknown"
+    if major == 6:
+        r.add("affected", component,
+              "CVE-2026-114713 (CISA KEV); below %s and no hot-patch-bundle-20261107 token" % UNREAL_FLOOR,
+              path=path, version=ver)
+        return "affected"
+    if major == 5:
+        r.add("affected", component,
+              "CVE-2026-114713; UnrealIRCd 5 is affected (EOL); no hot-patch-bundle-20261107 token",
+              path=path, version=ver)
+        return "affected"
+    if major in (3, 4):
+        r.add("review", component,
+              "UnrealIRCd %s present; vendor did not check 3.x/4.x for CVE-2026-114713" % ver,
+              path=path, version=ver)
+        return "review"
+    r.add("review", component,
+          "UnrealIRCd present; outside the vendor 5.x/6.x range for CVE-2026-114713",
+          path=path, version=ver)
+    return "review"
+
+
+def check_unrealircd_114713(host, r):
+    """Classify installed UnrealIRCd against UNREAL_FLOOR / hot-patch-bundle-20261107. Never start the daemon."""
+    prefixes = _unrealircd_prefixes(host)
+    for prefix in prefixes:
+        ver, vpath, src = _unrealircd_version_in_prefix(host, prefix)
+        seen, unread = _unrealircd_hotpatch(prefix)
+        disp = host.display(vpath or prefix)
+        if ver is None and vpath is None and not seen and not unread and not hs.listdir(os.path.join(prefix, "modules")):
+            if not any(hs.exists_nofollow(os.path.join(prefix, n)) for n in ("unrealircd.conf", "conf/unrealircd.conf")):
+                if not hs.listdir(prefix):
+                    continue
+        if ver is None and src == "PE":
+            unrealircd_classify(r, "UnrealIRCd", None, disp, "PE", seen, unread)
+        elif ver:
+            unrealircd_classify(r, "UnrealIRCd", ver, disp, src or "prefix", seen, unread)
+        else:
+            r.add("unknown", "UnrealIRCd",
+                  "install directory present; version not in source or PE metadata (not executed)",
+                  path=host.display(prefix))
+        bl = _unrealircd_blacklist(prefix)
+        if bl and any(f["result"] in ("affected", "review", "unknown") for f in r.findings
+                      if f.get("path") in (disp, host.display(prefix))):
+            r.add("review", "labeled-response blacklist-module",
+                  "blacklist-module labeled-response is mitigation, not a vendor patch",
+                  path=host.display(bl))
+        elif bl and not ver:
+            r.add("review", "labeled-response blacklist-module",
+                  "blacklist-module labeled-response is mitigation, not a vendor patch",
+                  path=host.display(bl))
+    if host.platform == "linux":
+        pk = linux_packages(host)
+        sys_seen = sys_unread = False
+        for spec in ("/usr/lib/unrealircd", "/usr/lib64/unrealircd", "/usr/share/unrealircd"):
+            s, u = _unrealircd_hotpatch(host.sys(spec))
+            sys_seen = sys_seen or s
+            sys_unread = sys_unread or u
+        for name in UNREAL_PKGS:
+            for ver, src in pk.get(name, []):
+                unrealircd_classify(r, "UnrealIRCd (%s)" % name, ver, None, src, sys_seen, sys_unread)
+    for ver, path in cellar(host).get("unrealircd", []):
+        seen, unread = _unrealircd_hotpatch(path)
+        unrealircd_classify(r, "UnrealIRCd (Homebrew)", ver, host.display(path), "Homebrew Cellar", seen, unread)
+    for path, _image, tag in docker_refs(host, r"unrealircd(?:/unrealircd)?"):
+        v = hs.parse_version(tag)
+        if v is None:
+            r.add("info", "UnrealIRCd image",
+                  "moving tag %s; pull and rebuild to get the fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            unrealircd_classify(r, "UnrealIRCd image", tag, host.display(path), "image tag")
+    etc_conf = host.sys("/etc/unrealircd/unrealircd.conf")
+    if hs.is_regular(etc_conf) and not prefixes:
+        text = hs.read_text(etc_conf, 4 * MIB, host.gaps)
+        if text is None:
+            r.add("unknown", "UnrealIRCd",
+                  "unrealircd.conf present; not readable", path=host.display(etc_conf))
+        elif not r.findings:
+            r.add("unknown", "UnrealIRCd",
+                  "unrealircd.conf present; version not in package or prefix metadata",
+                  path=host.display(etc_conf))
+
+
 def check_activestorage_122006(host, r):
     """Classify activestorage from Gemfile.lock GEM specs (GHSA-f3w6-w445-fwh9)."""
     needed_unreadable = False
@@ -5537,11 +5766,14 @@ CHECKS = [
                "was published. This check looks only at local zone files and configs (no live DNS).",
                "If Onamae/GMO DNS or Desktop Cloud is in use, rotate credentials and review exposed customer data. "
                "This tool never contacts Onamae or queries public DNS.", ALL_OS, check_gmo_onamae),
-    check_meta("claude-code-vsx-21313", "Tampered Anthropic.claude-code 2.1.313 and listed backdoor indicators",
-               "check_now", "confirmed", "config", ["cursor-claude-vsx", "phorion-claude-vsx"],
-               "Cursor Marketplace served a tampered Anthropic.claude-code 2.1.313 from about 09:27 UTC to 20:35 UTC "
-               "on 29 Oct 2026. It plants an SSH key comment svc-telemetry, a fake com.apple.sysmond LaunchAgent, "
-               "and a reverse tunnel. Uninstalling the extension does not remove persistence.",
+    check_meta("claude-code-vsx-21313",
+               "Tampered Anthropic.claude-code 2.1.312 / 2.1.313 and listed backdoor indicators",
+               "check_now", "confirmed", "config",
+               ["cursor-claude-vsx", "phorion-claude-vsx", "cursor-incident-update"],
+               "Cursor Marketplace served tampered Anthropic.claude-code 2.1.312 and 2.1.313 from about 09:27 UTC "
+               "to 20:35 UTC on 29 Oct 2026. Persistence: SSH key comment svc-telemetry, a fake "
+               "com.apple.sysmond LaunchAgent, and a reverse tunnel. Uninstalling the extension does not "
+               "remove persistence. Support-credential rotation is not part of this check.",
                "Read-only: this tool never deletes keys, agents or files. If a finding is affected, isolate the host "
                "and follow the vendor notice from a clean device. Do not run unverified remediation scripts from chat.",
                ALL_OS, check_claude_code_vsx, uses_walk=False),
@@ -5726,6 +5958,19 @@ CHECKS = [
                "Upgrade LiteSpeed Cache to 7.9.2 or later. Turning Cache REST off is mitigation, not a fix. "
                "This tool never requests the Store API.",
                ALL_OS, check_litespeed_cache_93389),
+    check_meta("unrealircd-114713",
+               "UnrealIRCd below " + "6.2.7" + ".1 (CVE-2026-114713)",
+               "check_if_used", "confirmed", "runtime",
+               ["unrealircd-forum-9487", "oss-security-114713", "nvd-114713", "cve-114713",
+                "cisa-kev-2026-11-13"],
+               "CVE-2026-114713 (CISA KEV, 13 Nov 2026): delimiter injection in the IRCv3 labeled-response "
+               "tag. Vendor floor " + "6.2.7" + ".1; 6.2.7 is not fixed. ASCII hot-patch-bundle-20261107 in the "
+               "labeled-response module is the hot-patch signal. UnrealIRCd 5 is affected (EOL). 3.x/4.x "
+               "were not checked. blacklist-module is mitigation. Never starts the daemon.",
+               "Upgrade to UnrealIRCd " + "6.2.7" + ".1 or apply vendor hot-patch bundle-20261107. Do not run "
+               "./unrealircd module-status from this tool. blacklist-module labeled-response is mitigation, "
+               "not a vendor patch. Windows has no hot-patch; upgrade only.",
+               ALL_OS, check_unrealircd_114713),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

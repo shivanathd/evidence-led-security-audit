@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: one read-only check (58 checks total). `unrealircd-114713` classifies installed UnrealIRCd with `parse_version` / `at_least` against v6.2.7.1 (CVE-2026-114713, CISA KEV 13 Nov 2026). 6.2.7 is not fixed. ASCII `hot-patch-bundle-20261107` in labeled-response module/source is the hot-patch signal; `./unrealircd module-status` is never run. UnrealIRCd 5 without that token is affected; 3.x/4.x are review. `blacklist-module` is mitigation. Never starts the daemon.
+- Dated profile: `unrealircd-2026-11-08.md`.
+
+### Changed
+
+- `claude-code-vsx-21313` classifies tampered Cursor Marketplace Anthropic.claude-code **2.1.312 and 2.1.313** as affected (13 Nov incident update; 30 Oct notice already named both). Persistence IOCs unchanged. Support-credential rotation is not part of the host check.
+- Briefing window through 13 Nov 2026.
+- Reviewed public hosts: `forums.unrealircd.org`, `www.unrealircd.org`.
+
 ## 0.4.8 - 2026-11-05
 
 ### Added
