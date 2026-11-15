@@ -51,14 +51,14 @@ No distro-named backport floor was retrieved for this profile. An NVR that keeps
 | nothing found | `NOT_APPLICABLE` |
 
 - A prerelease of v6.2.7.1 is not fixed. A newer minor prerelease such as 6.2.8-rc1 is `info`.
-- An unreadable labeled-response module next to 5.x / 6.x below the floor is `unknown`, even if another candidate carries the token. Never a silent PASS.
+- An unreadable labeled-response module, or a `modules/third` directory that cannot be listed, next to 5.x / 6.x below the floor is `unknown`, even if another candidate carries the token. Never a silent PASS.
 - Moving image tags (`latest`) are `info`.
 
 ## Known limits
 
 - Version spoofing and a hot-patch `.so` that lacks the ASCII token over-FAIL as affected (safe direction).
 - A retained `labeled-response.so.bak` (or `.old` / similar) is not hot-patch evidence.
-- Uncompiled `labeled-response.c` (`src/modules` or `modules/`) is not hot-patch evidence.
+- Uncompiled `labeled-response.c` (`src/modules` or `modules/`) and extensionless `modules/labeled-response` are not hot-patch evidence.
 - A live unpatched module is not cleared by a token under another prefix (`/usr/lib64` vs `/usr/lib`).
 - Windows: a token in `labeled-response.dll` is not a vendor patch.
 - Linked-server preconditions are not evaluated.

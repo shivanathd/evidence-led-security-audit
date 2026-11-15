@@ -4001,6 +4001,23 @@ class UnrealIrcd114713(SimCase):
         self.assertEqual(results(c), ["unknown"])
         self.assertNotEqual(c["status"], "PASS")
 
+    def test_extensionless_labeled_response_is_not_hotpatch(self):
+        self._prefix("6.2.7")
+        self.s.write("~/unrealircd/modules/labeled-response", self.HOTPATCH + "\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unlistable_third_dir_blocks_token(self):
+        self._prefix("6.2.7", hotpatch=True)
+        self.s.mkdir("~/unrealircd/modules/third")
+        os.chmod(self.s.path("~/unrealircd/modules/third"), 0)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
     def test_unrealircd_5_without_token_is_affected(self):
         self._prefix("5.2.2")
         c = self.s.check("unrealircd-114713")

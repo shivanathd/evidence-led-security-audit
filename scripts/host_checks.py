@@ -110,9 +110,10 @@ LIMITS = [
     "hot-patch-bundle-20261107 in on-disk labeled-response module bytes. Backup names "
     "(.bak/.old and similar) and uncompiled source (including modules/*.c) are not evidence. "
     "A live module without the token is not cleared by a token in another prefix. An unreadable "
-    "candidate module is unknown even if another candidate carries the token. blacklist-module "
-    "is mitigation, not a vendor patch. Windows has no vendor hot-patch (upgrade only); a token "
-    "on Windows is ignored.",
+    "candidate module, or a modules/third directory that cannot be listed, is unknown even if "
+    "another candidate carries the token. Extensionless labeled-response names are not evidence. "
+    "blacklist-module is mitigation, not a vendor patch. Windows has no vendor hot-patch "
+    "(upgrade only); a token on Windows is ignored.",
     "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
     "PE FileVersion, Info.plist, linux packages, snap metadata and Flatpak are not IDE version sources. "
     "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
@@ -5327,7 +5328,7 @@ _UNREAL_VERSIONONLY_RE = re.compile(r'(?im)^\s*#\s*define\s+VERSIONONLY\s+"([^"]
 _UNREAL_AC_INIT_RE = re.compile(r"(?is)AC_INIT\s*\(\s*\[UnrealIRCd\]\s*,\s*\[([^\]]+)\]")
 _UNREAL_ASSIGN_RE = re.compile(r'(?im)unrealircd_version\s*=\s*"([^"]+)"')
 _UNREAL_BLACKLIST_RE = re.compile(r"(?im)^\s*blacklist-module\s+[^\n]*labeled-response")
-_UNREAL_LABELED_NAME = re.compile(r"(?i)^labeled-response(?:\.(?:so(?:\.\d+)*|dll))?$")
+_UNREAL_LABELED_NAME = re.compile(r"(?i)^labeled-response\.(?:so(?:\.\d+)*|dll)$")
 _UNREAL_DISTRO_PREFIX_SPECS = (
     "/etc/unrealircd", "/usr/lib/unrealircd", "/usr/lib64/unrealircd", "/usr/share/unrealircd",
 )
@@ -5369,15 +5370,23 @@ def _unrealircd_prefixes(host):
 def _unrealircd_hotpatch(prefix):
     """Return (seen, unreadable, unpatched) for installed labeled-response modules.
 
-    Source trees and `.c` names are not evidence. A readable live module
-    without the token means this prefix is unpatched, even if another file
-    carries the token.
+    Source trees, `.c` names, and extensionless files are not evidence.
+    A failed listing of `modules/` or `modules/third/` is unreadable.
+    A readable live module without the token means this prefix is
+    unpatched, even if another file carries the token.
     """
     seen = unreadable = unpatched = False
     names = []
     for sub in ("modules", os.path.join("modules", "third")):
         base = os.path.join(prefix, sub)
-        for name in hs.listdir(base):
+        if not hs.is_plain_dir(base):
+            continue
+        try:
+            listed = sorted(os.listdir(base))
+        except OSError:
+            unreadable = True
+            continue
+        for name in listed:
             if _UNREAL_LABELED_NAME.match(name):
                 names.append(os.path.join(base, name))
     for rel in ("modules/labeled-response.so", "modules/labeled-response.dll"):
