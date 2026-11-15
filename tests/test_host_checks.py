@@ -1366,6 +1366,13 @@ class ClaudeCodeVsx(SimCase):
         self.assertEqual(c["findings"][0]["result"], "affected")
         self.assertEqual(c["findings"][0]["version"], "2.1.313")
 
+    def test_bad_extension_2_1_312_is_affected(self):
+        self.s.mkdir("~/.cursor/extensions/anthropic.claude-code-2.1.312")
+        c = self.s.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(c["findings"][0]["result"], "affected")
+        self.assertEqual(c["findings"][0]["version"], "2.1.312")
+
     def test_later_extension_version_is_info(self):
         self.s.mkdir("~/.cursor/extensions/anthropic.claude-code-2.1.400")
         c = self.s.check("claude-code-vsx-21313")
@@ -1425,6 +1432,18 @@ class ClaudeCodeVsx(SimCase):
 
     def test_empty_host_passes(self):
         self.assertStatus(self.s.check("claude-code-vsx-21313"), "PASS")
+
+    def test_non_string_package_json_version_still_checks_persistence(self):
+        self.s.write("~/.cursor/extensions/anthropic.claude-code/package.json",
+                     '{"name": "anthropic.claude-code", "version": []}\n')
+        self.s.write("~/.config/.smt", "placeholder\n")
+        c = self.s.check("claude-code-vsx-21313")
+        self.assertStatus(c, "FAIL")
+        self.assertNotIn("check error", c["reason"])
+        self.assertNotIn("incomplete", c["reason"])
+        kinds = {f["component"] for f in c["findings"]}
+        self.assertIn("persistence script", kinds)
+        self.assertTrue(all("placeholder" not in (f.get("detail") or "") for f in c["findings"]))
 
 
 class YobaFakeApps(SimCase):
@@ -3867,6 +3886,269 @@ class LitespeedCache93389(SimCase):
         self.assertStatus(c, "FAIL")
 
 
+class UnrealIrcd114713(SimCase):
+    HOTPATCH = "hot-patch-bundle-20261107"
+    VERSION_C = '#define VERSIONONLY "%s"\n'
+
+    def _prefix(self, version, host=None, hotpatch=None, conf=None, binary_hotpatch=False):
+        s = host or self.s
+        s.write("~/unrealircd/src/version.c", self.VERSION_C % version)
+        if hotpatch is True:
+            blob = ("ELF\x00pad " + self.HOTPATCH + "\n").encode("ascii") if binary_hotpatch else self.HOTPATCH + "\n"
+            s.write("~/unrealircd/modules/labeled-response.so", blob)
+        elif hotpatch is False:
+            s.write("~/unrealircd/modules/labeled-response.so", "labeled-response 5.0\n")
+        if conf:
+            s.write("~/unrealircd/unrealircd.conf", conf)
+        return s
+
+    def test_empty_hosts_not_applicable(self):
+        self.assertIn("unrealircd-114713", hc.CHECK_IDS)
+        for platform in ("darwin", "linux", "windows"):
+            self.assertStatus(self.sim(platform).check("unrealircd-114713"), "NOT_APPLICABLE")
+
+    def test_walk_flag_and_sources(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "unrealircd-114713")
+        self.assertTrue(meta["uses_walk"])
+        self.assertNotIn("unrealircd-114713", hc.INDICATOR_CHECKS)
+        for key in meta["sources"]:
+            self.assertIn(key, hc.SRC)
+
+    def test_dpkg_6_2_7_1_is_info(self):
+        self.s.dpkg({"unrealircd": dotted(6, 2, 7, 1) + "-1"})
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_6_2_7_is_affected(self):
+        self.s.dpkg({"unrealircd": "6.2.7-1"})
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_dpkg_fixed_with_distro_module_dir_is_info(self):
+        self.s.dpkg({"unrealircd": dotted(6, 2, 7, 1) + "-1"})
+        self.s.write("/usr/lib/unrealircd/modules/labeled-response.so", "labeled-response 5.0\n")
+        self.s.write("/etc/unrealircd/unrealircd.conf", "me {};\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_distro_blacklist_does_not_fail_fixed_package(self):
+        self.s.dpkg({"unrealircd": dotted(6, 2, 7, 1) + "-1"})
+        self.s.write("/etc/unrealircd/unrealircd.conf",
+                     "blacklist-module labeled-response;\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_distro_module_dir_without_package_is_unknown(self):
+        self.s.write("/usr/lib/unrealircd/modules/labeled-response.so", "labeled-response 5.0\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_unpatched_usr_lib_not_cleared_by_lib64_token(self):
+        self.s.dpkg({"unrealircd": "6.2.7-1"})
+        self.s.write("/usr/lib/unrealircd/modules/labeled-response.so", "labeled-response 5.0\n")
+        self.s.write("/usr/lib64/unrealircd/modules/labeled-response.so", self.HOTPATCH + "\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_prefix_6_2_7_with_hotpatch_token_is_info(self):
+        self._prefix("6.2.7", hotpatch=True)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_prefix_6_2_7_binary_module_with_token_is_info(self):
+        self._prefix("6.2.7", hotpatch=True, binary_hotpatch=True)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_hotpatch_module_is_blocked(self):
+        self._prefix("6.2.7", hotpatch=False)
+        os.chmod(self.s.path("~/unrealircd/modules/labeled-response.so"), 0)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    def test_prefix_6_2_7_readable_without_token_is_affected(self):
+        self._prefix("6.2.7", hotpatch=False)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_backup_module_token_does_not_clear_unpatched_so(self):
+        self._prefix("6.2.7", hotpatch=False)
+        self.s.write("~/unrealircd/modules/labeled-response.so.bak", self.HOTPATCH + "\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_source_only_token_is_affected(self):
+        self._prefix("6.2.7", hotpatch=False)
+        self.s.write("~/unrealircd/src/modules/labeled-response.c", self.HOTPATCH + "\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_installed_c_source_token_is_affected(self):
+        self._prefix("6.2.7")
+        self.s.write("~/unrealircd/modules/labeled-response.c", self.HOTPATCH + "\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_unreadable_sibling_module_blocks_token(self):
+        self._prefix("6.2.7", hotpatch=True)
+        path = self.s.write("~/unrealircd/modules/third/labeled-response.so", b"x")
+        os.truncate(path, 8 * MIB + 1)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    def test_extensionless_labeled_response_is_not_hotpatch(self):
+        self._prefix("6.2.7")
+        self.s.write("~/unrealircd/modules/labeled-response", self.HOTPATCH + "\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unlistable_third_dir_blocks_token(self):
+        self._prefix("6.2.7", hotpatch=True)
+        self.s.mkdir("~/unrealircd/modules/third")
+        os.chmod(self.s.path("~/unrealircd/modules/third"), 0)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    def test_file_at_modules_third_blocks_token(self):
+        self._prefix("6.2.7", hotpatch=True)
+        self.s.write("~/unrealircd/modules/third", "not a directory\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    @unittest.skipUnless(CAN_SYMLINK, "symlink not available")
+    def test_symlink_at_modules_third_blocks_token(self):
+        self._prefix("6.2.7", hotpatch=True)
+        target = self.s.mkdir("~/elsewhere/third")
+        os.symlink(target, self.s.path("~/unrealircd/modules/third"))
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotEqual(c["status"], "PASS")
+
+    def test_unrealircd_5_without_token_is_affected(self):
+        self._prefix("5.2.2")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_unrealircd_5_with_hotpatch_is_info(self):
+        self._prefix("5.2.2", hotpatch=True)
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_unrealircd_4_is_review(self):
+        self._prefix("4.2.4")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_newer_prerelease_6_2_8_rc1_is_info(self):
+        self._prefix("6.2.8-rc1")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_prerelease_of_floor_is_affected(self):
+        self._prefix(dotted(6, 2, 7, 1) + "-rc1")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_blacklist_module_is_mitigation_not_a_patch(self):
+        self._prefix("6.2.7", hotpatch=False,
+                     conf="blacklist-module labeled-response;\n")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        self.assertIn("review", results(c))
+
+    def test_windows_pe_6_2_7_is_affected(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/UnrealIRCd 6/UnrealIRCd.exe",
+                hostfix.pe_with_version(dotted(6, 2, 7, 0)))
+        c = w.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_windows_hotpatch_token_is_not_a_patch(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/UnrealIRCd 6/UnrealIRCd.exe",
+                hostfix.pe_with_version(dotted(6, 2, 7, 0)))
+        w.write("C:/Program Files/UnrealIRCd 6/modules/labeled-response.dll",
+                self.HOTPATCH + "\n")
+        c = w.check("unrealircd-114713")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_windows_pe_6_2_7_1_is_info(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/UnrealIRCd 6/UnrealIRCd.exe",
+                hostfix.pe_with_version(dotted(6, 2, 7, 1)))
+        c = w.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_docker_tags(self):
+        self.s.write("~/code/irc/Dockerfile", "FROM unrealircd/unrealircd:%s\n" % dotted(6, 2, 7, 1))
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        latest = self.sim("linux")
+        latest.write("~/code/irc/Dockerfile", "FROM unrealircd/unrealircd:latest\n")
+        c = latest.check("unrealircd-114713")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("moving tag", c["findings"][0]["detail"])
+
+    def test_prefix_without_version_is_unknown(self):
+        self.s.mkdir("~/unrealircd/modules")
+        c = self.s.check("unrealircd-114713")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_never_starts_unrealircd(self):
+        self.s.dpkg({"unrealircd": "6.2.7-1"})
+
+        def runner(argv, timeout=30):
+            joined = " ".join(str(a) for a in argv).lower()
+            if "unrealircd" in joined:
+                raise AssertionError("ran unrealircd")
+            return None
+
+        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")), \
+                mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")):
+            c = self.s.check("unrealircd-114713", runner=runner)
+        self.assertStatus(c, "FAIL")
+        self.assertNotIn("check error", c["reason"])
+        self.assertNotIn("incomplete", c["reason"])
+        self.assertEqual(results(c), ["affected"])
+
+
 class SecretPathGuard(SimCase):
     def test_alpine_and_litespeed_never_read_secret_or_store_paths(self):
         s = self.s
@@ -4036,7 +4318,7 @@ class WholeRun(SimCase):
             if m["id"] != "plex-media-server":
                 self.assertTrue(m["sources"], m["id"])
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
-        self.assertEqual(len(hc.CHECK_IDS), 57)
+        self.assertEqual(len(hc.CHECK_IDS), 58)
         self.assertIn("nodered-admin-http", hc.CHECK_IDS)
         self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
         self.assertIn("apt-109518", hc.CHECK_IDS)
@@ -4045,6 +4327,7 @@ class WholeRun(SimCase):
         self.assertIn("better-auth-2026-11-03", hc.CHECK_IDS)
         self.assertIn("openssh-musl-pwauth", hc.CHECK_IDS)
         self.assertIn("litespeed-cache-93389", hc.CHECK_IDS)
+        self.assertIn("unrealircd-114713", hc.CHECK_IDS)
         self.assertTrue(all(reason for _item, reason in hc.SKIPPED))
 
     def test_report_fragments_validate_in_a_report(self):

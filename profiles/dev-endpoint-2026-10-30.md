@@ -1,6 +1,6 @@
 # Optional profile: developer-endpoint briefing of 2026-10-30
 
-Last checked: 2026-11-03. This profile is a dated snapshot, not a standing rule. On every run, re-read the primary sources below and record their `retrieved_on` dates. If a source has changed, the source wins and this file is out of date. `host_checks.py` does not fetch sources; fragments stamp `retrieved_on` with this briefing date until a human corrects it.
+Last checked: 2026-11-14. This profile is a dated snapshot, not a standing rule. On every run, re-read the primary sources below and record their `retrieved_on` dates. If a source has changed, the source wins and this file is out of date. `host_checks.py` does not fetch sources; fragments stamp `retrieved_on` with this briefing date until a human corrects it.
 
 This file is the dated fact base for the 29–30 Oct 2026 additions to `scripts/host_checks.py` and the GitHub Actions workflow lint in `scripts/inventory.py`. How those checks run is in [references/host-checks.md](../references/host-checks.md). The 27 Oct briefing remains [dev-endpoint-2026-10-27.md](dev-endpoint-2026-10-27.md).
 
@@ -8,7 +8,7 @@ This file is the dated fact base for the 29–30 Oct 2026 additions to `scripts/
 
 | Check id | Briefing fact | Source |
 | --- | --- | --- |
-| `claude-code-vsx-21313` | Cursor's VS Code extension Marketplace served a tampered `Anthropic.claude-code` **2.1.313** from about 09:27 UTC to 20:35 UTC on 29 Oct 2026 (2:27am–1:35pm PT). The package was not built by Anthropic. It appends an SSH public key whose comment is `svc-telemetry`, writes `~/.config/.smt` / `.smtk` (Windows: `smt.cmd` / `smtk`), a fake LaunchAgent `com.apple.sysmond`, temp files `.stk_<10 hex>`, and tries a reverse SSH tunnel. Cursor's own impact check is the key comment, not the key body. Uninstalling the extension does not remove persistence. | [Cursor notice](https://cursor.com/blog/claude-code-extension-security-notice), [Phorion write-up](https://phorion.io/blog/offical-claude-code-vsx-compromise/) |
+| `claude-code-vsx-21313` | Cursor's VS Code extension Marketplace served tampered `Anthropic.claude-code` **2.1.312 and 2.1.313** from about 09:27 UTC to 20:35 UTC on 29 Oct 2026 (2:27am–1:35pm PT). The packages were not built by Anthropic. Persistence: SSH key comment `svc-telemetry`, `~/.config/.smt` / `.smtk` (Windows: `smt.cmd` / `smtk`), a fake LaunchAgent `com.apple.sysmond`, temp files `.stk_<10 hex>`, reverse SSH tunnel. Cursor's own impact check is the key comment, not the key body. Uninstalling the extension does not remove persistence. Support-credential rotation is a human follow-up, not this check. | [Cursor notice](https://cursor.com/blog/claude-code-extension-security-notice), [13 Nov incident update](https://cursor.com/blog/security-incident-update), [Phorion write-up](https://phorion.io/blog/offical-claude-code-vsx-compromise/) |
 
 ## Check if we use it
 
@@ -51,9 +51,9 @@ This file is the dated fact base for the 29–30 Oct 2026 additions to `scripts/
 ## How this maps to the skill
 
 - Target: one `other` target per machine. Run with `--target ID` and merge `report_fragments`.
-- A `claude-code-vsx-21313` hit is also a credential-exposure event (phase 4): list every credential the account could read. Follow the vendor notice from a clean device. This tool never deletes keys or persistence.
+- A `claude-code-vsx-21313` hit is also a credential-exposure event (phase 4): list every credential the account could read. Follow the vendor notice from a clean device. This tool never deletes keys or persistence and does not rotate support credentials.
 - A GitLab version PASS on this machine says nothing about GitLab SaaS or a GitLab image built elsewhere.
 
 ## What needs a human
 
-Deciding whether a `SysMon` scheduled task is this implant or something else; rebuilding machines that ran 2.1.313; rotating credentials after a backdoor finding; confirming a Linux kernel build against a distro advisory for CVE-2026-98432; and approving NOT_APPLICABLE checks.
+Deciding whether a `SysMon` scheduled task is this implant or something else; rebuilding machines that ran 2.1.312 or 2.1.313; rotating credentials after a backdoor finding; confirming a Linux kernel build against a distro advisory for CVE-2026-98432; and approving NOT_APPLICABLE checks.

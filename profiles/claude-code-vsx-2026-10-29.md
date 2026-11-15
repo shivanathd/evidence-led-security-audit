@@ -1,12 +1,12 @@
-# Optional profile: tampered Claude Code extension 2.1.313 (2026-10-29)
+# Optional profile: tampered Claude Code extension 2.1.312 / 2.1.313 (2026-10-29)
 
-Last checked: 2026-10-30. Dated snapshot. Re-read the vendor notice on every run.
+Last checked: 2026-11-14. Dated snapshot. Re-read the vendor notice and the 13 Nov incident update on every run.
 
 ## What is confirmed
 
-[Cursor's security notice](https://cursor.com/blog/claude-code-extension-security-notice) (29 Oct 2026) states:
+[Cursor's November 2026 incident update](https://cursor.com/blog/security-incident-update) (13 Nov 2026) and [Cursor's security notice](https://cursor.com/blog/claude-code-extension-security-notice) (29 Oct 2026, updated 30 Oct 2026 11:30am PT) state:
 
-- The Cursor VS Code extension Marketplace served a malicious **Anthropic.claude-code 2.1.313** that Anthropic did not build.
+- The Cursor VS Code extension Marketplace served malicious **Anthropic.claude-code 2.1.312 and 2.1.313** that Anthropic did not build. Open VSX did not ship malware; this check classifies by version string only and can over-FAIL a clean Open VSX copy of those versions.
 - Window: about **2:27am PT to 1:35pm PT** on 29 Oct 2026 (**09:27–20:35 UTC**).
 - The payload tries to install a persistent SSH backdoor: host/user reconnaissance, an attacker SSH key in `authorized_keys`, a reverse tunnel, and persistence.
 - Cursor's own impact check is the key comment `svc-telemetry` in `~/.ssh/authorized_keys` (Windows also `C:\ProgramData\ssh\administrators_authorized_keys`).
@@ -18,7 +18,7 @@ Last checked: 2026-10-30. Dated snapshot. Re-read the vendor notice on every run
 
 ## Indicators this skill will read (paths and names only)
 
-- Extension folder or VSIX name containing `anthropic.claude-code-2.1.313`.
+- Extension folder or VSIX name containing `anthropic.claude-code-2.1.312` or `anthropic.claude-code-2.1.313`.
 - `svc-telemetry` as a **comment** in `authorized_keys`. The public key body is not stored in this repository and is not copied into findings.
 - `~/Library/LaunchAgents/com.apple.sysmond.plist` (label `com.apple.sysmond`).
 - `~/.config/.smt`, `~/.config/.smtk` (macOS/Linux); `~/.config/smt.cmd`, `~/.config/smtk` (Windows).
@@ -31,7 +31,7 @@ Network indicators from the vendor notice (defanged here): `134[.]209[.]82[.]225
 ## What is unknown
 
 - Whether a given host actually completed the reverse tunnel or received an inbound login. SSH logs showing `localhost` authenticating with the planted key would need a human review; this tool does not read auth logs by default.
-- Whether copies of 2.1.313 outside the Cursor Marketplace (npm / VS Code Marketplace) existed. Phorion says Cursor pulled those too; the vendor notice is about the Cursor Marketplace package.
+- Whether copies of 2.1.312 or 2.1.313 outside the Cursor Marketplace (npm / VS Code Marketplace / Open VSX) existed. The 13 Nov update says Open VSX never had malware. Phorion says Cursor pulled other copies; the vendor notice is about the Cursor Marketplace package. This check does not hash VSIX files and does not rotate support credentials.
 
 ## How a finding closes
 
