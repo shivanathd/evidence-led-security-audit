@@ -108,9 +108,11 @@ LIMITS = [
     "unrealircd-114713 never starts UnrealIRCd, never runs module-status or a hot-patch installer, and never "
     "opens an IRC socket. 6.2.7 is not " + "6.2.7" + ".1. The hot-patch signal is the ASCII token "
     "hot-patch-bundle-20261107 in on-disk labeled-response module bytes. Backup names "
-    "(.bak/.old and similar) and uncompiled source are not evidence. A live module without the "
-    "token is not cleared by a token in another prefix. blacklist-module is mitigation, not a "
-    "vendor patch. Windows has no vendor hot-patch (upgrade only); a token on Windows is ignored.",
+    "(.bak/.old and similar) and uncompiled source (including modules/*.c) are not evidence. "
+    "A live module without the token is not cleared by a token in another prefix. An unreadable "
+    "candidate module is unknown even if another candidate carries the token. blacklist-module "
+    "is mitigation, not a vendor patch. Windows has no vendor hot-patch (upgrade only); a token "
+    "on Windows is ignored.",
     "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
     "PE FileVersion, Info.plist, linux packages, snap metadata and Flatpak are not IDE version sources. "
     "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
@@ -5325,7 +5327,7 @@ _UNREAL_VERSIONONLY_RE = re.compile(r'(?im)^\s*#\s*define\s+VERSIONONLY\s+"([^"]
 _UNREAL_AC_INIT_RE = re.compile(r"(?is)AC_INIT\s*\(\s*\[UnrealIRCd\]\s*,\s*\[([^\]]+)\]")
 _UNREAL_ASSIGN_RE = re.compile(r'(?im)unrealircd_version\s*=\s*"([^"]+)"')
 _UNREAL_BLACKLIST_RE = re.compile(r"(?im)^\s*blacklist-module\s+[^\n]*labeled-response")
-_UNREAL_LABELED_NAME = re.compile(r"(?i)^labeled-response(?:\.(?:so(?:\.\d+)*|dll|c))?$")
+_UNREAL_LABELED_NAME = re.compile(r"(?i)^labeled-response(?:\.(?:so(?:\.\d+)*|dll))?$")
 _UNREAL_DISTRO_PREFIX_SPECS = (
     "/etc/unrealircd", "/usr/lib/unrealircd", "/usr/lib64/unrealircd", "/usr/share/unrealircd",
 )
@@ -5367,8 +5369,9 @@ def _unrealircd_prefixes(host):
 def _unrealircd_hotpatch(prefix):
     """Return (seen, unreadable, unpatched) for installed labeled-response modules.
 
-    Source trees are not evidence. A readable live module without the token
-    means this prefix is unpatched, even if another file carries the token.
+    Source trees and `.c` names are not evidence. A readable live module
+    without the token means this prefix is unpatched, even if another file
+    carries the token.
     """
     seen = unreadable = unpatched = False
     names = []
@@ -5444,16 +5447,16 @@ def unrealircd_classify(r, component, ver, path, source, hotpatch_seen=False, ho
               path=path, version=ver)
         return "info"
     major = v.nums[0] if v.nums else 0
-    if major in (5, 6) and hotpatch_seen:
-        r.add("info", component,
-              "below %s but labeled-response carries hot-patch-bundle-20261107" % UNREAL_FLOOR,
-              path=path, version=ver)
-        return "info"
     if major in (5, 6) and hotpatch_unreadable:
         r.add("unknown", component,
               "below %s; labeled-response module present but unreadable (not executed)" % UNREAL_FLOOR,
               path=path, version=ver)
         return "unknown"
+    if major in (5, 6) and hotpatch_seen:
+        r.add("info", component,
+              "below %s but labeled-response carries hot-patch-bundle-20261107" % UNREAL_FLOOR,
+              path=path, version=ver)
+        return "info"
     if major == 6:
         r.add("affected", component,
               "CVE-2026-114713 (CISA KEV); below %s and no hot-patch-bundle-20261107 token" % UNREAL_FLOOR,
