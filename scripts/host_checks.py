@@ -107,9 +107,10 @@ LIMITS = [
     "state are not read; those settings are mitigation, never a vendor patch. No Store API HTTP is made.",
     "unrealircd-114713 never starts UnrealIRCd, never runs module-status or a hot-patch installer, and never "
     "opens an IRC socket. 6.2.7 is not " + "6.2.7" + ".1. The hot-patch signal is the ASCII token "
-    "hot-patch-bundle-20261107 in on-disk labeled-response module or source bytes. Backup names "
-    "(.bak/.old and similar) are not evidence. blacklist-module is mitigation, not a vendor patch. "
-    "Windows has no vendor hot-patch (upgrade only); a token on Windows is ignored.",
+    "hot-patch-bundle-20261107 in on-disk labeled-response module bytes. Backup names "
+    "(.bak/.old and similar) and uncompiled source are not evidence. A live module without the "
+    "token is not cleared by a token in another prefix. blacklist-module is mitigation, not a "
+    "vendor patch. Windows has no vendor hot-patch (upgrade only); a token on Windows is ignored.",
     "jetbrains-jbr-emudhra reads only product-info.json for IDEs and Gateway (productCode, version, versionSuffix). "
     "PE FileVersion, Info.plist, linux packages, snap metadata and Flatpak are not IDE version sources. "
     "Flatpak installs are unread. Standalone JBR is macOS JavaVirtualMachines only; Linux and Windows JBR are unread. "
@@ -5364,16 +5365,19 @@ def _unrealircd_prefixes(host):
 
 
 def _unrealircd_hotpatch(prefix):
-    """Return (seen, unreadable) for the vendor hot-patch ASCII token under prefix."""
-    seen = unreadable = False
+    """Return (seen, unreadable, unpatched) for installed labeled-response modules.
+
+    Source trees are not evidence. A readable live module without the token
+    means this prefix is unpatched, even if another file carries the token.
+    """
+    seen = unreadable = unpatched = False
     names = []
-    for sub in ("modules", os.path.join("modules", "third"), os.path.join("src", "modules")):
+    for sub in ("modules", os.path.join("modules", "third")):
         base = os.path.join(prefix, sub)
         for name in hs.listdir(base):
             if _UNREAL_LABELED_NAME.match(name):
                 names.append(os.path.join(base, name))
-    for rel in ("modules/labeled-response.so", "modules/labeled-response.dll",
-                "src/modules/labeled-response.c"):
+    for rel in ("modules/labeled-response.so", "modules/labeled-response.dll"):
         names.append(os.path.join(prefix, *rel.split("/")))
     seen_paths = set()
     for path in names:
@@ -5392,7 +5396,9 @@ def _unrealircd_hotpatch(prefix):
             continue
         if UNREAL_HOTPATCH in data:
             seen = True
-    return seen, unreadable
+        else:
+            unpatched = True
+    return seen, unreadable, unpatched
 
 
 def _unrealircd_version_in_prefix(host, prefix):
@@ -5488,7 +5494,9 @@ def check_unrealircd_114713(host, r):
     pkg_present = _unreal_pkg_present(host)
     for prefix in prefixes:
         ver, vpath, src = _unrealircd_version_in_prefix(host, prefix)
-        seen, unread = _unrealircd_hotpatch(prefix)
+        seen, unread, unpatched = _unrealircd_hotpatch(prefix)
+        if unpatched:
+            seen = False
         if host.platform == "windows":
             seen = False
         disp = host.display(vpath or prefix)
@@ -5517,16 +5525,21 @@ def check_unrealircd_114713(host, r):
                   path=host.display(bl))
     if host.platform == "linux":
         pk = linux_packages(host)
-        sys_seen = sys_unread = False
+        sys_seen = sys_unread = sys_unpatched = False
         for spec in ("/usr/lib/unrealircd", "/usr/lib64/unrealircd", "/usr/share/unrealircd"):
-            s, u = _unrealircd_hotpatch(host.sys(spec))
+            s, u, p = _unrealircd_hotpatch(host.sys(spec))
             sys_seen = sys_seen or s
             sys_unread = sys_unread or u
+            sys_unpatched = sys_unpatched or p
+        if sys_unpatched:
+            sys_seen = False
         for name in UNREAL_PKGS:
             for ver, src in pk.get(name, []):
                 unrealircd_classify(r, "UnrealIRCd (%s)" % name, ver, None, src, sys_seen, sys_unread)
     for ver, path in cellar(host).get("unrealircd", []):
-        seen, unread = _unrealircd_hotpatch(path)
+        seen, unread, unpatched = _unrealircd_hotpatch(path)
+        if unpatched:
+            seen = False
         unrealircd_classify(r, "UnrealIRCd (Homebrew)", ver, host.display(path), "Homebrew Cellar", seen, unread)
     for path, _image, tag in docker_refs(host, r"unrealircd(?:/unrealircd)?"):
         v = hs.parse_version(tag)

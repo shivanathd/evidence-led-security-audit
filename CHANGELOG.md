@@ -10,7 +10,7 @@
 ### Changed
 
 - `claude-code-vsx-21313` classifies tampered Cursor Marketplace Anthropic.claude-code **2.1.312 and 2.1.313** as affected (13 Nov incident update; 30 Oct notice already named both). Persistence IOCs unchanged. Support-credential rotation is not part of the host check.
-- `unrealircd-114713`: backup `labeled-response*` names are not hot-patch evidence; Windows ignores the token (vendor: upgrade only); a distro package at the floor is not BLOCKED by a metadata-less `/usr/lib/unrealircd` or `/etc/unrealircd`.
+- `unrealircd-114713`: backup `labeled-response*` names, uncompiled source, and a token in another prefix next to a live unpatched module are not hot-patch evidence; Windows ignores the token (vendor: upgrade only); a distro package at the floor is not BLOCKED by a metadata-less `/usr/lib/unrealircd` or `/etc/unrealircd`.
 - Briefing window through 13 Nov 2026.
 - Reviewed public hosts: `forums.unrealircd.org`, `www.unrealircd.org`.
 
