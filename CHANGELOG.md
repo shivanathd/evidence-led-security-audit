@@ -4,6 +4,8 @@
 
 ### Added
 
+- `scripts/host_checks.py`: two read-only checks (60 checks total). `postgresql-6460` classifies PostgreSQL core-server metadata with `parse_version` / `classify_lines` against CVE-2026-6460 floors 18.7, 17.12, 16.16, 15.20, 14.25 (PostgreSQL CVE page and news 3442, 12 Nov 2026). Major `< 14` is affected; `≥ 19` is info (19 RC 2 shipped the fix). `postgresql-client` / `libpq` / `postgres-exporter` are not this check. `PGDATA/PG_VERSION` is unread. Never starts postgres. `quay-123710` classifies `quay/quay-rhel8`, `quay/quay-rhel9` and `projectquay/quay` image tags against RHSA floors 3.9.28, 3.10.28, 3.12.24, 3.14.10, 3.15.9, 3.16.7, 3.17.7, 3.18.3 (CVE-2026-123710). Operator images and missing 3.11 / 3.13 / 5.x trains are review. Restricting `/keys` is mitigation. Never HTTP to `/keys`.
+- Dated profile: `host-advisories-2026-11-16.md`.
 - `scripts/host_checks.py`: one read-only check (58 checks total). `unrealircd-114713` classifies installed UnrealIRCd with `parse_version` / `at_least` against v6.2.7.1 (CVE-2026-114713, CISA KEV 13 Nov 2026). 6.2.7 is not fixed. ASCII `hot-patch-bundle-20261107` in labeled-response module/source is the hot-patch signal; `./unrealircd module-status` is never run. UnrealIRCd 5 without that token is affected; 3.x/4.x are review. `blacklist-module` is mitigation. Never starts the daemon.
 - Dated profile: `unrealircd-2026-11-08.md`.
 
@@ -12,8 +14,8 @@
 - `claude-code-vsx-21313` classifies tampered Cursor Marketplace Anthropic.claude-code **2.1.312 and 2.1.313** as affected (13 Nov incident update; 30 Oct notice already named both). Persistence IOCs unchanged. Support-credential rotation is not part of the host check.
 - `unrealircd-114713`: backup `labeled-response*` names, uncompiled source (including `modules/*.c`), extensionless `labeled-response` files, and a token in another prefix next to a live unpatched module are not hot-patch evidence; an unreadable candidate module or a `modules/third` path that cannot be listed or is not a directory is unknown even if another candidate carries the token; Windows ignores the token (vendor: upgrade only); a distro package at the floor is not BLOCKED by a metadata-less `/usr/lib/unrealircd` or `/etc/unrealircd`.
 - `claude-code-vsx-21313`: a non-string `package.json` `version` does not abort the persistence IOC checks.
-- Briefing window through 13 Nov 2026.
-- Reviewed public hosts: `forums.unrealircd.org`, `www.unrealircd.org`.
+- Briefing window through 16 Nov 2026.
+- Reviewed public hosts: `forums.unrealircd.org`, `www.unrealircd.org`, `www.postgresql.org`, `postgresql.org`, `quay.io`.
 
 ## 0.4.8 - 2026-11-05
 

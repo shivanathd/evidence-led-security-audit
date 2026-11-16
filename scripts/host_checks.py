@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd or any audited program,
+- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -58,9 +58,9 @@ except ImportError:
     winreg = None
 
 VERSION = "0.4.8"
-BRIEFING = ("Security briefings, 16 Oct-13 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
-            "2026-10-30, 2026-11-04, 2026-11-05 and 2026-11-13)")
-BRIEFING_DATE = "2026-11-13"
+BRIEFING = ("Security briefings, 16 Oct-16 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13 and 2026-11-16)")
+BRIEFING_DATE = "2026-11-16"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -132,6 +132,12 @@ LIMITS = [
     "never opened as a file). Other x?digit revisions are inactive retained copies. Distro lxd and microcloud "
     "packages are review. No lxc, lxd, incus, microcloud or snap command is run. Homebrew/Chocolatey clients "
     "and container image tags are not classified. /var/lib/lxd is ignored.",
+    "postgresql-6460 classifies core-server packages, Homebrew postgresql / postgresql@N, official postgres "
+    "image tags, and pg_config.h PG_VERSION. postgresql-client, libpq and postgres-exporter are not this check. "
+    "PGDATA PG_VERSION is unread (major only). Never starts postgres, psql, pg_ctl or pg_config.",
+    "quay-123710 classifies quay/quay-rhel8, quay/quay-rhel9 and projectquay/quay image tags against RHSA floors. "
+    "An operator image is review. Restricting /keys is mitigation, never a vendor patch. Never HTTP to /keys "
+    "and never starts Quay.",
 ]
 
 CLEANUP_ORDER = [
@@ -368,6 +374,35 @@ SRC = {
     "cisa-kev-2026-11-13": ("CISA: one vulnerability added to the KEV catalog (13 Nov 2026)",
                             "https://www.cisa.gov/news-events/alerts/2026/11/13/"
                             "cisa-adds-one-known-exploited-vulnerability-catalog"),
+    "pg-cve-6460": ("PostgreSQL: CVE-2026-6460",
+                    "https://www.postgresql.org/support/security/CVE-2026-6460/"),
+    "pg-news-3442": ("PostgreSQL: 18.7, 17.12, 16.16, 15.20, 14.25 and 19 RC 2",
+                     "https://www.postgresql.org/about/news/3442/"),
+    "cve-6460": ("CVE-2026-6460", "https://www.cve.org/CVERecord?id=CVE-2026-6460"),
+    "nvd-6460": ("NVD: CVE-2026-6460", "https://nvd.nist.gov/vuln/detail/CVE-2026-6460"),
+    "debian-tracker-6460": ("Debian security tracker: CVE-2026-6460",
+                            "https://security-tracker.debian.org/tracker/CVE-2026-6460"),
+    "ubuntu-cve-6460": ("Ubuntu CVE-2026-6460", "https://ubuntu.com/security/CVE-2026-6460"),
+    "rh-cve-123710": ("Red Hat: CVE-2026-123710",
+                      "https://access.redhat.com/security/cve/cve-2026-123710"),
+    "rhsa-99021": ("RHSA-2026:99021 (Quay 3.9.28)",
+                   "https://access.redhat.com/errata/RHSA-2026:99021"),
+    "rhsa-99025": ("RHSA-2026:99025 (Quay 3.10.28)",
+                   "https://access.redhat.com/errata/RHSA-2026:99025"),
+    "rhsa-99027": ("RHSA-2026:99027 (Quay 3.12.24)",
+                   "https://access.redhat.com/errata/RHSA-2026:99027"),
+    "rhsa-99024": ("RHSA-2026:99024 (Quay 3.14.10)",
+                   "https://access.redhat.com/errata/RHSA-2026:99024"),
+    "rhsa-99023": ("RHSA-2026:99023 (Quay 3.15.9)",
+                   "https://access.redhat.com/errata/RHSA-2026:99023"),
+    "rhsa-99022": ("RHSA-2026:99022 (Quay 3.16.7)",
+                   "https://access.redhat.com/errata/RHSA-2026:99022"),
+    "rhsa-99026": ("RHSA-2026:99026 (Quay 3.17.7)",
+                   "https://access.redhat.com/errata/RHSA-2026:99026"),
+    "rhsa-99019": ("RHSA-2026:99019 (Quay 3.18.3)",
+                   "https://access.redhat.com/errata/RHSA-2026:99019"),
+    "cve-123710": ("CVE-2026-123710", "https://www.cve.org/CVERecord?id=CVE-2026-123710"),
+    "nvd-123710": ("NVD: CVE-2026-123710", "https://nvd.nist.gov/vuln/detail/CVE-2026-123710"),
 }
 
 SKIPPED = [
@@ -439,6 +474,15 @@ SKIPPED = [
      "Org/vehicle; no local artifact."),
     ("CERT-In Crafty Falcon / ARTEX (as a CERT-In campaign)",
      "No local developer-endpoint artifact; ARTEX remains a ConnectWise news pointer only."),
+    ("FBI FLASH-20261113-001 ARTEX AI framework",
+     "Press and vendor-intel name IPs, a C2 host and tool names; no host-file hashes. This helper makes no "
+     "network calls, so those IOCs cannot be evaluated."),
+    ("Copeland XWEB EVO CVE-2026-124010 / CVE-2026-124014",
+     "EOL refrigeration appliance; not a laptop or general-purpose server. This helper does not search for "
+     "appliance CGI paths."),
+    ("16 Nov 2026 breach-only incidents (Barracuda cloud key, Uber/Fireworks, Expedia, Maileva, Osaka, "
+     "CSCTelecom, Lithuania customs, ActiveCloud, Arcus, Caribbean Airlines)",
+     "Org/SaaS incidents; no primary source named a host-level file hash, package or version floor."),
     ("eMudhra Python ecosystem write-up",
      "Already emudhra-certifi / emudhra-trust-store; not a new check."),
 ]
@@ -5657,6 +5701,125 @@ def check_better_auth_2026_11_03(host, r):
         r.add(kind, name, note + "; Better Auth 2026-11-03", path=host.display(path), version=ver)
 
 
+PG_6460_FLOORS = ("18.7", "17.12", "16.16", "15.20", "14.25")
+QUAY_123710_FLOORS = (
+    "3.9.28", "3.10.28", "3.12.24", "3.14.10",
+    "3.15.9", "3.16.7", "3.17.7", "3.18.3",
+)
+_PG_SERVER_PKG = re.compile(
+    r"^(?:postgresql(?:-\d+)?|postgresql\d+(?:-server)?|postgresql-server)$"
+)
+_PG_CELLAR = re.compile(r"^postgresql(?:@\d+)?$")
+_PG_VERSION_H = re.compile(r'(?m)^\s*#\s*define\s+PG_VERSION\s+"([^"]+)"')
+_QUAY_DOCKER = (
+    r"quay/quay-rhel[89](?:-operator)?|quay/quay-operator-rhel[89]|projectquay/quay"
+)
+
+
+def _pg_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    major = v.nums[0]
+    if major < 14:
+        r.add("affected", component,
+              "below 14.25; no remaining vendor floor (PostgreSQL 14 is EOL after 14.25); from %s" % source,
+              path=path, version=raw)
+        return
+    if major >= 19:
+        r.add("info", component,
+              "PostgreSQL 19 or later (19 RC 2 shipped CVE-2026-6460); from %s" % source,
+              path=path, version=raw)
+        return
+    classify_version(r, component, raw, path, PG_6460_FLOORS, 1, source=source)
+
+
+def _pg_image_classify(r, tag, path):
+    v = hs.parse_version(tag)
+    if v is None or (len(v.nums) < 2 and v.nums[0] < 19):
+        r.add("info", "postgres image",
+              "moving tag %s; pull and rebuild to get the fixed build" % tag,
+              path=path, version=tag)
+        return
+    _pg_classify(r, "postgres image", tag, path, "image tag")
+
+
+def _pg_config_headers(host):
+    paths = [host.sys("/usr/include/postgresql/pg_config.h"), host.sys("/usr/include/pgsql/pg_config.h")]
+    if host.platform != "windows":
+        return paths
+    for spec in ("C:/Program Files/PostgreSQL", "C:/Program Files (x86)/PostgreSQL"):
+        root = host.sys(spec)
+        for name in hs.listdir(root):
+            paths.append(os.path.join(root, name, "include", "pg_config.h"))
+    return paths
+
+
+def check_postgresql_6460(host, r):
+    """Classify PostgreSQL server metadata against CVE-2026-6460 floors. Never start postgres."""
+    found_pkg = False
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if not _PG_SERVER_PKG.match(name):
+                continue
+            for ver, src in rows:
+                found_pkg = True
+                _pg_classify(r, name, ver, None, src)
+        if not found_pkg and hs.is_plain_dir(host.sys("/etc/postgresql")):
+            r.add("unknown", "postgresql",
+                  "config directory present; version not in package metadata",
+                  path="/etc/postgresql")
+    for formula, rows in cellar(host).items():
+        if not _PG_CELLAR.match(formula):
+            continue
+        for ver, path in rows:
+            _pg_classify(r, "postgresql (Homebrew)", ver, host.display(path), "Homebrew Cellar")
+    for path, image, tag in docker_refs(host, r"postgres(?:ql)?"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last not in ("postgres", "postgresql"):
+            continue
+        _pg_image_classify(r, tag, host.display(path))
+    for hdr in _pg_config_headers(host):
+        if not hs.is_regular(hdr):
+            continue
+        text = hs.read_text(hdr, 256 * 1024, host.gaps)
+        disp = host.display(hdr)
+        if text is None:
+            r.add("unknown", "postgresql", "pg_config.h present; not readable", path=disp)
+            continue
+        m = _PG_VERSION_H.search(text)
+        if not m:
+            r.add("unknown", "postgresql", "PG_VERSION not found", path=disp)
+            continue
+        _pg_classify(r, "postgresql (pg_config.h)", m.group(1), disp, "pg_config.h")
+
+
+def _quay_is_operator(image):
+    last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+    return "operator" in last
+
+
+def check_quay_123710(host, r):
+    """Classify Quay registry image tags against RHSA floors. Never HTTP to /keys."""
+    for path, image, tag in docker_refs(host, _QUAY_DOCKER):
+        disp = host.display(path)
+        if _quay_is_operator(image):
+            r.add("review", "quay operator image",
+                  "operator image tag is not the registry floor; classify quay/quay-rhel8, "
+                  "quay/quay-rhel9 or projectquay/quay",
+                  path=disp, version=tag)
+            continue
+        v = hs.parse_version(tag)
+        if v is None or len(v.nums) < 3:
+            r.add("info", "quay image",
+                  "moving tag %s; pull and rebuild to get the fixed build" % tag,
+                  path=disp, version=tag)
+            continue
+        classify_version(r, "quay image", tag, disp, QUAY_123710_FLOORS, 2, source="image tag")
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -6023,6 +6186,29 @@ CHECKS = [
                "./unrealircd module-status from this tool. blacklist-module labeled-response is mitigation, "
                "not a vendor patch. Windows has no hot-patch; upgrade only.",
                ALL_OS, check_unrealircd_114713),
+    check_meta("postgresql-6460",
+               "PostgreSQL server below 18.7 / 17.12 / 16.16 / 15.20 / 14.25 (CVE-2026-6460)",
+               "check_if_used", "confirmed", "runtime",
+               ["pg-cve-6460", "pg-news-3442", "cve-6460", "nvd-6460",
+                "debian-tracker-6460", "ubuntu-cve-6460"],
+               "CVE-2026-6460: type confusion after ALTER SET DATA TYPE on the core server. Vendor floors "
+               "18.7, 17.12, 16.16, 15.20, 14.25 (12 Nov 2026). 14.25 is the final PostgreSQL 14 release. "
+               "19 RC 2 shipped the same security set. postgresql-client and libpq are not this check. "
+               "Ubuntu had no USN as of 13 Nov 2026. Never starts postgres.",
+               "Upgrade the server package or image to the vendor floor for that major. Extension rebuilds "
+               "after a PGDG bump are a human follow-up. This tool never starts postgres, psql or pg_config.",
+               ALL_OS, check_postgresql_6460),
+    check_meta("quay-123710",
+               "Red Hat Quay below RHSA floors (CVE-2026-123710)",
+               "check_if_used", "confirmed", "runtime",
+               ["rh-cve-123710", "rhsa-99021", "rhsa-99025", "rhsa-99027", "rhsa-99024",
+                "rhsa-99023", "rhsa-99022", "rhsa-99026", "rhsa-99019", "cve-123710", "nvd-123710"],
+               "CVE-2026-123710: unauthenticated /keys signing-key takeover. RHSA floors 3.9.28, 3.10.28, "
+               "3.12.24, 3.14.10, 3.15.9, 3.16.7, 3.17.7, 3.18.3. Missing 3.11/3.13 and Quay 5 are review. "
+               "Operator images are review. Restricting /keys is mitigation. Never HTTP to /keys.",
+               "Deploy the RHSA image for that 3.x train. Restricting /keys is mitigation, not a vendor patch. "
+               "This tool never starts Quay.",
+               ALL_OS, check_quay_123710),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
