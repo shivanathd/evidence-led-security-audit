@@ -8,7 +8,7 @@ Last checked: 2026-11-16. This profile is a dated snapshot, not a standing rule.
 
 - **core server**: the PostgreSQL database server package or image, not `libpq` or `postgresql-client`.
 - **PGDATA `PG_VERSION`**: a one-line major-version file in a data directory; this check does not read it.
-- **`pg_config.h`**: the compiled `PG_VERSION` string in `include/pg_config.h`; optional metadata, never `pg_config` executed.
+- **`pg_config.h`**: the compiled `PG_VERSION` string under a Windows PostgreSQL server tree. `/usr/include/postgresql/pg_config.h` is `libpq-dev` and is not this check. Never execute `pg_config`.
 - **`/keys`**: Quay's service-key rotation endpoint named in CVE-2026-123710. Restricting it is mitigation, never a vendor patch.
 - **RHSA floor**: the Quay 3.x.y named in the matching Red Hat security advisory. Operator and Clair image tags are not that floor.
 
@@ -27,7 +27,7 @@ Last checked: 2026-11-16. This profile is a dated snapshot, not a standing rule.
 
 ## What was disclosed (as of the date above)
 
-**PostgreSQL CVE-2026-6460.** Type confusion after `ALTER … SET DATA TYPE` on the core server (CVSS 3.1 8.8). Vendor: versions before **18.7**, **17.12**, **16.16**, **15.20** and **14.25** are affected. Published 2026-11-12. 14.25 is the final PostgreSQL 14 release (EOL). 19 RC 2 shipped with the same security set. Debian bookworm `postgresql-15` 15.20-0+deb12u1 (DLA-4905-1) and trixie `postgresql-17` 17.12-0+deb13u1 (DSA-6625-1) sit at those minors. Ubuntu had no USN (Needs evaluation). Do not invent Ubuntu floors.
+**PostgreSQL CVE-2026-6460.** Type confusion after `ALTER … SET DATA TYPE` on the core server (CVSS 3.1 8.8). Vendor: versions before **18.7**, **17.12**, **16.16**, **15.20** and **14.25** are affected. Published 2026-11-12. 14.25 is the final PostgreSQL 14 release (EOL). 19 RC 2 shipped with the same security set; 19 RC 1 is still affected. Debian bookworm `postgresql-15` 15.20-0+deb12u1 (DLA-4905-1) and trixie `postgresql-17` 17.12-0+deb13u1 (DSA-6625-1) sit at those minors. The dpkg `postgresql` metapackage (`17+278`) is not a floor. Ubuntu had no USN (Needs evaluation). Do not invent Ubuntu floors.
 
 **Red Hat Quay CVE-2026-123710.** Unauthenticated `/keys` signing-key takeover (CVSS 9.8, CWE-1287, Bugzilla 2568072). RHSA floors above each list CVE-2026-123710. Missing trains 3.11 and 3.13, and Quay 5 / Mirror registry, have no named floor → `review`. Restricting `/keys` is mitigation. Quay.io SaaS is not host-checkable.
 
@@ -51,7 +51,7 @@ Last checked: 2026-11-16. This profile is a dated snapshot, not a standing rule.
 
 ## Evidence these checks read
 
-- `postgresql-6460`: `linux_packages` names matching the server (`postgresql-N`, `postgresql-server`, `postgresqlN-server`, apk/pacman `postgresql`); Homebrew Cellar `postgresql` / `postgresql@N`; `docker_refs` last path component exactly `postgres` or `postgresql`; optional `include/pg_config.h` `#define PG_VERSION`. `/etc/postgresql` without a server package is `unknown`. Comparison is `parse_version` / `classify_lines` (`line_len=1`). Major `< 14` is `affected`. Major `≥ 19` is `info`. Moving image tags (`latest`, `16`) are `info`. Never `PGDATA/PG_VERSION`. Never `postgresql.conf`.
+- `postgresql-6460`: `linux_packages` names matching the server (`postgresql-N`, `postgresql-server`, `postgresqlN-server`, apk/pacman/rpm `postgresql`). The dpkg `postgresql` metapackage is skipped. Homebrew Cellar `postgresql` / `postgresql@N`; `docker_refs` last path component exactly `postgres` or `postgresql`; Windows `Program Files/PostgreSQL/*/include/pg_config.h`. `/usr/include/postgresql/pg_config.h` is unread. `/etc/postgresql` without a server package is `unknown`. Comparison is `parse_version` / `classify_lines` (`line_len=1`). Major `< 14` is `affected`. 19 RC 1 is `affected`; 19 RC 2 and later are `info`. Moving image tags (`latest`, `16`) are `info`. Never `PGDATA/PG_VERSION`. Never `postgresql.conf`.
 - `quay-123710`: `docker_refs` for `quay/quay-rhel8`, `quay/quay-rhel9`, `projectquay/quay`. Operator images (`quay-operator-rhel8`, `quay-rhel9-operator`) are `review`. `classify_lines` (`line_len=2`) against the RHSA table. Tags with fewer than three numeric parts are `info` (moving). `quay.io` as a generic registry prefix for other images is not this check.
 
 ## Finding to check-result rollup

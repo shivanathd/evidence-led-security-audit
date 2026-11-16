@@ -4210,6 +4210,40 @@ class Postgresql6460(SimCase):
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
+    def test_dpkg_19_rc1_is_affected(self):
+        self.s.dpkg({"postgresql-19": "19rc1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_dpkg_19_ga_is_info(self):
+        self.s.dpkg({"postgresql-19": "19.0-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_metapackage_does_not_override_server(self):
+        self.s.dpkg({"postgresql": "17+278", "postgresql-17": "17.12-0+deb13u1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_metapackage_alone_is_not_this_check(self):
+        self.s.dpkg({"postgresql": "17+278"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_apk_postgresql_is_the_server(self):
+        self.s.apk({"postgresql": "17.11-r0"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.apk({"postgresql": "17.12-r0"})
+        c = ok.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
     def test_client_only_is_not_applicable(self):
         self.s.dpkg({"postgresql-client-16": "16.15-1", "libpq5": "16.15-1"})
         c = self.s.check("postgresql-6460")
@@ -4254,9 +4288,22 @@ class Postgresql6460(SimCase):
         c = self.s.check("postgresql-6460")
         self.assertStatus(c, "NOT_APPLICABLE")
 
-    def test_pg_config_h_is_classified(self):
+    def test_libpq_dev_header_is_not_this_check(self):
         self.s.write("/usr/include/postgresql/pg_config.h", self.PG_H % "16.15")
         c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_libpq_dev_header_does_not_override_server_package(self):
+        self.s.dpkg({"postgresql-16": "16.16-1"})
+        self.s.write("/usr/include/postgresql/pg_config.h", self.PG_H % "16.15")
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_windows_server_pg_config_h_is_classified(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/PostgreSQL/16/include/pg_config.h", self.PG_H % "16.15")
+        c = w.check("postgresql-6460")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
@@ -4269,10 +4316,14 @@ class Postgresql6460(SimCase):
                 raise AssertionError("ran postgres")
             return None
 
-        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")), \
-                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
-                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")) as connect, \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")) as popen, \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")) as system:
             c = self.s.check("postgresql-6460", runner=runner)
+        connect.assert_not_called()
+        popen.assert_not_called()
+        system.assert_not_called()
+        self.assertNotIn("check error", c["reason"])
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
@@ -4360,10 +4411,14 @@ class Quay123710(SimCase):
 
     def test_never_http_or_exec(self):
         self.s.write("~/code/reg/Dockerfile", "FROM quay/quay-rhel8:v3.18.2\n")
-        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")), \
-                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
-                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")) as connect, \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")) as popen, \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")) as system:
             c = self.s.check("quay-123710")
+        connect.assert_not_called()
+        popen.assert_not_called()
+        system.assert_not_called()
+        self.assertNotIn("check error", c["reason"])
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
