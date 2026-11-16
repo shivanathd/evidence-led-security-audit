@@ -4149,6 +4149,309 @@ class UnrealIrcd114713(SimCase):
         self.assertEqual(results(c), ["affected"])
 
 
+# --------------------------------------------------------------------------
+# PostgreSQL CVE-2026-6460
+# --------------------------------------------------------------------------
+
+class Postgresql6460(SimCase):
+    PG_H = '#define PG_VERSION "%s"\n'
+
+    def test_empty_hosts_not_applicable(self):
+        self.assertIn("postgresql-6460", hc.CHECK_IDS)
+        for platform in ("darwin", "linux", "windows"):
+            self.assertStatus(self.sim(platform).check("postgresql-6460"), "NOT_APPLICABLE")
+
+    def test_walk_flag_and_sources(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "postgresql-6460")
+        self.assertTrue(meta["uses_walk"])
+        self.assertNotIn("postgresql-6460", hc.INDICATOR_CHECKS)
+        for key in meta["sources"]:
+            self.assertIn(key, hc.SRC)
+
+    def test_dpkg_16_15_is_affected(self):
+        self.s.dpkg({"postgresql-16": "16.15-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_dpkg_16_16_is_info(self):
+        self.s.dpkg({"postgresql-16": "16.16-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_debian_15_20_suffix_is_info(self):
+        self.s.dpkg({"postgresql-15": "15.20-0+deb12u1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_14_25_is_info(self):
+        self.s.dpkg({"postgresql-14": "14.25-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_18_7_prerelease_is_affected(self):
+        self.s.dpkg({"postgresql-18": "18.7-rc1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_dpkg_13_is_affected(self):
+        self.s.dpkg({"postgresql-13": "13.22-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_dpkg_19_is_info(self):
+        self.s.dpkg({"postgresql-19": "19rc2"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_19_rc1_is_affected(self):
+        self.s.dpkg({"postgresql-19": "19rc1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_dpkg_19_ga_is_info(self):
+        self.s.dpkg({"postgresql-19": "19.0-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_metapackage_does_not_override_server(self):
+        self.s.dpkg({"postgresql": "17+278", "postgresql-17": "17.12-0+deb13u1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_metapackage_alone_is_not_this_check(self):
+        self.s.dpkg({"postgresql": "17+278"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_apk_postgresql_is_the_server(self):
+        self.s.apk({"postgresql": "17.11-r0"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.apk({"postgresql": "17.12-r0"})
+        c = ok.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_legacy_9_6_is_affected(self):
+        self.s.dpkg({"postgresql-9.6": "9.6.24-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def _rpm(self, lines):
+        s = self.sim("linux")
+        s.mkdir("/var/lib/rpm")
+
+        def runner(argv, timeout=30):
+            if argv[:2] == ["rpm", "-qa"]:
+                return 0, ("\n".join(lines) + "\n").encode("ascii"), b""
+            return 0, b"", b""
+
+        return s.check("postgresql-6460", runner=runner)
+
+    def test_rpm_client_only_is_not_this_check(self):
+        c = self._rpm(["postgresql\t16.13-1.fc42", "postgresql16\t16.13-1.fc42"])
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_rpm_server_is_classified(self):
+        c = self._rpm(["postgresql\t16.15-1.fc42", "postgresql-server\t16.15-1.fc42"])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self._rpm(["postgresql16-server\t16.16-1.el9"])
+        self.assertStatus(ok, "PASS")
+        self.assertEqual(results(ok), ["info"])
+
+    def test_client_only_is_not_applicable(self):
+        self.s.dpkg({"postgresql-client-16": "16.15-1", "libpq5": "16.15-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_etc_dir_without_server_package_is_blocked(self):
+        self.s.mkdir("/etc/postgresql")
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_homebrew_cellar(self):
+        self.s.mkdir("/opt/homebrew/Cellar/" + at("postgresql", "17") + "/17.11")
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.mkdir("/opt/homebrew/Cellar/" + at("postgresql", "17") + "/17.12")
+        c = ok.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_image_tags(self):
+        self.s.write("~/code/db/Dockerfile", "FROM postgres:16.15\n")
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/db/Dockerfile", "FROM postgres:16.16\n")
+        c = ok.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        latest = self.sim("linux")
+        latest.write("~/code/db/Dockerfile", "FROM postgres:latest\n")
+        c = latest.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("moving tag", c["findings"][0]["detail"])
+
+    def test_exporter_image_is_not_this_check(self):
+        self.s.write("~/code/db/Dockerfile", "FROM prometheuscommunity/postgres-exporter:0.15.0\n")
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_libpq_dev_header_is_not_this_check(self):
+        self.s.write("/usr/include/postgresql/pg_config.h", self.PG_H % "16.15")
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_libpq_dev_header_does_not_override_server_package(self):
+        self.s.dpkg({"postgresql-16": "16.16-1"})
+        self.s.write("/usr/include/postgresql/pg_config.h", self.PG_H % "16.15")
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_windows_server_pg_config_h_is_classified(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/PostgreSQL/16/include/pg_config.h", self.PG_H % "16.15")
+        c = w.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_never_starts_postgres(self):
+        self.s.dpkg({"postgresql-16": "16.15-1"})
+
+        def runner(argv, timeout=30):
+            joined = " ".join(str(a) for a in argv).lower()
+            if any(n in joined for n in ("postgres", "psql", "pg_ctl", "pg_config")):
+                raise AssertionError("ran postgres")
+            return None
+
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")) as connect, \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")) as popen, \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")) as system:
+            c = self.s.check("postgresql-6460", runner=runner)
+        connect.assert_not_called()
+        popen.assert_not_called()
+        system.assert_not_called()
+        self.assertNotIn("check error", c["reason"])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+
+# --------------------------------------------------------------------------
+# Red Hat Quay CVE-2026-123710
+# --------------------------------------------------------------------------
+
+class Quay123710(SimCase):
+    def test_empty_hosts_not_applicable(self):
+        self.assertIn("quay-123710", hc.CHECK_IDS)
+        for platform in ("darwin", "linux", "windows"):
+            self.assertStatus(self.sim(platform).check("quay-123710"), "NOT_APPLICABLE")
+
+    def test_walk_flag_and_sources(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "quay-123710")
+        self.assertTrue(meta["uses_walk"])
+        self.assertNotIn("quay-123710", hc.INDICATOR_CHECKS)
+        for key in meta["sources"]:
+            self.assertIn(key, hc.SRC)
+
+    def test_rhel8_3_18_2_is_affected(self):
+        self.s.write("~/code/reg/compose.yml", "image: quay/quay-rhel8:v3.18.2\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_rhel8_3_18_3_is_info(self):
+        self.s.write("~/code/reg/compose.yml", "image: quay/quay-rhel8:v3.18.3\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_rhel9_3_12_train(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM quay/quay-rhel9:v3.12.23\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/reg/Dockerfile", "FROM quay/quay-rhel9:v3.12.24\n")
+        c = ok.check("quay-123710")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_projectquay_3_16_train(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM projectquay/quay:v3.16.6\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/code/reg/Dockerfile", "FROM projectquay/quay:v3.16.7\n")
+        c = ok.check("quay-123710")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_missing_train_3_11_is_review(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM quay/quay-rhel8:v3.11.1\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_quay_5_is_review(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM quay/quay-rhel8:v5.0.0\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_operator_only_is_review(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM quay/quay-operator-rhel8:v3.18.3\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_unrelated_quay_io_image_is_not_this_check(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM quay.io/prometheus/prometheus:v2.0.0\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_moving_tag_is_info(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM quay/quay-rhel8:latest\n")
+        c = self.s.check("quay-123710")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+        self.assertIn("moving tag", c["findings"][0]["detail"])
+
+    def test_never_http_or_exec(self):
+        self.s.write("~/code/reg/Dockerfile", "FROM quay/quay-rhel8:v3.18.2\n")
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")) as connect, \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")) as popen, \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")) as system:
+            c = self.s.check("quay-123710")
+        connect.assert_not_called()
+        popen.assert_not_called()
+        system.assert_not_called()
+        self.assertNotIn("check error", c["reason"])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+
 class SecretPathGuard(SimCase):
     def test_alpine_and_litespeed_never_read_secret_or_store_paths(self):
         s = self.s
@@ -4318,7 +4621,7 @@ class WholeRun(SimCase):
             if m["id"] != "plex-media-server":
                 self.assertTrue(m["sources"], m["id"])
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
-        self.assertEqual(len(hc.CHECK_IDS), 58)
+        self.assertEqual(len(hc.CHECK_IDS), 60)
         self.assertIn("nodered-admin-http", hc.CHECK_IDS)
         self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
         self.assertIn("apt-109518", hc.CHECK_IDS)
@@ -4328,6 +4631,8 @@ class WholeRun(SimCase):
         self.assertIn("openssh-musl-pwauth", hc.CHECK_IDS)
         self.assertIn("litespeed-cache-93389", hc.CHECK_IDS)
         self.assertIn("unrealircd-114713", hc.CHECK_IDS)
+        self.assertIn("postgresql-6460", hc.CHECK_IDS)
+        self.assertIn("quay-123710", hc.CHECK_IDS)
         self.assertTrue(all(reason for _item, reason in hc.SKIPPED))
 
     def test_report_fragments_validate_in_a_report(self):

@@ -132,6 +132,8 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.wordfence.com",  # LiteSpeed Cache CVE-2026-93389 Wordfence page
     "forums.unrealircd.org",  # CVE-2026-114713 vendor forum advisory
     "www.unrealircd.org",  # UnrealIRCd v6.2.7.1 release / FAQ
+    "www.postgresql.org", "postgresql.org",  # CVE-2026-6460 vendor CVE page and news 3442
+    "quay.io",  # cited as not this check: generic registry prefix vs Quay app image
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
