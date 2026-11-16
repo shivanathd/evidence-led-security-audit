@@ -16,7 +16,7 @@
 - `claude-code-vsx-21313`: a non-string `package.json` `version` does not abort the persistence IOC checks.
 - Briefing window through 16 Nov 2026.
 - Reviewed public hosts: `forums.unrealircd.org`, `www.unrealircd.org`, `www.postgresql.org`, `postgresql.org`, `quay.io`.
-- `postgresql-6460`: skip the dpkg `postgresql` metapackage; do not classify `libpq-dev` `/usr/include/postgresql/pg_config.h`; treat 19 RC 1 as affected (19 RC 2 remains the 19-line fix).
+- `postgresql-6460`: skip the dpkg `postgresql` metapackage; do not classify `libpq-dev` `/usr/include/postgresql/pg_config.h`; treat 19 RC 1 as affected (19 RC 2 remains the 19-line fix); skip rpm `postgresql` / `postgresqlN` clients and classify `postgresql-server` / `postgresqlN-server`; match dpkg `postgresql-9.6`.
 
 ## 0.4.8 - 2026-11-05
 

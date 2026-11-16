@@ -134,7 +134,9 @@ LIMITS = [
     "and container image tags are not classified. /var/lib/lxd is ignored.",
     "postgresql-6460 classifies core-server packages, Homebrew postgresql / postgresql@N, official postgres "
     "image tags, and Windows Program Files pg_config.h. dpkg postgresql is a metapackage and is skipped; "
-    "apk/pacman/rpm postgresql is the server. postgresql-client, libpq, libpq-dev headers and "
+    "dpkg postgresql-N and postgresql-N.N (legacy 9.6) are the server. apk/pacman postgresql is the server. "
+    "rpm postgresql / postgresqlN are clients; the server is postgresql-server / postgresqlN-server. "
+    "postgresql-client, libpq, libpq-dev headers and "
     "postgres-exporter are not this check. PGDATA PG_VERSION is unread (major only). 19 RC 1 is affected; "
     "19 RC 2 and later are info. Never starts postgres, psql, pg_ctl or pg_config.",
     "quay-123710 classifies quay/quay-rhel8, quay/quay-rhel9 and projectquay/quay image tags against RHSA floors. "
@@ -5708,8 +5710,10 @@ QUAY_123710_FLOORS = (
     "3.9.28", "3.10.28", "3.12.24", "3.14.10",
     "3.15.9", "3.16.7", "3.17.7", "3.18.3",
 )
-_PG_SERVER_PKG = re.compile(
-    r"^(?:postgresql(?:-\d+)?|postgresql\d+(?:-server)?|postgresql-server)$"
+_PG_DPKG_SERVER = re.compile(r"^postgresql-\d+(?:\.\d+)?$")
+_PG_RPM_SERVER = re.compile(r"^postgresql(?:\d+)?-server$")
+_PG_APK_PACMAN_SERVER = re.compile(
+    r"^(?:postgresql(?:-\d+(?:\.\d+)?)?|postgresql\d+(?:-server)?|postgresql-server)$"
 )
 _PG_CELLAR = re.compile(r"^postgresql(?:@\d+)?$")
 _PG_VERSION_H = re.compile(r'(?m)^\s*#\s*define\s+PG_VERSION\s+"([^"]+)"')
@@ -5723,11 +5727,16 @@ def _pg_is_server_pkg(name, src):
     """True when ``name`` is a core-server package for this listing source.
 
     Debian/Ubuntu dpkg ``postgresql`` is a metapackage (``17+278``), not the
-    server NVR. apk/pacman/rpm ``postgresql`` is the server.
+    server NVR; ``postgresql-N`` and legacy ``postgresql-N.N`` are the server.
+    Fedora/RHEL rpm ``postgresql`` / ``postgresqlN`` are client packages; the
+    server is ``postgresql-server`` / ``postgresqlN-server``. apk/pacman
+    ``postgresql`` is the server.
     """
-    if not _PG_SERVER_PKG.match(name):
-        return False
-    return not (name == "postgresql" and src == "dpkg")
+    if src == "dpkg":
+        return bool(_PG_DPKG_SERVER.match(name))
+    if src == "rpm":
+        return bool(_PG_RPM_SERVER.match(name))
+    return bool(_PG_APK_PACMAN_SERVER.match(name))
 
 
 def _pg_19_has_fix(v):
@@ -6226,8 +6235,8 @@ CHECKS = [
                 "debian-tracker-6460", "ubuntu-cve-6460"],
                "CVE-2026-6460: type confusion after ALTER SET DATA TYPE on the core server. Vendor floors "
                "18.7, 17.12, 16.16, 15.20, 14.25 (12 Nov 2026). 14.25 is the final PostgreSQL 14 release. "
-               "19 RC 2 shipped the same security set; 19 RC 1 is affected. postgresql-client, libpq and "
-               "the dpkg postgresql metapackage are not this check. "
+               "19 RC 2 shipped the same security set; 19 RC 1 is affected. postgresql-client, libpq, "
+               "the dpkg postgresql metapackage, and rpm postgresql / postgresqlN clients are not this check. "
                "Ubuntu had no USN as of 13 Nov 2026. Never starts postgres.",
                "Upgrade the server package or image to the vendor floor for that major. Extension rebuilds "
                "after a PGDG bump are a human follow-up. This tool never starts postgres, psql or pg_config.",

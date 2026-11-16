@@ -4244,6 +4244,35 @@ class Postgresql6460(SimCase):
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
+    def test_dpkg_legacy_9_6_is_affected(self):
+        self.s.dpkg({"postgresql-9.6": "9.6.24-1"})
+        c = self.s.check("postgresql-6460")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def _rpm(self, lines):
+        s = self.sim("linux")
+        s.mkdir("/var/lib/rpm")
+
+        def runner(argv, timeout=30):
+            if argv[:2] == ["rpm", "-qa"]:
+                return 0, ("\n".join(lines) + "\n").encode("ascii"), b""
+            return 0, b"", b""
+
+        return s.check("postgresql-6460", runner=runner)
+
+    def test_rpm_client_only_is_not_this_check(self):
+        c = self._rpm(["postgresql\t16.13-1.fc42", "postgresql16\t16.13-1.fc42"])
+        self.assertStatus(c, "NOT_APPLICABLE")
+
+    def test_rpm_server_is_classified(self):
+        c = self._rpm(["postgresql\t16.15-1.fc42", "postgresql-server\t16.15-1.fc42"])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        ok = self._rpm(["postgresql16-server\t16.16-1.el9"])
+        self.assertStatus(ok, "PASS")
+        self.assertEqual(results(ok), ["info"])
+
     def test_client_only_is_not_applicable(self):
         self.s.dpkg({"postgresql-client-16": "16.15-1", "libpq5": "16.15-1"})
         c = self.s.check("postgresql-6460")
