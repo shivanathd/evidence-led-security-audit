@@ -535,9 +535,21 @@ _DIST = re.compile(r"^(?P<name>.+?)-(?P<ver>\d[^-]*?)(?:-py[\d.]+)?(?:-[^-]+)?\.
 
 
 def python_dists(site_dir, wanted, gaps=None):
-    """Yield (normalized_name, version, metadata_path) for wanted dists in a site-packages dir."""
+    """Return (normalized_name, version, metadata_path) rows for wanted dists.
+
+    ``[]`` when the path is missing or not a real directory. ``None`` when the
+    directory exists but cannot be listed, so callers can mark the scan incomplete.
+    """
+    if not is_plain_dir(site_dir):
+        return []
+    try:
+        names = sorted(os.listdir(site_dir))
+    except OSError:
+        if gaps:
+            gaps.add("permission_denied", site_dir)
+        return None
     out = []
-    for name in listdir(site_dir, gaps):
+    for name in names:
         m = _DIST.match(name)
         if not m:
             continue
@@ -674,7 +686,9 @@ def py_pins(text, kind, wanted):
         name, op, ver = m.group(1), m.group(3), m.group(4)
         if norm_py(name) not in wanted:
             continue
-        if op in ("==", "===") and ver:
+        if op == "===" and ver:
+            add(name, "===%s" % ver)
+        elif op == "==" and ver:
             add(name, ver)
         elif op or ver:
             add(name, "spec:%s%s" % (op or "", ver or ""))

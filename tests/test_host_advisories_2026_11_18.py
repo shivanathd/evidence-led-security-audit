@@ -132,6 +132,15 @@ class ArtexGatewayKeys(SimCase):
         self.assertIn("master_key", blob)
         self.assertNotIn("placeholder-not-for-output", blob)
 
+    def test_bare_password_field_is_review_value_withheld(self):
+        self.s.write("~/.litellm/config.yaml", '"password": "placeholder-not-for-output"\n')
+        c = self.s.check("artex-gateway-keys")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        blob = json.dumps(c)
+        self.assertIn("password", blob)
+        self.assertNotIn("placeholder-not-for-output", blob)
+
     def test_never_connects(self):
         self.s.write("~/.litellm/config.yaml", "litellm_settings:\n  drop_params: true\n")
         with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")) as conn:
@@ -400,6 +409,19 @@ class AgentFramework126(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_pinned_1_26_2_0_is_affected(self):
+        pin = "agent-framework==%s\n" % hostfix.dotted(1, 26, 2, 0)
+        self.s.write("~/code/app/requirements.txt", pin)
+        c = self.s.check("agent-framework-1-26")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_triple_equals_pin_is_not_identity(self):
+        self.s.write("~/code/app/requirements.txt", "agent-framework===1.26.2\n")
+        c = self.s.check("agent-framework-1-26")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
     def test_wildcard_equality_is_review(self):
         self.s.write("~/code/app/requirements.txt", "agent-framework==1.26.*\n")
         c = self.s.check("agent-framework-1-26")
@@ -422,6 +444,15 @@ class AgentFramework126(SimCase):
             host._cache.pop("py_installs", None)
             host._cache.pop("py_installs_complete", None)
             c = hc.run_check(host, meta)
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("python environment scan stopped", c["reason"])
+
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_site_packages_is_blocked(self):
+        self.s.venv("~/code/app/.venv", {"pillow": "10.0.0"})
+        sp = self.s.path("~/code/app/.venv/lib/python3.12/site-packages")
+        os.chmod(sp, 0)
+        c = self.s.check("agent-framework-1-26")
         self.assertStatus(c, "BLOCKED")
         self.assertIn("python environment scan stopped", c["reason"])
 
@@ -480,8 +511,16 @@ class Java4shell114938(SimCase):
         moving = self.sim("linux")
         moving.write("~/code/app/Dockerfile", "FROM openjdk:8\n")
         c = moving.check("java4shell-114938")
-        self.assertStatus(c, "PASS")
-        self.assertEqual(results(c), ["info"])
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertIn("moving tag", c["findings"][0]["detail"])
+
+    def test_eclipse_temurin_17_moving_tag_is_unknown(self):
+        self.s.write("~/code/app/Dockerfile", "FROM eclipse-temurin:17\n")
+        c = self.s.check("java4shell-114938")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("at or above the fixed build", c["reason"])
 
     def test_homebrew_libexec_release(self):
         self.s.write("/opt/homebrew/Cellar/openjdk@17/17.0.21/libexec/openjdk.jdk/Contents/Home/release",
@@ -546,6 +585,16 @@ class Puppet115731(SimCase):
         self.assertIn("affected", results(c))
         self.assertNotIn("check error", c["reason"])
 
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_pe_version_is_unknown(self):
+        pe = self.s.write("/opt/puppetlabs/server/pe_version", "2023.8.13\n")
+        os.chmod(pe, 0)
+        self.s.write("/opt/puppetlabs/puppet/VERSION", "8.22.2\n")
+        c = self.s.check("puppet-115731")
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertTrue(any("not readable" in f["detail"] for f in c["findings"]))
+
 
 class Roller129448(SimCase):
     def test_empty_not_applicable(self):
@@ -594,6 +643,13 @@ class Roller129448(SimCase):
 
     def test_version_file_without_key_is_unknown(self):
         self.s.write("~/apps/roller/WEB-INF/classes/org/apache/roller/version.properties",
+                     "build.vendor=Apache\n")
+        c = self.s.check("roller-129448")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_classes_root_roller_version_without_key_is_unknown(self):
+        self.s.write("~/apps/roller/WEB-INF/classes/roller-version.properties",
                      "build.vendor=Apache\n")
         c = self.s.check("roller-129448")
         self.assertStatus(c, "BLOCKED")
@@ -663,6 +719,39 @@ class Mysql114952(SimCase):
                      "services:\n  db:\n    image: postgres:16\n    environment:\n"
                      "      MYSQL_DOC_EXAMPLE: mysql:8.4.13\n")
         self.assertStatus(self.s.check("mysql-114952"), "NOT_APPLICABLE")
+
+    def test_from_tab_is_an_image(self):
+        self.s.write("~/code/db/Dockerfile", "FROM\tmysql:8.4.13 AS db\n")
+        c = self.s.check("mysql-114952")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_quoted_compose_image_key(self):
+        self.s.write("~/code/db/compose.yml", 'services:\n  db:\n    "image": mysql:8.4.13\n')
+        c = self.s.check("mysql-114952")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_compose_environment_image_key_is_not_an_image(self):
+        self.s.write("~/code/db/compose.yml",
+                     "services:\n  db:\n    image: postgres:16\n    environment:\n"
+                     "      image: mysql:8.4.13\n")
+        self.assertStatus(self.s.check("mysql-114952"), "NOT_APPLICABLE")
+
+    def test_digest_pinned_tag_is_unknown_not_patch(self):
+        digest = "a" * 64
+        self.s.write("~/code/db/Dockerfile", "FROM mysql:8.4.14@sha256:%s\n" % digest)
+        c = self.s.check("mysql-114952")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertIn("digest-pinned", c["findings"][0]["detail"])
+        self.assertNotIn("at or above the fixed build", c["reason"])
+
+    def test_registry_port_tag_is_still_classified(self):
+        self.s.write("~/code/db/Dockerfile", "FROM registry.example:5000/mysql:8.4.13\n")
+        c = self.s.check("mysql-114952")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
 
     def test_fail_keeps_truncated_walk_on_evidence(self):
         meta = next(m for m in hc.CHECKS if m["id"] == "java4shell-114938")

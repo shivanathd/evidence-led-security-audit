@@ -1343,7 +1343,11 @@ def py_installs(host):
                 host.gaps.add("time_budget", sp, "python environment scan stopped")
                 complete = False
                 break
-            for n, ver, p in hs.python_dists(sp, WANTED_PY):
+            found = hs.python_dists(sp, WANTED_PY, host.gaps)
+            if found is None:
+                complete = False
+                continue
+            for n, ver, p in found:
                 out.setdefault(n, []).append((ver, p, label))
             vc = hs.vendored_certifi(sp)
             if vc:
@@ -1460,13 +1464,16 @@ def docker_refs(host, image_rx):
     return out
 
 
+DIGEST_PINNED_TAG = "digest-pinned"
+
+
 def docker_image_operand(line):
     """Image token from a FROM or image: declaration; empty for any other line."""
     s = line.strip()
     if not s or s.startswith("#"):
         return ""
-    if s.upper().startswith("FROM "):
-        parts = s.split()
+    parts = s.split()
+    if parts[0].upper() == "FROM":
         i = 1
         while i < len(parts) and parts[i].startswith("--"):
             flag = parts[i]
@@ -1476,7 +1483,7 @@ def docker_image_operand(line):
         if i >= len(parts) or parts[i].upper() == "AS":
             return ""
         return parts[i].strip("\"'")
-    m = re.match(r"(?i)^(?:-\s+)?image\s*:\s*(.*)$", s)
+    m = re.match(r"""(?i)^(?:-\s+)?["']?image["']?\s*:\s*(.*)$""", s)
     if not m:
         return ""
     val = m.group(1).split("#", 1)[0].strip().strip("\"'")
@@ -1484,20 +1491,40 @@ def docker_image_operand(line):
 
 
 def docker_decl_refs(host, image_rx):
-    """Like docker_refs, but only the image operand of FROM / image: lines."""
+    """Like docker_refs, but only the image operand of FROM / image: lines.
+
+    Digest-pinned refs (``name:tag@sha256:...``) yield tag ``digest-pinned`` so
+    a discarded tag is not treated as patch evidence. Compose keys nested under
+    ``environment:`` are skipped.
+    """
     out = []
-    rx = re.compile(r"(?i)(?:^|[\s\"'=])((?:[\w.-]+(?::\d+)?/)*(?:%s))(?::([\w.-]+))?(?:@sha256:[0-9a-f]{64})?"
-                    r"(?=$|[\s\"'])" % image_rx)
+    rx = re.compile(r"(?i)(?:^|[\s\"'=])((?:[\w.-]+(?::\d+)?/)*(?:%s))(?::([\w.-]+))?"
+                    r"(?=$|[\s\"'@])" % image_rx)
+    env_key = re.compile(r"""(?i)^["']?environment["']?\s*:""")
     for path in index(host).docker:
         text = text_of(host, path, 4 * MIB)
         if not text:
             continue
+        env_indent = None
         for line in text.splitlines():
+            stripped = line.lstrip(" \t")
+            indent = len(line) - len(stripped)
+            if env_indent is not None:
+                if stripped and indent <= env_indent:
+                    env_indent = None
+                else:
+                    continue
+            if env_key.match(stripped):
+                env_indent = indent
+                continue
             operand = docker_image_operand(line)
             if not operand:
                 continue
-            for m in rx.finditer(operand):
-                out.append((path, m.group(1), m.group(2) or "latest"))
+            pinned = "@sha256:" in operand.lower()
+            name_part = operand.split("@", 1)[0] if pinned else operand
+            for m in rx.finditer(name_part):
+                tag = DIGEST_PINNED_TAG if pinned else (m.group(2) or "latest")
+                out.append((path, m.group(1), tag))
     return out
 
 
@@ -6052,7 +6079,8 @@ tiroappteam.tiro-application-toolkits jonnyclyde.rojo-syncs jonnyclyde.open-boar
 """.split())
 
 _ARTEX_KEY = re.compile(
-    r"(?i)^(?:export\s+)?[\"']?([A-Za-z_][A-Za-z0-9_.-]*?(?:key|secret|token|password)[A-Za-z0-9_.-]*)[\"']?\s*[:=]")
+    r"(?i)^(?:export\s+)?[\"']?([A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*[:=]")
+_ARTEX_CRED = re.compile(r"(?i)(?:key|secret|token|password)")
 _VSX_VER_SUFFIX = re.compile(
     r"(?i)^\d+(?:\.\d+)+(?:-[0-9A-Za-z.]+)*(?:-(?:linux|darwin|win32|alpine|web|universal)(?:-[A-Za-z0-9]+)?)?$")
 _AF_MALICIOUS = frozenset({"1.26.1", "1.26.2"})
@@ -6120,7 +6148,7 @@ def check_artex_gateway_keys(host, r):
         for line in text.splitlines():
             line = line.split("#", 1)[0].strip().strip(",")
             m = _ARTEX_KEY.match(line)
-            if m:
+            if m and _ARTEX_CRED.search(m.group(1)):
                 names.append(m.group(1))
         names = sorted(set(names))[:24]
         if names:
@@ -6300,7 +6328,7 @@ def check_axis_90436(host, r):
                   path=host.display(root))
     for path, _image, tag in docker_decl_refs(host, r"confluence(?:-server)?"):
         v = hs.parse_version(tag)
-        if v is None or len(v.nums) < 2:
+        if tag == DIGEST_PINNED_TAG or v is None or len(v.nums) < 2:
             r.add("info", "confluence image", "moving tag %s; pull and rebuild" % tag,
                   path=host.display(path), version=tag)
         else:
@@ -6370,7 +6398,7 @@ def check_ncentral_hf3(host, r):
                           path=host.display(root))
     for path, _image, tag in docker_decl_refs(host, r"n-central|ncentral"):
         v = hs.parse_version(tag)
-        if v is None or len(v.nums) < 3:
+        if tag == DIGEST_PINNED_TAG or v is None or len(v.nums) < 3:
             r.add("info", "n-central image", "moving tag %s" % tag, path=host.display(path), version=tag)
         else:
             _ncentral_classify(r, "n-central image", tag, host.display(path), "image tag")
@@ -6474,10 +6502,23 @@ def _af_scan_site(host, r, sp):
                   path=host.display(p))
 
 
+def _af_malicious_ver(raw):
+    """True when ``raw`` is version-identical to 1.26.1 or 1.26.2 (not ``===``)."""
+    s = str(raw).strip()
+    if not s or s.startswith("spec:") or s.startswith("===") or "*" in s or s == DIGEST_PINNED_TAG:
+        return False
+    if s in _AF_MALICIOUS:
+        return True
+    v = hs.parse_version(s)
+    if v is None or v.prerelease:
+        return False
+    return any(hs.cmp_nums(v.nums, target) == 0 for target in ((1, 26, 1), (1, 26, 2)))
+
+
 def check_agent_framework_1_26(host, r):
     """Malicious agent-framework 1.26.1/1.26.2 plus sibling unpinned pins. No exfil URL."""
     for ver, path, label in py_installs(host).get("agent_framework", []):
-        if ver in _AF_MALICIOUS:
+        if _af_malicious_ver(ver):
             r.add("affected", "agent-framework (%s)" % label,
                   "malicious 1.26.1/1.26.2; rebuild the environment and rotate reachable secrets",
                   path=host.display(path), version=ver)
@@ -6488,7 +6529,7 @@ def check_agent_framework_1_26(host, r):
     for path, name, v in py_pin_hits(host, wanted):
         n = hs.norm_py(name)
         disp = host.display(path)
-        if n == "agent_framework" and v in _AF_MALICIOUS:
+        if n == "agent_framework" and _af_malicious_ver(v):
             r.add("affected", "agent-framework pin", "pins a malicious 1.26.1/1.26.2 release",
                   path=disp, version=v)
         elif n == "agent_framework" and (str(v).startswith("spec:") or "*" in str(v)):
@@ -6505,7 +6546,11 @@ def check_agent_framework_1_26(host, r):
         _af_scan_site(host, r, sp)
     for path, _image, tag in docker_decl_refs(host, r"agent-framework"):
         t = re.sub(r"^v", "", tag)
-        if t in _AF_MALICIOUS:
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "agent-framework image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _af_malicious_ver(t):
             r.add("affected", "agent-framework image", "image tag %s" % tag,
                   path=host.display(path), version=tag)
         else:
@@ -6624,12 +6669,18 @@ def check_java4shell_114938(host, r):
             continue
         _java_classify(r, "Java runtime", m.group(1), disp, "release")
     for path, _image, tag in docker_decl_refs(host, r"openjdk|eclipse-temurin|amazoncorretto"):
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "Java image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+            continue
         if _java8_perf_status(tag) is not None:
             _java_classify(r, "Java image", tag, host.display(path), "image tag")
             continue
         v = hs.parse_version(tag)
         if v is None or len(v.nums) < 2:
-            r.add("info", "Java image", "moving tag %s" % tag, path=host.display(path), version=tag)
+            r.add("unknown", "Java image", "moving tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
         else:
             _java_classify(r, "Java image", tag, host.display(path), "image tag")
 
@@ -6668,6 +6719,8 @@ def check_puppet_115731(host, r):
                          source="pe_version")
     elif text is not None:
         r.add("unknown", "Puppet Enterprise", "pe_version empty or whitespace", path=host.display(pe))
+    elif hs.exists_nofollow(pe):
+        r.add("unknown", "Puppet Enterprise", "pe_version present; not readable", path=host.display(pe))
     ver_path = host.sys("/opt/puppetlabs/puppet/VERSION")
     text = hs.read_text(ver_path, 4096, host.gaps)
     raw = _first_nonempty_line(text)
@@ -6675,6 +6728,8 @@ def check_puppet_115731(host, r):
         _puppet_core_classify(r, "puppet-agent", raw, host.display(ver_path), "VERSION")
     elif text is not None:
         r.add("unknown", "puppet-agent", "VERSION empty or whitespace", path=host.display(ver_path))
+    elif hs.exists_nofollow(ver_path):
+        r.add("unknown", "puppet-agent", "VERSION present; not readable", path=host.display(ver_path))
     for formula, rows in cellar(host).items():
         if formula in ("puppet", "puppet-agent"):
             for ver, path in rows:
@@ -6711,12 +6766,13 @@ def check_roller_129448(host, r):
                       path=host.display(path))
             else:
                 _roller_classify(r, raw, host.display(path), os.path.basename(path))
-        elif path.replace("\\", "/").endswith("/org/apache/roller/version.properties"):
+        elif path.replace("\\", "/").lower().endswith((
+                "/org/apache/roller/version.properties", "/roller-version.properties")):
             r.add("unknown", "Apache Roller", "version.properties has no version key",
                   path=host.display(path))
     for path, _image, tag in docker_decl_refs(host, r"roller"):
         v = hs.parse_version(tag)
-        if v is None:
+        if tag == DIGEST_PINNED_TAG or v is None:
             r.add("info", "Apache Roller image", "moving tag %s" % tag, path=host.display(path),
                   version=tag)
         else:
@@ -6830,7 +6886,11 @@ def check_mysql_114952(host, r):
         last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
         if last != "mysql" or "mariadb" in image.lower():
             continue
-        if _mysql_tag_unresolved(tag):
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "mysql image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _mysql_tag_unresolved(tag):
             r.add("unknown", "mysql image",
                   "moving or unpinned tag %s; version is not a fixed build" % tag,
                   path=host.display(path), version=tag)
