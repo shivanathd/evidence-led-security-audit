@@ -4521,7 +4521,10 @@ class WholeRun(SimCase):
                 if c["id"] in hc.INDICATOR_CHECKS:
                     self.assertEqual(c["status"], "PASS", (platform, c["id"]))
             blocked = {c["id"] for c in doc["checks"] if c["status"] == "BLOCKED"}
-            self.assertEqual(blocked, {"emudhra-trust-store"}, platform)
+            expected = {"emudhra-trust-store"}
+            if platform == "darwin":
+                expected.add("apple-65339")
+            self.assertEqual(blocked, expected, platform)
 
     def test_populated_run_never_writes_never_connects_never_executes(self):
         for platform in ("darwin", "linux", "windows"):

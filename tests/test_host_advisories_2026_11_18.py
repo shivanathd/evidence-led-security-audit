@@ -119,6 +119,19 @@ class ArtexGatewayKeys(SimCase):
         self.assertStatus(c, "PASS")
         self.assertNotIn(sentinel, json.dumps(c))
 
+    def test_from_alpine_as_litellm_is_not_an_image(self):
+        self.s.write("~/code/gw/Dockerfile", "FROM alpine AS litellm\n")
+        self.assertStatus(self.s.check("artex-gateway-keys"), "PASS")
+
+    def test_quoted_field_name_is_review_value_withheld(self):
+        self.s.write("~/.litellm/config.yaml", '"master_key": "placeholder-not-for-output"\n')
+        c = self.s.check("artex-gateway-keys")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        blob = json.dumps(c)
+        self.assertIn("master_key", blob)
+        self.assertNotIn("placeholder-not-for-output", blob)
+
     def test_never_connects(self):
         self.s.write("~/.litellm/config.yaml", "litellm_settings:\n  drop_params: true\n")
         with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")) as conn:
@@ -207,6 +220,13 @@ class Axis90436(SimCase):
         self.assertIn("unknown", results(c))
         self.assertIn("info", results(c))
 
+    def test_fixed_jar_does_not_hide_below_floor_jar(self):
+        self.s.write("/opt/atlassian/confluence/confluence/WEB-INF/lib/confluence-10.0.2.jar", b"PK")
+        self.s.write("/opt/atlassian/confluence/confluence/WEB-INF/lib/confluence-9.2.27.jar", b"PK")
+        c = self.s.check("axis-90436")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+
 
 class NcentralHf3(SimCase):
     def test_empty_not_applicable(self):
@@ -246,6 +266,14 @@ class NcentralHf3(SimCase):
         self.assertIn("unknown", results(c))
         self.assertIn("info", results(c))
 
+    def test_whitespace_version_file_does_not_stop_later_root(self):
+        self.s.write("/opt/n-able/n-central/ncentral.version", "\n")
+        self.s.write("/opt/nable/n-central/ncentral.version", "2026.4.1.26\n")
+        c = self.s.check("ncentral-hf3")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        self.assertNotIn("check error", c["reason"])
+
 
 class BlankCanvasVsx(SimCase):
     def test_empty_is_pass(self):
@@ -271,6 +299,17 @@ class BlankCanvasVsx(SimCase):
     def test_id_prefix_without_version_suffix_is_ignored(self):
         self.s.write("~/.vscode/extensions/jonnyclyde.open-board-notes/package.json", "{}")
         self.assertStatus(self.s.check("blank-canvas-vsx"), "PASS")
+
+    def test_open_board_2fa_is_not_listed_id(self):
+        self.s.write("~/.vscode/extensions/jonnyclyde.open-board-2fa-1.0.0/package.json", "{}")
+        self.assertStatus(self.s.check("blank-canvas-vsx"), "PASS")
+
+    def test_platform_suffix_still_matches(self):
+        self.s.write("~/.vscode/extensions/jonnyclyde.open-board-0.2.1-linux-x64/package.json", "{}")
+        self.assertEqual(results(self.s.check("blank-canvas-vsx")), ["affected"])
+        ok = self.sim("linux")
+        ok.write("~/.vscode/extensions/jonnyclyde.open-board-0.2.1-universal/package.json", "{}")
+        self.assertEqual(results(ok.check("blank-canvas-vsx")), ["affected"])
 
 
 class Apple65339(SimCase):
@@ -308,6 +347,11 @@ class Apple65339(SimCase):
     def test_27_is_info(self):
         self.assertStatus(self._mac("27.0"), "PASS")
         self.assertEqual(results(self._mac("27.0")), ["info"])
+
+    def test_darwin_without_productversion_is_unknown(self):
+        c = self.sim("darwin").check("apple-65339")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
 
 
 class AgentFramework126(SimCase):
@@ -361,6 +405,25 @@ class AgentFramework126(SimCase):
         c = self.s.check("agent-framework-1-26")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["review"])
+
+    def test_sibling_wildcard_is_review_not_malicious(self):
+        self.s.write("~/code/app/requirements.txt", "agent-framework-openai==1.26.*\n")
+        c = self.s.check("agent-framework-1-26")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertNotIn("affected", results(c))
+
+    def test_incomplete_py_installs_is_blocked(self):
+        self.s.venv("~/code/app/.venv", {"pillow": "10.0.0"})
+        host = self.s.host()
+        hc.index(host)
+        meta = next(m for m in hc.CHECKS if m["id"] == "agent-framework-1-26")
+        with mock.patch.object(host.budget, "over", return_value=True):
+            host._cache.pop("py_installs", None)
+            host._cache.pop("py_installs_complete", None)
+            c = hc.run_check(host, meta)
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("python environment scan stopped", c["reason"])
 
     def test_output_has_no_webhook(self):
         self.s.venv("~/code/app/.venv", {"agent_framework": "1.26.2"})
@@ -475,6 +538,14 @@ class Puppet115731(SimCase):
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
+    def test_blank_pe_version_continues_to_core(self):
+        self.s.write("/opt/puppetlabs/server/pe_version", "\n")
+        self.s.write("/opt/puppetlabs/puppet/VERSION", "8.22.0\n")
+        c = self.s.check("puppet-115731")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        self.assertNotIn("check error", c["reason"])
+
 
 class Roller129448(SimCase):
     def test_empty_not_applicable(self):
@@ -517,6 +588,13 @@ class Roller129448(SimCase):
     def test_empty_version_key_is_unknown(self):
         self.s.write("~/apps/roller/WEB-INF/classes/org/apache/roller/version.properties",
                      "ro.version=\n")
+        c = self.s.check("roller-129448")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_version_file_without_key_is_unknown(self):
+        self.s.write("~/apps/roller/WEB-INF/classes/org/apache/roller/version.properties",
+                     "build.vendor=Apache\n")
         c = self.s.check("roller-129448")
         self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["unknown"])
@@ -579,6 +657,24 @@ class Mysql114952(SimCase):
         patch = self.sim("linux")
         patch.write("~/code/db/compose.yml", "image: mysql:8.4.13\n")
         self.assertEqual(results(patch.check("mysql-114952")), ["affected"])
+
+    def test_compose_env_mysql_token_is_not_an_image(self):
+        self.s.write("~/code/db/compose.yml",
+                     "services:\n  db:\n    image: postgres:16\n    environment:\n"
+                     "      MYSQL_DOC_EXAMPLE: mysql:8.4.13\n")
+        self.assertStatus(self.s.check("mysql-114952"), "NOT_APPLICABLE")
+
+    def test_fail_keeps_truncated_walk_on_evidence(self):
+        meta = next(m for m in hc.CHECKS if m["id"] == "java4shell-114938")
+        doc = {"checks": [{
+            "id": "java4shell-114938", "title": meta["title"], "layer": meta["layer"],
+            "status": "FAIL", "reason": "1 affected, 0 to review; home walk stopped early (max_entries)",
+            "findings": [{"result": "affected", "component": "Java image", "version": "17.0.21"}],
+            "scan_truncated": True,
+        }]}
+        frag = hc.report_fragments(doc, "dev-laptop", "2026-11-18")
+        self.assertEqual(frag["evidence"][0]["collection_status"], "truncated")
+        self.assertEqual(frag["required_checks"][0]["status"], "FAIL")
 
     def test_never_starts_mysql(self):
         self.s.dpkg({"mysql-server": "8.4.13-1"})

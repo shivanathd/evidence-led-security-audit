@@ -1334,11 +1334,14 @@ WANTED_PY = {"litellm", "brotli", "brotlicffi", "certifi", "pillow", "wasmtime",
 
 def py_installs(host):
     """{normalized_name: [(version, path, label)]} across all environments, conda-meta and vendored certifi."""
+    host._py_installs_used = True
     def collect():
         out = {}
+        complete = True
         for label, sp in site_dirs(host):
             if host.budget.over():
                 host.gaps.add("time_budget", sp, "python environment scan stopped")
+                complete = False
                 break
             for n, ver, p in hs.python_dists(sp, WANTED_PY):
                 out.setdefault(n, []).append((ver, p, label))
@@ -1348,6 +1351,7 @@ def py_installs(host):
         for label, root in env_roots(host):
             for n, ver, p in hs.conda_meta(os.path.join(root, "conda-meta"), WANTED_PY):
                 out.setdefault(n, []).append((ver, p, label + " (conda-meta)"))
+        host._cache["py_installs_complete"] = complete
         return out
     return host.cached("py_installs", collect)
 
@@ -1456,8 +1460,31 @@ def docker_refs(host, image_rx):
     return out
 
 
+def docker_image_operand(line):
+    """Image token from a FROM or image: declaration; empty for any other line."""
+    s = line.strip()
+    if not s or s.startswith("#"):
+        return ""
+    if s.upper().startswith("FROM "):
+        parts = s.split()
+        i = 1
+        while i < len(parts) and parts[i].startswith("--"):
+            flag = parts[i]
+            i += 1
+            if "=" not in flag and i < len(parts) and parts[i].upper() != "AS" and not parts[i].startswith("--"):
+                i += 1
+        if i >= len(parts) or parts[i].upper() == "AS":
+            return ""
+        return parts[i].strip("\"'")
+    m = re.match(r"(?i)^(?:-\s+)?image\s*:\s*(.*)$", s)
+    if not m:
+        return ""
+    val = m.group(1).split("#", 1)[0].strip().strip("\"'")
+    return val.split()[0] if val else ""
+
+
 def docker_decl_refs(host, image_rx):
-    """Like docker_refs, but only FROM / image: lines so Compose env values are not collected."""
+    """Like docker_refs, but only the image operand of FROM / image: lines."""
     out = []
     rx = re.compile(r"(?i)(?:^|[\s\"'=])((?:[\w.-]+(?::\d+)?/)*(?:%s))(?::([\w.-]+))?(?:@sha256:[0-9a-f]{64})?"
                     r"(?=$|[\s\"'])" % image_rx)
@@ -1466,12 +1493,22 @@ def docker_decl_refs(host, image_rx):
         if not text:
             continue
         for line in text.splitlines():
-            s = line.strip()
-            if not (s.upper().startswith("FROM ") or re.match(r"(?i)^(?:-\s+)?image\s*:", s)):
+            operand = docker_image_operand(line)
+            if not operand:
                 continue
-            for m in rx.finditer(s):
+            for m in rx.finditer(operand):
                 out.append((path, m.group(1), m.group(2) or "latest"))
     return out
+
+
+def _first_nonempty_line(text):
+    if not text:
+        return None
+    for line in text.splitlines():
+        s = line.strip()
+        if s:
+            return s
+    return None
 
 
 def browsers(host):
@@ -6015,7 +6052,9 @@ tiroappteam.tiro-application-toolkits jonnyclyde.rojo-syncs jonnyclyde.open-boar
 """.split())
 
 _ARTEX_KEY = re.compile(
-    r"(?i)^(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*?(?:key|secret|token|password)[A-Za-z0-9_.-]*)\s*[:=]")
+    r"(?i)^(?:export\s+)?[\"']?([A-Za-z_][A-Za-z0-9_.-]*?(?:key|secret|token|password)[A-Za-z0-9_.-]*)[\"']?\s*[:=]")
+_VSX_VER_SUFFIX = re.compile(
+    r"(?i)^\d+(?:\.\d+)+(?:-[0-9A-Za-z.]+)*(?:-(?:linux|darwin|win32|alpine|web|universal)(?:-[A-Za-z0-9]+)?)?$")
 _AF_MALICIOUS = frozenset({"1.26.1", "1.26.2"})
 _AF_SIBLINGS = frozenset({
     "agent_framework_openai", "agent_framework_purview", "agent_framework_redis",
@@ -6256,11 +6295,10 @@ def check_axis_90436(host, r):
                 continue
             _classify_confluence(r, m.group(1), host.display(jar), "confluence-*.jar name")
             classified = True
-            break
         if hs.is_plain_dir(root) and not classified:
             r.add("unknown", "confluence", "install directory present; version not in jar names",
                   path=host.display(root))
-    for path, _image, tag in docker_refs(host, r"confluence(?:-server)?"):
+    for path, _image, tag in docker_decl_refs(host, r"confluence(?:-server)?"):
         v = hs.parse_version(tag)
         if v is None or len(v.nums) < 2:
             r.add("info", "confluence image", "moving tag %s; pull and rebuild" % tag,
@@ -6297,10 +6335,15 @@ def check_ncentral_hf3(host, r):
         for vf in ("ncentral.version", "VERSION", "version.txt"):
             p = os.path.join(root, vf)
             text = hs.read_text(p, 4096, host.gaps)
-            if text:
-                raw = text.strip().splitlines()[0].strip()
-                _ncentral_classify(r, "n-central", raw, host.display(p), vf)
+            if text is None:
+                continue
+            raw = _first_nonempty_line(text)
+            if not raw:
+                r.add("unknown", "n-central", "version file empty or whitespace", path=host.display(p))
                 classified = True
+                continue
+            _ncentral_classify(r, "n-central", raw, host.display(p), vf)
+            classified = True
         if hs.is_plain_dir(root) and not classified:
             r.add("unknown", "n-central", "install directory present; version file not readable",
                   path=host.display(root))
@@ -6312,14 +6355,20 @@ def check_ncentral_hf3(host, r):
                 for vf in ("ncentral.version", "VERSION", "version.txt"):
                     p = os.path.join(root, vf)
                     text = hs.read_text(p, 4096, host.gaps)
-                    if text:
-                        _ncentral_classify(r, "N-central", text.strip().splitlines()[0].strip(),
-                                           host.display(p), vf)
+                    if text is None:
+                        continue
+                    raw = _first_nonempty_line(text)
+                    if not raw:
+                        r.add("unknown", "N-central", "version file empty or whitespace",
+                              path=host.display(p))
                         classified = True
+                        continue
+                    _ncentral_classify(r, "N-central", raw, host.display(p), vf)
+                    classified = True
                 if hs.is_plain_dir(root) and not classified:
                     r.add("unknown", "N-central", "Program Files tree present; version file not readable",
                           path=host.display(root))
-    for path, _image, tag in docker_refs(host, r"n-central|ncentral"):
+    for path, _image, tag in docker_decl_refs(host, r"n-central|ncentral"):
         v = hs.parse_version(tag)
         if v is None or len(v.nums) < 3:
             r.add("info", "n-central image", "moving tag %s" % tag, path=host.display(path), version=tag)
@@ -6350,7 +6399,7 @@ def _blank_canvas_id(name):
         if not low.startswith(prefix):
             continue
         suffix = low[len(prefix):]
-        if hs.parse_version(suffix) is not None:
+        if _VSX_VER_SUFFIX.match(suffix):
             return eid
     return None
 
@@ -6376,8 +6425,7 @@ def check_apple_65339(host, r):
     ov = hs.parse_version(os_ver) if os_ver else None
     os_path = host.display(plist) if hs.is_regular(plist) else None
     if ov is None:
-        if hs.is_regular(plist):
-            r.add("unknown", "macOS", "ProductVersion not readable", path=os_path, version=os_ver)
+        r.add("unknown", "macOS", "ProductVersion not readable", path=os_path, version=os_ver)
         return
     major = ov.nums[0]
     if major >= 27:
@@ -6447,15 +6495,15 @@ def check_agent_framework_1_26(host, r):
             r.add("review", "agent-framework pin",
                   "unpinned, ranged or wildcard requirement could have resolved to 1.26.1/1.26.2",
                   path=disp, version=v.replace("spec:", ""))
-        elif n in _AF_SIBLINGS and str(v).startswith("spec:"):
+        elif n in _AF_SIBLINGS and (str(v).startswith("spec:") or "*" in str(v)):
             r.add("review", "%s pin" % name,
-                  "unpinned sibling; no malicious sibling release named as of 18 Nov 2026",
+                  "unpinned, ranged or wildcard sibling; no malicious sibling release named as of 18 Nov 2026",
                   path=disp, version=v.replace("spec:", ""))
         elif n == "agent_framework":
             r.add("info", "agent-framework pin", "not 1.26.1 or 1.26.2", path=disp, version=v)
     for _label, sp in site_dirs(host):
         _af_scan_site(host, r, sp)
-    for path, _image, tag in docker_refs(host, r"agent-framework"):
+    for path, _image, tag in docker_decl_refs(host, r"agent-framework"):
         t = re.sub(r"^v", "", tag)
         if t in _AF_MALICIOUS:
             r.add("affected", "agent-framework image", "image tag %s" % tag,
@@ -6575,7 +6623,7 @@ def check_java4shell_114938(host, r):
             r.add("unknown", "Java release", "JAVA_VERSION not found", path=disp)
             continue
         _java_classify(r, "Java runtime", m.group(1), disp, "release")
-    for path, _image, tag in docker_refs(host, r"openjdk|eclipse-temurin|amazoncorretto"):
+    for path, _image, tag in docker_decl_refs(host, r"openjdk|eclipse-temurin|amazoncorretto"):
         if _java8_perf_status(tag) is not None:
             _java_classify(r, "Java image", tag, host.display(path), "image tag")
             continue
@@ -6614,14 +6662,19 @@ def check_puppet_115731(host, r):
                     classify_version(r, name, ver, None, _PE_ENTERPRISE_FLOORS, 2, source=src)
     pe = host.sys("/opt/puppetlabs/server/pe_version")
     text = hs.read_text(pe, 4096, host.gaps)
-    if text:
-        classify_version(r, "Puppet Enterprise", text.strip().splitlines()[0].strip(),
-                         host.display(pe), _PE_ENTERPRISE_FLOORS, 2, source="pe_version")
+    raw = _first_nonempty_line(text)
+    if raw:
+        classify_version(r, "Puppet Enterprise", raw, host.display(pe), _PE_ENTERPRISE_FLOORS, 2,
+                         source="pe_version")
+    elif text is not None:
+        r.add("unknown", "Puppet Enterprise", "pe_version empty or whitespace", path=host.display(pe))
     ver_path = host.sys("/opt/puppetlabs/puppet/VERSION")
     text = hs.read_text(ver_path, 4096, host.gaps)
-    if text:
-        _puppet_core_classify(r, "puppet-agent", text.strip().splitlines()[0].strip(),
-                              host.display(ver_path), "VERSION")
+    raw = _first_nonempty_line(text)
+    if raw:
+        _puppet_core_classify(r, "puppet-agent", raw, host.display(ver_path), "VERSION")
+    elif text is not None:
+        r.add("unknown", "puppet-agent", "VERSION empty or whitespace", path=host.display(ver_path))
     for formula, rows in cellar(host).items():
         if formula in ("puppet", "puppet-agent"):
             for ver, path in rows:
@@ -6658,7 +6711,10 @@ def check_roller_129448(host, r):
                       path=host.display(path))
             else:
                 _roller_classify(r, raw, host.display(path), os.path.basename(path))
-    for path, _image, tag in docker_refs(host, r"roller"):
+        elif path.replace("\\", "/").endswith("/org/apache/roller/version.properties"):
+            r.add("unknown", "Apache Roller", "version.properties has no version key",
+                  path=host.display(path))
+    for path, _image, tag in docker_decl_refs(host, r"roller"):
         v = hs.parse_version(tag)
         if v is None:
             r.add("info", "Apache Roller image", "moving tag %s" % tag, path=host.display(path),
@@ -6770,7 +6826,7 @@ def check_mysql_114952(host, r):
                 m = _MYSQL_SERVER_H.search(text)
                 if m:
                     _mysql_classify(r, "MySQL Server", m.group(1), host.display(hdr), "mysql_version.h")
-    for path, image, tag in docker_refs(host, r"mysql"):
+    for path, image, tag in docker_decl_refs(host, r"mysql"):
         last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
         if last != "mysql" or "mariadb" in image.lower():
             continue
@@ -7278,12 +7334,21 @@ INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest
 
 def run_check(host, meta):
     r = Result()
+    host._py_installs_used = False
     try:
         meta["fn"](host, r)
     except Exception as exc:  # a parser bug must not hide other checks
         r.blocked.append("check error: %s" % textscan.diagnostic_text(type(exc).__name__))
     kinds = {f["result"] for f in r.findings}
     walk_stopped = meta["uses_walk"] and not index(host).complete
+    py_stopped = host._py_installs_used and not host._cache.get("py_installs_complete", True)
+    scan_stopped = walk_stopped or py_stopped
+    stopped_bits = []
+    if walk_stopped:
+        stopped_bits.append("home walk stopped early (%s)" % index(host).stopped)
+    if py_stopped:
+        stopped_bits.append("python environment scan stopped")
+    stopped_note = "; ".join(stopped_bits)
     if kinds & {"affected", "review"}:
         status = "FAIL"
         n_aff = sum(f["result"] == "affected" for f in r.findings)
@@ -7293,8 +7358,8 @@ def run_check(host, meta):
         status, reason = "BLOCKED", "present but version or state could not be read without executing it"
     elif r.blocked:
         status, reason = "BLOCKED", "; ".join(r.blocked)
-    elif walk_stopped:
-        status, reason = "BLOCKED", "home walk stopped early (%s); nothing found in the part that was listed" % index(host).stopped
+    elif scan_stopped:
+        status, reason = "BLOCKED", stopped_note + "; nothing found in the part that was listed"
     elif meta["id"] in INDICATOR_CHECKS or r.present:
         status = "PASS"
         reason = "nothing to fix found in the listed scope" if meta["id"] in INDICATOR_CHECKS else \
@@ -7303,6 +7368,8 @@ def run_check(host, meta):
         status, reason = "NOT_APPLICABLE", "not present: no install, package, file or config found"
     if r.blocked and status == "FAIL":
         reason += "; also incomplete: " + "; ".join(r.blocked)
+    if scan_stopped and status in ("FAIL", "PASS", "BLOCKED") and stopped_note not in reason:
+        reason += "; " + stopped_note
     deep = host.gaps.counts.get("max_depth", 0) if meta["uses_walk"] else 0
     if deep and status in ("PASS", "FAIL", "NOT_APPLICABLE"):
         reason += "; %d folder(s) deeper than --max-depth %d were not listed" % (deep, host.max_depth)
@@ -7312,7 +7379,8 @@ def run_check(host, meta):
     out = {k: meta[k] for k in ("id", "title", "section", "confirmation", "layer", "briefing_fact", "remediation",
                                 "os_support")}
     out.update({"status": status, "reason": reason, "findings": findings[:500], "notes": r.notes,
-                "sources": [{"title": SRC[s][0], "url": SRC[s][1]} for s in meta["sources"]]})
+                "sources": [{"title": SRC[s][0], "url": SRC[s][1]} for s in meta["sources"]],
+                "scan_truncated": bool(scan_stopped)})
     if len(findings) > 500:
         out["findings_truncated"] = len(findings) - 500
     if meta["id"].startswith("testmetest") and status == "FAIL":
@@ -7340,8 +7408,10 @@ def report_fragments(doc, target, collected_on):
                                                            ", ".join("%s=%d" % kv for kv in sorted(counts.items())) or "none",
                                                            (". First: " + top) if top else "")
         status = "complete"
-        if c["status"] == "BLOCKED":
-            status = "truncated" if "stopped" in c["reason"] else "unparsed"
+        if c.get("scan_truncated") or (c["status"] == "BLOCKED" and "stopped" in c["reason"]):
+            status = "truncated"
+        elif c["status"] == "BLOCKED":
+            status = "unparsed"
         ev = {"id": "ev-host-" + c["id"], "kind": "config_snapshot" if c["layer"] == "config" else "file_excerpt",
               "target": target, "layer": c["layer"], "summary": summary[:1500], "collected_on": collected_on,
               "collection_status": status, "executed": True, "execution_context": "read_only_local",
