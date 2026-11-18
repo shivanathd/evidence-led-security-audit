@@ -1393,6 +1393,21 @@ def py_pin_hits(host, wanted, include_docker=True):
     return out
 
 
+def _py_pin_exact(raw):
+    """Return the version string of an ``==`` or ``===`` pin, else None.
+
+    ``py_pins`` keeps ``===ver`` so callers can treat arbitrary equality as
+    exact-string matching. Specs, wildcards and empty values are not exact.
+    """
+    s = str(raw).strip()
+    if not s or s.startswith("spec:") or "*" in s:
+        return None
+    if s.startswith("==="):
+        rest = s[3:].strip()
+        return rest or None
+    return s
+
+
 def global_node_modules(host):
     dirs = [host.sys("/usr/local/lib/node_modules"), host.sys("/usr/lib/node_modules"),
             host.sys("/opt/homebrew/lib/node_modules"), host.h(".npm-global", "lib", "node_modules"),
@@ -2269,7 +2284,8 @@ def check_litellm(host, r):
               "then pin 1.106.2" if res == "affected" else "installed; not the malicious release",
               path=host.display(path), version=ver)
     for path, _n, v in py_pin_hits(host, {"litellm"}):
-        if v == "1.107.0":
+        exact = _py_pin_exact(v)
+        if exact == "1.107.0":
             r.add("affected", "litellm pin", "pins the malicious release", path=host.display(path), version=v)
         else:
             r.add("info", "litellm reference", "version not pinned to the malicious release (installed version "
@@ -2422,7 +2438,8 @@ def check_brotli_python(host, r):
         else:
             r.add("review", "brotlicffi (%s)" % label, "older than 1.2.0; not covered by the briefing", path=host.display(path), version=ver)
     for path, n, v in py_pin_hits(host, {"brotli", "brotlicffi"}, include_docker=False):
-        pv = hs.parse_version(v) if not v.startswith("spec:") else None
+        exact = _py_pin_exact(v)
+        pv = hs.parse_version(exact) if exact else None
         if pv is None:
             r.add("info", "%s reference" % n, "not an exact pin", path=host.display(path), version=v.replace("spec:", ""))
             continue
@@ -2448,7 +2465,8 @@ def check_certifi(host, r):
                   "older than 2026.10.19 still trusts the eMudhra roots" if bad else "2026.10.19 or newer",
                   path=host.display(path), version=ver)
     for path, _n, v in py_pin_hits(host, {"certifi"}, include_docker=False):
-        pv = hs.parse_version(v) if not v.startswith("spec:") else None
+        exact = _py_pin_exact(v)
+        pv = hs.parse_version(exact) if exact else None
         if pv is not None:
             r.add("affected" if hs.below(pv, "2026.10.19") else "info", "certifi pin", "exact pin", path=host.display(path), version=v)
 
@@ -2646,7 +2664,8 @@ def check_pillow(host, r):
         r.add("unknown" if v is None else ("affected" if hs.below(v, "13.0.0") else "info"), "Pillow (%s)" % label,
               "below 13.0.0" if v is not None and hs.below(v, "13.0.0") else "13.0.0 or newer", path=host.display(path), version=ver)
     for path, _n, v in py_pin_hits(host, {"pillow"}, include_docker=False):
-        pv = hs.parse_version(v) if not v.startswith("spec:") else None
+        exact = _py_pin_exact(v)
+        pv = hs.parse_version(exact) if exact else None
         if pv:
             r.add("affected" if hs.below(pv, "13.0.0") else "info", "Pillow pin", "exact pin", path=host.display(path), version=v)
 
@@ -6503,10 +6522,17 @@ def _af_scan_site(host, r, sp):
 
 
 def _af_malicious_ver(raw):
-    """True when ``raw`` is version-identical to 1.26.1 or 1.26.2 (not ``===``)."""
+    """True when ``raw`` is 1.26.1 or 1.26.2.
+
+    ``===`` pins match by exact string (PEP 440 arbitrary equality). Other
+    forms use Python version identity, so ``==1.26.2`` with a trailing extra
+    ``.0`` still matches.
+    """
     s = str(raw).strip()
-    if not s or s.startswith("spec:") or s.startswith("===") or "*" in s or s == DIGEST_PINNED_TAG:
+    if not s or s.startswith("spec:") or "*" in s or s == DIGEST_PINNED_TAG:
         return False
+    if s.startswith("==="):
+        return s[3:] in _AF_MALICIOUS
     if s in _AF_MALICIOUS:
         return True
     v = hs.parse_version(s)

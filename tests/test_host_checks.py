@@ -407,6 +407,12 @@ class PythonPackages(SimCase):
         self.assertStatus(c, "PASS")
         self.assertEqual(set(results(c)), {"info"})
 
+    def test_litellm_triple_equals_pin_is_affected(self):
+        self.s.write("~/code/proxy/requirements.txt", "litellm===1.107.0\n")
+        c = self.s.check("litellm-1-107-0")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
     def test_litellm_windows_layout_and_pipx(self):
         w = self.sim("windows")
         w.venv("~/work/.venv", {"litellm": "1.107.0"}, windows_layout=True)

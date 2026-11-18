@@ -419,6 +419,13 @@ class AgentFramework126(SimCase):
     def test_triple_equals_pin_is_not_identity(self):
         self.s.write("~/code/app/requirements.txt", "agent-framework===1.26.2\n")
         c = self.s.check("agent-framework-1-26")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_triple_equals_trailing_extra_zero_is_not_identity(self):
+        pin = "agent-framework===%s\n" % hostfix.dotted(1, 26, 2, 0)
+        self.s.write("~/code/app/requirements.txt", pin)
+        c = self.s.check("agent-framework-1-26")
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
