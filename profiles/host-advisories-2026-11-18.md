@@ -116,7 +116,7 @@ Same as every other host check: see [host-checks.md](../references/host-checks.m
 
 ## Closing a finding under this profile
 
-Use `verification_basis: vendor_patch` only with the matching primary page retrieved this run **and** on-disk metadata at or above the matching floor. Remote API off, web.xml, HF2 and JVM flags are mitigation, never `fixed`.
+Use `verification_basis: vendor_patch` only with the matching primary page retrieved this run **and** on-disk metadata at or above the matching floor for the active install. A patched checkout or Dockerfile tag is not enough for an image-based target: record the deployed image digest. Do not invent image fields for non-image installs. Remote API off, web.xml, HF2 and JVM flags are mitigation, never `fixed`.
 
 ## What needs a human
 

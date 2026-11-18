@@ -1456,6 +1456,24 @@ def docker_refs(host, image_rx):
     return out
 
 
+def docker_decl_refs(host, image_rx):
+    """Like docker_refs, but only FROM / image: lines so Compose env values are not collected."""
+    out = []
+    rx = re.compile(r"(?i)(?:^|[\s\"'=])((?:[\w.-]+(?::\d+)?/)*(?:%s))(?::([\w.-]+))?(?:@sha256:[0-9a-f]{64})?"
+                    r"(?=$|[\s\"'])" % image_rx)
+    for path in index(host).docker:
+        text = text_of(host, path, 4 * MIB)
+        if not text:
+            continue
+        for line in text.splitlines():
+            s = line.strip()
+            if not (s.upper().startswith("FROM ") or re.match(r"(?i)^(?:-\s+)?image\s*:", s)):
+                continue
+            for m in rx.finditer(s):
+                out.append((path, m.group(1), m.group(2) or "latest"))
+    return out
+
+
 def browsers(host):
     def collect():
         out = []
@@ -6017,9 +6035,9 @@ JAVA_21_FLOOR = "21.0.13" + ".1"
 JAVA_25_FLOOR = "25.0.5" + ".1"
 JAVA_27_FLOOR = "27.0.1" + ".1"
 _JAVA_VER = re.compile(r'(?m)^JAVA_VERSION="([^"]+)"')
-_CONF_JAR = re.compile(r"^confluence-(\d+\.\d+\.\d+)", re.I)
+_CONF_JAR = re.compile(r"^confluence-(\d+\.\d+\.\d+)\.jar$", re.I)
 _NC_FLOOR = "2026.4.1" + ".39"
-_ROLLER_VER = re.compile(r"(?im)^(?:ro\.)?version\s*=\s*(\S+)")
+_ROLLER_VER = re.compile(r"(?im)^(?:ro\.)?version\s*=\s*(\S*)")
 _MYSQL_SERVER_H = re.compile(r'#define\s+MYSQL_SERVER_VERSION\s+"([^"]+)"')
 _VC_BUILD = re.compile(r"(\d{5,})")
 _PE_CORE_FLOORS = ["8.22.2", "9.1.3"]
@@ -6071,10 +6089,19 @@ def check_artex_gateway_keys(host, r):
                   "named fields %s; values not copied" % ", ".join(names), path=disp)
         else:
             r.add("info", "AI gateway config", "no key/secret/token field names", path=disp)
-    for path, image, tag in docker_refs(host, r"litellm|dify(?:-api)?|one-api|new-api"):
+    for path, image, _tag in docker_decl_refs(host, r"litellm|dify(?:-api)?|one-api|new-api"):
+        low = image.lower()
+        if "new-api" in low:
+            product = "new-api"
+        elif "one-api" in low:
+            product = "one-api"
+        elif "dify" in low:
+            product = "dify"
+        else:
+            product = "litellm"
         r.add("review", "AI gateway image",
-              "image present; inspect config for stored provider keys (values not read here)",
-              path=host.display(path), version=tag, image=image)
+              "%s image declaration; inspect config for stored provider keys (values not copied)" % product,
+              path=host.display(path))
 
 
 def _vc_classify(r, component, ver_raw, build, path, source):
@@ -6216,19 +6243,23 @@ def check_axis_90436(host, r):
               "Axis 1.x through 1.4 is EOL with no 1.x fix for CVE-2026-90436",
               path=host.display(path))
     for root in _confluence_dirs(host):
+        classified = False
         lib = os.path.join(root, "confluence", "WEB-INF", "lib")
         if not hs.is_plain_dir(lib):
             lib = os.path.join(root, "WEB-INF", "lib")
         for name in hs.listdir(lib):
             m = _CONF_JAR.match(name)
-            if m:
-                _classify_confluence(r, m.group(1), host.display(os.path.join(lib, name)),
-                                    "confluence-*.jar name")
-                break
-        else:
-            if hs.is_plain_dir(root) and not any(f["component"] == "confluence" for f in r.findings):
-                r.add("unknown", "confluence", "install directory present; version not in jar names",
-                      path=host.display(root))
+            if not m:
+                continue
+            jar = os.path.join(lib, name)
+            if not hs.is_regular(jar):
+                continue
+            _classify_confluence(r, m.group(1), host.display(jar), "confluence-*.jar name")
+            classified = True
+            break
+        if hs.is_plain_dir(root) and not classified:
+            r.add("unknown", "confluence", "install directory present; version not in jar names",
+                  path=host.display(root))
     for path, _image, tag in docker_refs(host, r"confluence(?:-server)?"):
         v = hs.parse_version(tag)
         if v is None or len(v.nums) < 2:
@@ -6277,13 +6308,15 @@ def check_ncentral_hf3(host, r):
         for pf in host.program_files():
             for vendor in ("N-able", "N-able Technologies", "SolarWinds"):
                 root = os.path.join(pf, vendor, "N-central")
+                classified = False
                 for vf in ("ncentral.version", "VERSION", "version.txt"):
                     p = os.path.join(root, vf)
                     text = hs.read_text(p, 4096, host.gaps)
                     if text:
                         _ncentral_classify(r, "N-central", text.strip().splitlines()[0].strip(),
                                            host.display(p), vf)
-                if hs.is_plain_dir(root) and not any(f.get("path") for f in r.findings):
+                        classified = True
+                if hs.is_plain_dir(root) and not classified:
                     r.add("unknown", "N-central", "Program Files tree present; version file not readable",
                           path=host.display(root))
     for path, _image, tag in docker_refs(host, r"n-central|ncentral"):
@@ -6313,7 +6346,11 @@ def _blank_canvas_id(name):
     if low in BLANK_CANVAS_VSX:
         return low
     for eid in BLANK_CANVAS_VSX:
-        if low.startswith(eid + "-"):
+        prefix = eid + "-"
+        if not low.startswith(prefix):
+            continue
+        suffix = low[len(prefix):]
+        if hs.parse_version(suffix) is not None:
             return eid
     return None
 
@@ -6331,7 +6368,7 @@ def check_blank_canvas_vsx(host, r):
 
 
 def check_apple_65339(host, r):
-    """macOS ProductVersion vs HT148281 (Tahoe 26.6.2 / Sequoia 15.8)."""
+    """macOS ProductVersion vs HT148281 Tahoe 26.6.2 / HT149043 Sequoia 15.8."""
     if host.platform != "darwin":
         return
     plist = host.sys("/System/Library/CoreServices/SystemVersion.plist")
@@ -6354,15 +6391,16 @@ def check_apple_65339(host, r):
             r.add("info", "macOS", "Tahoe 26.6.2 or newer (HT148281)", path=os_path, version=os_ver)
     elif major == 15:
         if hs.below(ov, "15.8"):
-            r.add("affected", "macOS", "below Sequoia 15.8 (HT148281 / CVE-2026-65339)", path=os_path,
+            r.add("affected", "macOS", "below Sequoia 15.8 (HT149043 / CVE-2026-65339)", path=os_path,
                   version=os_ver)
         else:
-            r.add("info", "macOS", "Sequoia 15.8 or newer (HT148281)", path=os_path, version=os_ver)
+            r.add("info", "macOS", "Sequoia 15.8 or newer (HT149043)", path=os_path, version=os_ver)
     elif major == 14:
-        r.add("review", "macOS", "macOS 14; HT148281 names Tahoe 26.6.2 and Sequoia 15.8",
+        r.add("review", "macOS", "macOS 14; HT148281 names Tahoe 26.6.2 and HT149043 names Sequoia 15.8",
               path=os_path, version=os_ver)
     else:
-        r.add("review", "macOS", "macOS line %s is not in HT148281" % major, path=os_path, version=os_ver)
+        r.add("review", "macOS", "macOS line %s is not in HT148281 / HT149043" % major, path=os_path,
+              version=os_ver)
 
 
 def _af_scan_site(host, r, sp):
@@ -6372,6 +6410,10 @@ def _af_scan_site(host, r, sp):
             continue
         digest = sha256_of(p, MIB)
         base = os.path.basename(rel)
+        if digest is None:
+            r.add("unknown", "agent-framework IOC file",
+                  "file present; hash could not be read (%s)" % base, path=host.display(p))
+            continue
         if base == "__init__.py" and digest != expected:
             continue
         if digest == expected:
@@ -6401,9 +6443,9 @@ def check_agent_framework_1_26(host, r):
         if n == "agent_framework" and v in _AF_MALICIOUS:
             r.add("affected", "agent-framework pin", "pins a malicious 1.26.1/1.26.2 release",
                   path=disp, version=v)
-        elif n == "agent_framework" and str(v).startswith("spec:"):
+        elif n == "agent_framework" and (str(v).startswith("spec:") or "*" in str(v)):
             r.add("review", "agent-framework pin",
-                  "unpinned or ranged requirement could have resolved to 1.26.1/1.26.2",
+                  "unpinned, ranged or wildcard requirement could have resolved to 1.26.1/1.26.2",
                   path=disp, version=v.replace("spec:", ""))
         elif n in _AF_SIBLINGS and str(v).startswith("spec:"):
             r.add("review", "%s pin" % name,
@@ -6424,15 +6466,22 @@ def check_agent_framework_1_26(host, r):
 
 
 def _java8_perf_status(raw):
-    m = re.search(r"1\.8\.0_(\d+)(.*)", raw)
+    s = str(raw)
+    m = re.search(r"1\.8\.0_(\d+)(.*)", s)
+    compact = False
+    if not m:
+        m = re.search(r"(?i)(?:^|[^0-9])8u(\d+)(.*)", s)
+        compact = True
     if not m:
         return None
     u, rest = int(m.group(1)), m.group(2).lower()
     if "perf" not in rest:
-        return "not-this"
-    if u < 513:
+        return None if compact else "not-this"
+    if 511 <= u < 513:
         return "affected"
-    return "ok"
+    if u >= 513:
+        return "ok"
+    return "not-this"
 
 
 def _java_classify(r, component, raw, path, source):
@@ -6496,6 +6545,8 @@ def _java_release_files(host):
         if formula == "openjdk" or formula.startswith("openjdk@"):
             for _v, p in vers:
                 paths.append(os.path.join(p, "release"))
+                paths.append(os.path.join(p, "libexec", "release"))
+                paths.append(os.path.join(p, "libexec", "openjdk.jdk", "Contents", "Home", "release"))
     if host.platform == "windows":
         for pf in host.program_files():
             for vendor in ("Java", "Eclipse Adoptium", "Microsoft", "Amazon Corretto", "Zulu",
@@ -6525,6 +6576,9 @@ def check_java4shell_114938(host, r):
             continue
         _java_classify(r, "Java runtime", m.group(1), disp, "release")
     for path, _image, tag in docker_refs(host, r"openjdk|eclipse-temurin|amazoncorretto"):
+        if _java8_perf_status(tag) is not None:
+            _java_classify(r, "Java image", tag, host.display(path), "image tag")
+            continue
         v = hs.parse_version(tag)
         if v is None or len(v.nums) < 2:
             r.add("info", "Java image", "moving tag %s" % tag, path=host.display(path), version=tag)
@@ -6598,7 +6652,12 @@ def check_roller_129448(host, r):
             continue
         m = _ROLLER_VER.search(text)
         if m:
-            _roller_classify(r, m.group(1).strip(), host.display(path), os.path.basename(path))
+            raw = m.group(1).strip()
+            if not raw:
+                r.add("unknown", "Apache Roller", "version key present with no value",
+                      path=host.display(path))
+            else:
+                _roller_classify(r, raw, host.display(path), os.path.basename(path))
     for path, _image, tag in docker_refs(host, r"roller"):
         v = hs.parse_version(tag)
         if v is None:
@@ -6614,13 +6673,26 @@ def _mysql_kind(name):
         return None
     if "client" in n or n.startswith("libmysql") or n in ("mysql-common",):
         return None
-    if "cluster" in n or n.startswith("ndb"):
+    if n.startswith("mysql-cluster") or "mysql-cluster" in n or n.startswith("ndb"):
         return "cluster"
     if n in ("mysql-server", "mysql-community-server", "mysql", "percona-server-server"):
         return "server"
     if re.match(r"^mysql-server-\d", n) or re.match(r"^mysql@?\d", n):
         return "server"
     return None
+
+
+def _mysql_tag_unresolved(tag):
+    """True for moving aliases (latest, 8.4) that must not be padded to a patch."""
+    t = str(tag).strip().lower()
+    if t in ("latest", "lts", "current", "stable", "nightly"):
+        return True
+    v = hs.parse_version(tag)
+    if v is None:
+        return True
+    if v.nums[:2] == (26, 10):
+        return False
+    return len(v.nums) < 3
 
 
 def _mysql_classify(r, component, raw, path, source, kind="server"):
@@ -6702,9 +6774,10 @@ def check_mysql_114952(host, r):
         last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
         if last != "mysql" or "mariadb" in image.lower():
             continue
-        v = hs.parse_version(tag)
-        if v is None or (len(v.nums) < 2 and v.nums[0] < 26):
-            r.add("info", "mysql image", "moving tag %s" % tag, path=host.display(path), version=tag)
+        if _mysql_tag_unresolved(tag):
+            r.add("unknown", "mysql image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
         else:
             _mysql_classify(r, "mysql image", tag, host.display(path), "image tag")
 
@@ -7134,7 +7207,7 @@ CHECKS = [
                "N-central on-prem floor HF3 2026.4.1.39. HF2 2026.4.1.26 is still affected. Hosted NCOD "
                "is not this check. Never start N-central.",
                "Upgrade on-prem N-central to 2026.4.1.39 (HF3). This tool never starts N-central.",
-               ALL_OS, check_ncentral_hf3, uses_walk=False),
+               ALL_OS, check_ncentral_hf3),
     check_meta("blank-canvas-vsx",
                "Blank Canvas malicious VS Code / Cursor extensions (11/03/2026)",
                "check_now", "confirmed", "config",
@@ -7147,9 +7220,9 @@ CHECKS = [
                "macOS below Tahoe 26.6.2 / Sequoia 15.8 (CVE-2026-65339)",
                "check_if_used", "confirmed", "runtime",
                ["apple-148281", "apple-149043", "cve-65339"],
-               "CVE-2026-65339 (audiomxd). HT148281: macOS Tahoe 26.6.2 and Sequoia 15.8. macOS 14 is "
+               "CVE-2026-65339 (audiomxd). HT148281: macOS Tahoe 26.6.2. HT149043: Sequoia 15.8. macOS 14 is "
                "review. iOS / iPadOS need MDM and are skipped.",
-               "Install the HT148281 update. This tool never starts audiomxd.",
+               "Install HT148281 (Tahoe 26.6.2) or HT149043 (Sequoia 15.8). This tool never starts audiomxd.",
                "macOS only", check_apple_65339, uses_walk=False),
     check_meta("agent-framework-1-26",
                "Microsoft agent-framework 1.26.1 / 1.26.2 malicious PyPI releases",
@@ -7170,7 +7243,7 @@ CHECKS = [
                "the 17 Nov 2026 floors. 8/11 are not this CVE except 8u511-perf until 8u513-perf. "
                "Never start java.",
                "Install the 17 Nov 2026 CPU build for that train. This tool never starts java.",
-               ALL_OS, check_java4shell_114938, uses_walk=False),
+               ALL_OS, check_java4shell_114938),
     check_meta("puppet-115731",
                "Puppet Core / PE below 9.1.3 / 8.22.2 / PE 2026.0.1 (CVE-2026-115731, CISA KEV)",
                "check_if_used", "confirmed", "runtime",

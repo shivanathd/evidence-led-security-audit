@@ -54,6 +54,9 @@ class Catalog(SimCase):
         for cid in ("vcenter-log4shell", "axis-90436", "ncentral-hf3", "apple-65339",
                     "java4shell-114938", "puppet-115731", "roller-129448", "mysql-114952"):
             self.assertNotIn(cid, hc.INDICATOR_CHECKS)
+        for cid in ("ncentral-hf3", "java4shell-114938", "axis-90436", "mysql-114952"):
+            meta = next(m for m in hc.CHECKS if m["id"] == cid)
+            self.assertTrue(meta["uses_walk"], cid)
         for m in hc.CHECKS:
             for key in m["sources"]:
                 self.assertIn(key, hc.SRC)
@@ -106,11 +109,21 @@ class ArtexGatewayKeys(SimCase):
         c = self.s.check("artex-gateway-keys")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["review"])
+        blob = json.dumps(c)
+        self.assertNotIn("langgenius/dify-api", blob)
+
+    def test_compose_env_value_is_not_an_image(self):
+        sentinel = "opaque-test-value/litellm"
+        self.s.write("~/code/gw/compose.yml", "environment:\n  PROVIDER_TOKEN: %s\n" % sentinel)
+        c = self.s.check("artex-gateway-keys")
+        self.assertStatus(c, "PASS")
+        self.assertNotIn(sentinel, json.dumps(c))
 
     def test_never_connects(self):
         self.s.write("~/.litellm/config.yaml", "litellm_settings:\n  drop_params: true\n")
-        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")):
+        with mock.patch.object(socket.socket, "connect", side_effect=AssertionError("network")) as conn:
             c = self.s.check("artex-gateway-keys")
+        conn.assert_not_called()
         self.assertNotIn("check error", c["reason"])
 
 
@@ -180,6 +193,20 @@ class Axis90436(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_backup_jar_is_not_patch_evidence(self):
+        self.s.write("/opt/atlassian/confluence/confluence/WEB-INF/lib/confluence-9.2.28.jar.bak", b"PK")
+        c = self.s.check("axis-90436")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_second_install_without_jar_is_unknown(self):
+        self.s.write("/opt/atlassian/confluence/confluence/WEB-INF/lib/confluence-9.2.28.jar", b"PK")
+        self.s.mkdir("/usr/local/atlassian/confluence")
+        c = self.s.check("axis-90436")
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertIn("info", results(c))
+
 
 class NcentralHf3(SimCase):
     def test_empty_not_applicable(self):
@@ -210,6 +237,15 @@ class NcentralHf3(SimCase):
         self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["unknown"])
 
+    def test_second_windows_install_without_version_is_unknown(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/N-able/N-central/ncentral.version", "2026.4.1.39\n")
+        w.mkdir("C:/Program Files (x86)/N-able/N-central")
+        c = w.check("ncentral-hf3")
+        self.assertStatus(c, "BLOCKED")
+        self.assertIn("unknown", results(c))
+        self.assertIn("info", results(c))
+
 
 class BlankCanvasVsx(SimCase):
     def test_empty_is_pass(self):
@@ -232,6 +268,10 @@ class BlankCanvasVsx(SimCase):
         self.s.write("~/.vscode/extensions/jonnyclyde.open-board-0.2.1/package.json", "{}")
         self.assertEqual(results(self.s.check("blank-canvas-vsx")), ["affected"])
 
+    def test_id_prefix_without_version_suffix_is_ignored(self):
+        self.s.write("~/.vscode/extensions/jonnyclyde.open-board-notes/package.json", "{}")
+        self.assertStatus(self.s.check("blank-canvas-vsx"), "PASS")
+
 
 class Apple65339(SimCase):
     def _mac(self, os_ver):
@@ -252,8 +292,13 @@ class Apple65339(SimCase):
         self.assertEqual(results(ok), ["info"])
 
     def test_sequoia_15_7_affected_15_8_info(self):
-        self.assertEqual(results(self._mac("15.7.1")), ["affected"])
-        self.assertEqual(results(self._mac("15.8")), ["info"])
+        low = self._mac("15.7.1")
+        self.assertEqual(results(low), ["affected"])
+        self.assertTrue(any("HT149043" in f["detail"] for f in low["findings"]))
+        ok = self._mac("15.8")
+        self.assertEqual(results(ok), ["info"])
+        self.assertTrue(any("HT149043" in f["detail"] for f in ok["findings"]))
+        self.assertFalse(any("HT148281" in f["detail"] for f in ok["findings"]))
 
     def test_sonoma_14_is_review(self):
         c = self._mac("14.7.2")
@@ -311,6 +356,12 @@ class AgentFramework126(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_wildcard_equality_is_review(self):
+        self.s.write("~/code/app/requirements.txt", "agent-framework==1.26.*\n")
+        c = self.s.check("agent-framework-1-26")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
     def test_output_has_no_webhook(self):
         self.s.venv("~/code/app/.venv", {"agent_framework": "1.26.2"})
         blob = json.dumps(self.s.check("agent-framework-1-26"))
@@ -350,6 +401,29 @@ class Java4shell114938(SimCase):
         bad = self.sim("linux")
         bad.write("/usr/lib/jvm/java-8-openjdk-perf/release", self.REL % "1.8.0_511-perf")
         c = bad.check("java4shell-114938")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        early = self.sim("linux")
+        early.write("/usr/lib/jvm/java-8-openjdk-perf/release", self.REL % "1.8.0_510-perf")
+        c = early.check("java4shell-114938")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_compact_8u511_perf_image_is_affected_bare_8_is_moving(self):
+        self.s.write("~/code/app/Dockerfile", "FROM openjdk:8u511-perf\n")
+        c = self.s.check("java4shell-114938")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        moving = self.sim("linux")
+        moving.write("~/code/app/Dockerfile", "FROM openjdk:8\n")
+        c = moving.check("java4shell-114938")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_homebrew_libexec_release(self):
+        self.s.write("/opt/homebrew/Cellar/openjdk@17/17.0.21/libexec/openjdk.jdk/Contents/Home/release",
+                     self.REL % "17.0.21")
+        c = self.s.check("java4shell-114938")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
@@ -440,6 +514,13 @@ class Roller129448(SimCase):
         self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["unknown"])
 
+    def test_empty_version_key_is_unknown(self):
+        self.s.write("~/apps/roller/WEB-INF/classes/org/apache/roller/version.properties",
+                     "ro.version=\n")
+        c = self.s.check("roller-129448")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
 
 class Mysql114952(SimCase):
     H = '#define MYSQL_SERVER_VERSION "%s"\n'
@@ -478,6 +559,26 @@ class Mysql114952(SimCase):
     def test_cluster_8_0_50_affected(self):
         self.s.dpkg({"mysql-cluster-community-server": "8.0.50-1"})
         self.assertEqual(results(self.s.check("mysql-114952")), ["affected"])
+
+    def test_cluster_glue_is_not_this_check(self):
+        self.s.dpkg({"cluster-glue": "1.0.12-1"})
+        self.assertStatus(self.s.check("mysql-114952"), "NOT_APPLICABLE")
+
+    def test_moving_image_tag_is_unknown_not_pass(self):
+        self.s.write("~/code/db/Dockerfile", "FROM mysql:latest\n")
+        c = self.s.check("mysql-114952")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("at or above the fixed build", c["reason"])
+
+    def test_minor_line_tag_is_not_padded(self):
+        self.s.write("~/code/db/compose.yml", "image: mysql:8.4\n")
+        c = self.s.check("mysql-114952")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        patch = self.sim("linux")
+        patch.write("~/code/db/compose.yml", "image: mysql:8.4.13\n")
+        self.assertEqual(results(patch.check("mysql-114952")), ["affected"])
 
     def test_never_starts_mysql(self):
         self.s.dpkg({"mysql-server": "8.4.13-1"})

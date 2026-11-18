@@ -10,6 +10,7 @@
 
 ### Changed
 
+- Host-check review follow-up: Confluence jar names require a regular `confluence-N.N.N.jar` (not `.bak`) and unknown per install directory; N-central unknown per Windows install; ARTEX image findings come only from FROM/`image:` lines and omit the image string; MySQL moving tags (`latest`, `8.4`) are unknown rather than a false PASS; MySQL Cluster matches `mysql-cluster`/`ndb` names only; Java Homebrew kegs read `libexec` release files and classify `8u511-perf` image tags; `ncentral-hf3` and `java4shell-114938` depend on the file walk; `agent-framework==1.26.*` is review.
 - Briefing window through 18 Nov 2026.
 - Reviewed public hosts: `aws.amazon.com`, `safedep.io`, `openjdk.org`, `confluence.atlassian.com`, `status.n-able.com`, `knowledge.broadcom.com`, `www.puppet.com`, `roller.apache.org`, `cloud.google.com`.
 - Claude Code VSX 2.1.312 needs no second floor (`claude-code-vsx-21313`). Quay CVE-2026-110697 is the same RHSA set as `quay-123710`.
