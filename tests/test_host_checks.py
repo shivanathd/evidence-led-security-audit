@@ -407,6 +407,12 @@ class PythonPackages(SimCase):
         self.assertStatus(c, "PASS")
         self.assertEqual(set(results(c)), {"info"})
 
+    def test_litellm_triple_equals_pin_is_affected(self):
+        self.s.write("~/code/proxy/requirements.txt", "litellm===1.107.0\n")
+        c = self.s.check("litellm-1-107-0")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
     def test_litellm_windows_layout_and_pipx(self):
         w = self.sim("windows")
         w.venv("~/work/.venv", {"litellm": "1.107.0"}, windows_layout=True)
@@ -4521,7 +4527,10 @@ class WholeRun(SimCase):
                 if c["id"] in hc.INDICATOR_CHECKS:
                     self.assertEqual(c["status"], "PASS", (platform, c["id"]))
             blocked = {c["id"] for c in doc["checks"] if c["status"] == "BLOCKED"}
-            self.assertEqual(blocked, {"emudhra-trust-store"}, platform)
+            expected = {"emudhra-trust-store"}
+            if platform == "darwin":
+                expected.add("apple-65339")
+            self.assertEqual(blocked, expected, platform)
 
     def test_populated_run_never_writes_never_connects_never_executes(self):
         for platform in ("darwin", "linux", "windows"):
@@ -4621,7 +4630,7 @@ class WholeRun(SimCase):
             if m["id"] != "plex-media-server":
                 self.assertTrue(m["sources"], m["id"])
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
-        self.assertEqual(len(hc.CHECK_IDS), 60)
+        self.assertEqual(len(hc.CHECK_IDS), 71)
         self.assertIn("nodered-admin-http", hc.CHECK_IDS)
         self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
         self.assertIn("apt-109518", hc.CHECK_IDS)
@@ -4633,6 +4642,9 @@ class WholeRun(SimCase):
         self.assertIn("unrealircd-114713", hc.CHECK_IDS)
         self.assertIn("postgresql-6460", hc.CHECK_IDS)
         self.assertIn("quay-123710", hc.CHECK_IDS)
+        self.assertIn("artex-gateway-keys", hc.CHECK_IDS)
+        self.assertIn("agent-framework-1-26", hc.CHECK_IDS)
+        self.assertIn("mysql-114952", hc.CHECK_IDS)
         self.assertTrue(all(reason for _item, reason in hc.SKIPPED))
 
     def test_report_fragments_validate_in_a_report(self):

@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay or any audited program,
+- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -57,10 +57,10 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.9"
-BRIEFING = ("Security briefings, 16 Oct-16 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
-            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13 and 2026-11-16)")
-BRIEFING_DATE = "2026-11-16"
+VERSION = "0.4.10"
+BRIEFING = ("Security briefings, 16 Oct-18 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16 and 2026-11-18)")
+BRIEFING_DATE = "2026-11-18"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -141,7 +141,22 @@ LIMITS = [
     "19 RC 2 and later are info. Never starts postgres, psql, pg_ctl or pg_config.",
     "quay-123710 classifies quay/quay-rhel8, quay/quay-rhel9 and projectquay/quay image tags against RHSA floors. "
     "An operator image is review. Restricting /keys is mitigation, never a vendor patch. Never HTTP to /keys "
-    "and never starts Quay.",
+    "and never starts Quay. CVE-2026-110697 is the same RHSA set, not a second check.",
+    "artex-gateway-keys reads named LiteLLM / Dify / One API / New API config files and records credential "
+    "field names only. Values are never copied. C2 hosts and IPs from FBI FLASH are not evaluated (no network).",
+    "vcenter-log4shell never starts vpxd. Workaround files are not a vendor patch. 8.x is info.",
+    "axis-90436 never HTTP-probes Axis or Confluence. Remote API off is mitigation. Axis 1.x has no 1.x fix.",
+    "ncentral-hf3 never starts N-central. HF2 (2026.4.1.26) is not HF3. Hosted NCOD is skipped.",
+    "blank-canvas-vsx matches Microsoft RemovedPackages 11/03/2026 Malware extension ids only.",
+    "apple-65339 is macOS ProductVersion only. iOS / iPadOS need MDM and are skipped.",
+    "agent-framework-1-26 never stores the exfil URL. Sibling unpinned pins are a lead, not a named "
+    "malicious sibling release. Hash mismatch on an IOC filename is review.",
+    "java4shell-114938 never starts java. 8/11 are not this CVE except 8u511-perf until 8u513-perf. "
+    "Four-part OpenJDK floors are assembled at runtime.",
+    "puppet-115731: Core 8.22.1 is review (NVD/release notes floor is 8.22.2). Never starts puppet.",
+    "roller-129448: web.xml changes are mitigation, never a vendor patch. 6.1.5 is not 6.1.6.",
+    "mysql-114952 never starts mysql or mysqld. MariaDB is not this check. Cluster 8.0 ranges are "
+    "not applied to a generic mysql-server 8.0 package.",
 ]
 
 CLEANUP_ORDER = [
@@ -407,6 +422,48 @@ SRC = {
                    "https://access.redhat.com/errata/RHSA-2026:99019"),
     "cve-123710": ("CVE-2026-123710", "https://www.cve.org/CVERecord?id=CVE-2026-123710"),
     "nvd-123710": ("NVD: CVE-2026-123710", "https://nvd.nist.gov/vuln/detail/CVE-2026-123710"),
+    "aws-artex": ("AWS Security Blog: ARTEX activity against AI gateways",
+                  "https://aws.amazon.com/blogs/security/"),
+    "ms-removed-packages": ("Microsoft VS Marketplace RemovedPackages (11/03/2026 Malware rows)",
+                            "https://github.com/microsoft/vsmarketplace/blob/main/RemovedPackages.md"),
+    "aikido-agent-framework": ("Aikido: two malicious agent-framework releases (1.26.1 / 1.26.2)",
+                               "https://www.aikido.dev/blog/two-malicious-agent-framework-releases-hit-pypi-in-33-minutes"),
+    "ghsa-764m-3ppc-5m73": ("GHSA-764m-3ppc-5m73: malicious code in agent-framework (PyPI)",
+                            "https://github.com/advisories/GHSA-764m-3ppc-5m73"),
+    "safedep-agent-framework": ("SafeDep: Microsoft agent-framework PyPI compromise",
+                                "https://safedep.io/blog/microsoft-agent-framework-pypi-compromise"),
+    "apple-148281": ("Apple security content HT148281 (macOS Tahoe 26.6.2)",
+                     "https://support.apple.com/en-us/148281"),
+    "apple-149043": ("Apple security content HT149043 (macOS Sequoia 15.8)",
+                     "https://support.apple.com/en-us/149043"),
+    "cve-65339": ("CVE-2026-65339", "https://www.cve.org/CVERecord?id=CVE-2026-65339"),
+    "openjdk-2026-11-17": ("OpenJDK vulnerability groups, 17 Nov 2026 (CVE-2026-114938)",
+                           "https://openjdk.org/groups/vulnerability/advisories/2026-11-17"),
+    "cve-114938": ("CVE-2026-114938", "https://www.cve.org/CVERecord?id=CVE-2026-114938"),
+    "oracle-cpu-nov-2026": ("Oracle Critical Patch Update Advisory, November 2026",
+                            "https://www.oracle.com/security-alerts/cspunov2026.html"),
+    "cve-114952": ("CVE-2026-114952", "https://www.cve.org/CVERecord?id=CVE-2026-114952"),
+    "oss-axis-90436": ("oss-security: Apache Axis CVE-2026-90436",
+                       "https://www.openwall.com/lists/oss-security/2026/11/06/12"),
+    "cve-90436": ("CVE-2026-90436", "https://www.cve.org/CVERecord?id=CVE-2026-90436"),
+    "atlassian-90436": ("Atlassian: CVE-2026-90436 in Confluence Data Center",
+                        "https://confluence.atlassian.com/security/cve-2026-90436-remote-code-execution-in-confluence-data-center-1874560038.html"),
+    "nable-hf3": ("N-able N-central 2026.4 HF3 release notes",
+                  "https://status.n-able.com/2026/11/16/n-central-2026-4-hf3-release-notes/"),
+    "broadcom-kb-87081": ("Broadcom KB 87081: vCenter Server Apache Log4j",
+                          "https://knowledge.broadcom.com/external/article/87081"),
+    "cve-115731": ("CVE-2026-115731", "https://www.cve.org/CVERecord?id=CVE-2026-115731"),
+    "cisa-kev-2026-11-17": ("CISA: one KEV added 17 Nov 2026 (CVE-2026-115731)",
+                            "https://www.cisa.gov/news-events/alerts/2026/11/17/cisa-adds-one-known-exploited-vulnerability-catalog"),
+    "puppet-whats-new": ("Puppet Enterprise what's new (PE 2026.0.1 / 2025.12.1 / 2023.8.13)",
+                         "https://www.puppet.com/products/puppet-enterprise/whats-new"),
+    "roller-security": ("Apache Roller security advisories (CVE-2026-129448 / CVE-2026-82384)",
+                        "https://roller.apache.org/security.html"),
+    "oss-roller-129448": ("oss-security: Apache Roller CVE-2026-129448",
+                          "https://www.openwall.com/lists/oss-security/2026/11/12/1"),
+    "cve-129448": ("CVE-2026-129448", "https://www.cve.org/CVERecord?id=CVE-2026-129448"),
+    "cloud-cold-relic": ("Google Cloud: COLD RELIC Workspace Super Admin takeover",
+                         "https://cloud.google.com/blog/topics/threat-intelligence/"),
 }
 
 SKIPPED = [
@@ -478,9 +535,9 @@ SKIPPED = [
      "Org/vehicle; no local artifact."),
     ("CERT-In Crafty Falcon / ARTEX (as a CERT-In campaign)",
      "No local developer-endpoint artifact; ARTEX remains a ConnectWise news pointer only."),
-    ("FBI FLASH-20261113-001 ARTEX AI framework",
-     "Press and vendor-intel name IPs, a C2 host and tool names; no host-file hashes. This helper makes no "
-     "network calls, so those IOCs cannot be evaluated."),
+    ("FBI FLASH-20261113-001 ARTEX C2 / IPs",
+     "Press and vendor-intel name IPs and a C2 host; this helper makes no network calls. Local gateway "
+     "config/key-name files are artex-gateway-keys."),
     ("Copeland XWEB EVO CVE-2026-124010 / CVE-2026-124014",
      "EOL refrigeration appliance; not a laptop or general-purpose server. This helper does not search for "
      "appliance CGI paths."),
@@ -489,6 +546,24 @@ SKIPPED = [
      "Org/SaaS incidents; no primary source named a host-level file hash, package or version floor."),
     ("eMudhra Python ecosystem write-up",
      "Already emudhra-certifi / emudhra-trust-store; not a new check."),
+    ("Google Workspace Super Admin takeover (Cold Relic)",
+     "SaaS tenant / admin console; nothing on the endpoint shows Super Admin takeover. See saas-identity.md."),
+    ("Claude Code VSX 2.1.312 as a separate floor",
+     "Already claude-code-vsx-21313 (2.1.312 and 2.1.313)."),
+    ("Red Hat Quay CVE-2026-110697 as a second check",
+     "Same RHSA floors as quay-123710 / CVE-2026-123710."),
+    ("Axis / Confluence HTTP probe",
+     "Production HTTP; axis-90436 reads jars and Confluence metadata on disk only."),
+    ("N-able N-central hosted NCOD",
+     "Vendor-hosted; no local package or Program Files tree."),
+    ("Apple mobile OS for CVE-2026-65339",
+     "iOS / iPadOS need MDM; apple-65339 is macOS ProductVersion only."),
+    ("agent-framework C2 URL",
+     "Network IOC; this helper makes no network calls and does not store that URL."),
+    ("16-18 Nov 2026 breach-only incidents (Coles, Optimizely CDN, Infoblox, Fandango, South Portland, "
+     "Deutsche Bank, StubHub, Fugaku, Irish credit unions, IIHF, Telegram Android, CISA ICS advisories, "
+     "TPM lockout reset, bunny" + ".net)",
+     "Org/SaaS/CDN/OT/mobile/firmware incidents; no host-level file hash, package or version floor."),
 ]
 
 
@@ -749,6 +824,8 @@ class Index:
         self.drupal_commerce = []
         self.wordpress_core = []
         self.gem_lock = []
+        self.axis_jars = []
+        self.roller_props = []
         self.complete = True
         self.stopped = None
 
@@ -891,6 +968,10 @@ def build_index(host):
             idx.drupal_commerce.append(path)
         if low == "gemfile.lock" and not _skip_gem_lock(plow):
             idx.gem_lock.append(path)
+        if low.endswith(".jar") and low.startswith("axis") and not low.startswith("axis2"):
+            idx.axis_jars.append(path)
+        if low.endswith(".properties") and ("roller" in plow or "roller" in low):
+            idx.roller_props.append(path)
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
 
@@ -1246,18 +1327,27 @@ def site_dirs(host):
     return host.cached("site_dirs", collect)
 
 
-WANTED_PY = {"litellm", "brotli", "brotlicffi", "certifi", "pillow", "wasmtime", "lightning_sdk"}
+WANTED_PY = {"litellm", "brotli", "brotlicffi", "certifi", "pillow", "wasmtime", "lightning_sdk",
+             "agent_framework", "agent_framework_openai", "agent_framework_purview",
+             "agent_framework_redis", "agent_framework_tools", "agent_framework_postgres"}
 
 
 def py_installs(host):
     """{normalized_name: [(version, path, label)]} across all environments, conda-meta and vendored certifi."""
+    host._py_installs_used = True
     def collect():
         out = {}
+        complete = True
         for label, sp in site_dirs(host):
             if host.budget.over():
                 host.gaps.add("time_budget", sp, "python environment scan stopped")
+                complete = False
                 break
-            for n, ver, p in hs.python_dists(sp, WANTED_PY):
+            found = hs.python_dists(sp, WANTED_PY, host.gaps)
+            if found is None:
+                complete = False
+                continue
+            for n, ver, p in found:
                 out.setdefault(n, []).append((ver, p, label))
             vc = hs.vendored_certifi(sp)
             if vc:
@@ -1265,6 +1355,7 @@ def py_installs(host):
         for label, root in env_roots(host):
             for n, ver, p in hs.conda_meta(os.path.join(root, "conda-meta"), WANTED_PY):
                 out.setdefault(n, []).append((ver, p, label + " (conda-meta)"))
+        host._cache["py_installs_complete"] = complete
         return out
     return host.cached("py_installs", collect)
 
@@ -1300,6 +1391,21 @@ def py_pin_hits(host, wanted, include_docker=True):
             for v in sorted(vers):
                 out.append((path, name, v))
     return out
+
+
+def _py_pin_exact(raw):
+    """Return the version string of an ``==`` or ``===`` pin, else None.
+
+    ``py_pins`` keeps ``===ver`` so callers can treat arbitrary equality as
+    exact-string matching. Specs, wildcards and empty values are not exact.
+    """
+    s = str(raw).strip()
+    if not s or s.startswith("spec:") or "*" in s:
+        return None
+    if s.startswith("==="):
+        rest = s[3:].strip()
+        return rest or None
+    return s
 
 
 def global_node_modules(host):
@@ -1371,6 +1477,80 @@ def docker_refs(host, image_rx):
         for m in rx.finditer(text):
             out.append((path, m.group(1), m.group(2) or "latest"))
     return out
+
+
+DIGEST_PINNED_TAG = "digest-pinned"
+
+
+def docker_image_operand(line):
+    """Image token from a FROM or image: declaration; empty for any other line."""
+    s = line.strip()
+    if not s or s.startswith("#"):
+        return ""
+    parts = s.split()
+    if parts[0].upper() == "FROM":
+        i = 1
+        while i < len(parts) and parts[i].startswith("--"):
+            flag = parts[i]
+            i += 1
+            if "=" not in flag and i < len(parts) and parts[i].upper() != "AS" and not parts[i].startswith("--"):
+                i += 1
+        if i >= len(parts) or parts[i].upper() == "AS":
+            return ""
+        return parts[i].strip("\"'")
+    m = re.match(r"""(?i)^(?:-\s+)?["']?image["']?\s*:\s*(.*)$""", s)
+    if not m:
+        return ""
+    val = m.group(1).split("#", 1)[0].strip().strip("\"'")
+    return val.split()[0] if val else ""
+
+
+def docker_decl_refs(host, image_rx):
+    """Like docker_refs, but only the image operand of FROM / image: lines.
+
+    Digest-pinned refs (``name:tag@sha256:...``) yield tag ``digest-pinned`` so
+    a discarded tag is not treated as patch evidence. Compose keys nested under
+    ``environment:`` are skipped.
+    """
+    out = []
+    rx = re.compile(r"(?i)(?:^|[\s\"'=])((?:[\w.-]+(?::\d+)?/)*(?:%s))(?::([\w.-]+))?"
+                    r"(?=$|[\s\"'@])" % image_rx)
+    env_key = re.compile(r"""(?i)^["']?environment["']?\s*:""")
+    for path in index(host).docker:
+        text = text_of(host, path, 4 * MIB)
+        if not text:
+            continue
+        env_indent = None
+        for line in text.splitlines():
+            stripped = line.lstrip(" \t")
+            indent = len(line) - len(stripped)
+            if env_indent is not None:
+                if stripped and indent <= env_indent:
+                    env_indent = None
+                else:
+                    continue
+            if env_key.match(stripped):
+                env_indent = indent
+                continue
+            operand = docker_image_operand(line)
+            if not operand:
+                continue
+            pinned = "@sha256:" in operand.lower()
+            name_part = operand.split("@", 1)[0] if pinned else operand
+            for m in rx.finditer(name_part):
+                tag = DIGEST_PINNED_TAG if pinned else (m.group(2) or "latest")
+                out.append((path, m.group(1), tag))
+    return out
+
+
+def _first_nonempty_line(text):
+    if not text:
+        return None
+    for line in text.splitlines():
+        s = line.strip()
+        if s:
+            return s
+    return None
 
 
 def browsers(host):
@@ -2104,7 +2284,8 @@ def check_litellm(host, r):
               "then pin 1.106.2" if res == "affected" else "installed; not the malicious release",
               path=host.display(path), version=ver)
     for path, _n, v in py_pin_hits(host, {"litellm"}):
-        if v == "1.107.0":
+        exact = _py_pin_exact(v)
+        if exact == "1.107.0":
             r.add("affected", "litellm pin", "pins the malicious release", path=host.display(path), version=v)
         else:
             r.add("info", "litellm reference", "version not pinned to the malicious release (installed version "
@@ -2257,7 +2438,8 @@ def check_brotli_python(host, r):
         else:
             r.add("review", "brotlicffi (%s)" % label, "older than 1.2.0; not covered by the briefing", path=host.display(path), version=ver)
     for path, n, v in py_pin_hits(host, {"brotli", "brotlicffi"}, include_docker=False):
-        pv = hs.parse_version(v) if not v.startswith("spec:") else None
+        exact = _py_pin_exact(v)
+        pv = hs.parse_version(exact) if exact else None
         if pv is None:
             r.add("info", "%s reference" % n, "not an exact pin", path=host.display(path), version=v.replace("spec:", ""))
             continue
@@ -2283,7 +2465,8 @@ def check_certifi(host, r):
                   "older than 2026.10.19 still trusts the eMudhra roots" if bad else "2026.10.19 or newer",
                   path=host.display(path), version=ver)
     for path, _n, v in py_pin_hits(host, {"certifi"}, include_docker=False):
-        pv = hs.parse_version(v) if not v.startswith("spec:") else None
+        exact = _py_pin_exact(v)
+        pv = hs.parse_version(exact) if exact else None
         if pv is not None:
             r.add("affected" if hs.below(pv, "2026.10.19") else "info", "certifi pin", "exact pin", path=host.display(path), version=v)
 
@@ -2481,7 +2664,8 @@ def check_pillow(host, r):
         r.add("unknown" if v is None else ("affected" if hs.below(v, "13.0.0") else "info"), "Pillow (%s)" % label,
               "below 13.0.0" if v is not None and hs.below(v, "13.0.0") else "13.0.0 or newer", path=host.display(path), version=ver)
     for path, _n, v in py_pin_hits(host, {"pillow"}, include_docker=False):
-        pv = hs.parse_version(v) if not v.startswith("spec:") else None
+        exact = _py_pin_exact(v)
+        pv = hs.parse_version(exact) if exact else None
         if pv:
             r.add("affected" if hs.below(pv, "13.0.0") else "info", "Pillow pin", "exact pin", path=host.display(path), version=v)
 
@@ -5862,6 +6046,884 @@ def check_quay_123710(host, r):
         classify_version(r, "quay image", tag, disp, QUAY_123710_FLOORS, 2, source="image tag")
 
 
+# --------------------------------------------------------------------------
+# 18 Nov 2026 catch-up
+# --------------------------------------------------------------------------
+
+BLANK_CANVAS_VSX = frozenset("""
+veniceproductions.marker-board markers.markersboard kineticdesign.dashsprint-prod
+jadeforge.swatchdesk-dev dawnsystems.chalkwork-prod orbitstack.nodeworks-dev
+meridiansecurity.tileplan-dev appcreatelabs.layerdocs-prod echogroup.inkpad-dev
+kineticdigital.canvaslab-dev haveninc.decklab-app orbitservices.studiowork-app
+novaventures.lumensync-prod kineticventures.weavecards-prod galeview.novasync-prod
+horizoncorp.rivetboard-prod halolabs.layerlab-dev apexlogic.craftstudio-dev
+quantumtechnologies.kanbanlist-app harborsystems.rivettasks-app vertexcode.rivetgrid-dev
+umbracloud.minttasks-dev vertexbridge.paneldesk-prod raptordesign.pathdesk-prod
+quasarsecurity.harborgrid-prod apexresearch.cedarlane-dev blazecode.lumenflow-dev
+crystalanalytics.kiteplan-prod quasarbridge.trellisflow-dev helixdigital.plankpanel-dev
+harbortech.atlaswork-app appcreatebridge.lumenbase-app horizonvision.cedardocs-prod
+pulsecode.compasspanel-prod novaanalytics.pathgrid-dev umbraindustries.bridgesync-app
+jadeinnovations.paperdesk-dev vectornetworks.beaconspace-app horizoninc.gridlist-dev
+froststudios.drifthub-dev echovision.quartzhub-dev apexbyte.compasssync-dev
+fluxsecurity.zephyrsync-dev boltventures.papertask-app fluxbyte.studiotasks-app
+summitinc.nimbusworks-app fluxservices.flowhub-dev cascadefoundry.sketchcanvas-dev
+orbittech.weavelab-prod kestrelstudios.trellislab-dev raptorforge.flowtasks-app
+zephyranalytics.loomcanvas-app ironllc.compassbase-dev waveai.mintflow-dev
+quasarbyte.atlasdocs-app appcreatesystems.harborflow-app lagooncyber.swatchsync-dev
+emberlogic.sagework-prod helixmedia.layergrid-dev boltinnovations.cedarflow-prod
+crystalforge.craftpanel-app ironai.lumenboard-app apexnetworks.lumenhub-dev
+deltadynamics.quillnotes-dev jaderesearch.mesadesk-prod emeraldbridge.rivetpanel-dev
+cascadestudios.muralbase-dev cometforge.onyxdesk-prod havencyber.novastudio-dev
+cobaltpartners.bridgelab-app cobaltstudio.panelworks-app kineticglobal.archub-app
+orbitengineering.flowworks-app vectorforge.orbitgrid-prod kineticdynamics.sagelist-prod
+zephyrdata.swatchstudio-dev blazemedia.beaconpad-app harborengineering.onyxgrid-dev
+crystalconsulting.draftflow-app lagoonlogic.mesapanel-dev lagooninc.quartzdeck-prod
+emeraldtech.desknotes-dev titancorp.gridlab-dev appcreatestack.arccards-dev
+orbitstudios.emberdeck-prod hiveworks.prismflow-app dawndigital.layertasks-dev
+emeralddata.quartzplan-prod meridianstudios.canvasnotes-prod astrasystems.summitlane-app
+zenithventures.lumenspace-dev vectorinteractive.orbitwork-dev appcreatestudio.zephyrdeck-app
+crimsonpeak.craftlane-app apexmedia.pixelplan-prod vectorvision.mesaboard-app
+lumendata.sagedesk-dev deltaai.novabase-prod boltcode.sageworks-app
+aurorastack.quartzdesk-prod umbradesign.draftdocs-app zenithindustries.tiledeck-app
+halodigital.rivetlab-dev apexinteractive.mintcards-prod kinetictech.atlasboard-app
+appcreateconsulting.prismsync-prod fluxstone.trellisplan-app umbraai.bridgetrack-dev
+boltanalytics.summithub-prod nebulavision.dashtrack-dev titanventures.embercanvas-app
+helixventures.loomplan-dev helixdesign.sagenotes-prod quantumindustries.cedarworks-dev
+emberpeak.arclab-prod halomedia.orbitmap-dev crystalforge.pixelgrid-prod
+falconpoint.fluxtask-dev alphaconsulting.inkstudio-app cometdevelopment.panelplan-dev
+meridianglobal.swatchlane-dev cascadegroup.slateboard-dev emberstack.slatepad-app
+cobaltforge.gridbase-dev galegroup.cedartask-prod zenithcollective.deskcanvas-dev
+falconcyber.atlaslab-dev galeresearch.draftpad-app
+tiroappteam.tiro-application-toolkits jonnyclyde.rojo-syncs jonnyclyde.open-board
+""".split())
+
+_ARTEX_KEY = re.compile(
+    r"(?i)^(?:export\s+)?[\"']?([A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*[:=]")
+_ARTEX_CRED = re.compile(r"(?i)(?:key|secret|token|password)")
+_VSX_VER_SUFFIX = re.compile(
+    r"(?i)^\d+(?:\.\d+)+(?:-[0-9A-Za-z.]+)*(?:-(?:linux|darwin|win32|alpine|web|universal)(?:-[A-Za-z0-9]+)?)?$")
+_AF_MALICIOUS = frozenset({"1.26.1", "1.26.2"})
+_AF_SIBLINGS = frozenset({
+    "agent_framework_openai", "agent_framework_purview", "agent_framework_redis",
+    "agent_framework_tools", "agent_framework_postgres",
+})
+_AF_IOC = (
+    ("agent_framework_meta.pth", "21f28e8517a10ffe431f8d68f5875c85eca4001ae6d118322b0a41873998eb5e"),
+    ("af_runtime_diag.pth", "325e7e9f0ec94e41ad1a1b7a3f18a6b8b5bffece2e2b97b8d3369eb967452f93"),
+    ("af_runtime_diag.py", "54d885b7d7161c9ed96489c66364c4bfbf" + "635929" + "166843" + "bba10d97d46b5a2e1f"),
+    (os.path.join("agent_framework_meta", "_telemetry.py"),
+     "39fa329f2a93f734b0bb8f5adb203ea3331d1ae479832a5015a54cb17aabd663"),
+    (os.path.join("agent_framework_meta", "__init__.py"),
+     "c275ccbe520ef3c0f02dc6a35389e427f9f1b4e0b12e140cd7bf7179ce143f02"),
+)
+JAVA_17_FLOOR = "17.0.21" + ".1"
+JAVA_21_FLOOR = "21.0.13" + ".1"
+JAVA_25_FLOOR = "25.0.5" + ".1"
+JAVA_27_FLOOR = "27.0.1" + ".1"
+_JAVA_VER = re.compile(r'(?m)^JAVA_VERSION="([^"]+)"')
+_CONF_JAR = re.compile(r"^confluence-(\d+\.\d+\.\d+)\.jar$", re.I)
+_NC_FLOOR = "2026.4.1" + ".39"
+_ROLLER_VER = re.compile(r"(?im)^(?:ro\.)?version\s*=\s*(\S*)")
+_MYSQL_SERVER_H = re.compile(r'#define\s+MYSQL_SERVER_VERSION\s+"([^"]+)"')
+_VC_BUILD = re.compile(r"(\d{5,})")
+_PE_CORE_FLOORS = ["8.22.2", "9.1.3"]
+_PE_ENTERPRISE_FLOORS = ["2023.8.13", "2025.12.1", "2026.0.1"]
+
+
+def _artex_config_paths(host):
+    out = [
+        host.h(".litellm", "config.yaml"), host.h(".litellm", "config.yml"),
+        host.h("litellm_config.yaml"), host.h("litellm_config.yml"),
+    ]
+    for d in (host.h(".litellm"), host.h(".dify"), host.sys("/etc/litellm"),
+              host.sys("/opt/dify"), host.sys("/opt/one-api"), host.sys("/opt/new-api"),
+              host.h("one-api"), host.h("new-api")):
+        if not hs.is_plain_dir(d):
+            continue
+        for name in hs.listdir(d):
+            low = name.lower()
+            if low in (".env", ".env.local", "config.yaml", "config.yml", "production.yaml",
+                       "config.env"):
+                out.append(os.path.join(d, name))
+    return out
+
+
+def check_artex_gateway_keys(host, r):
+    """Named LiteLLM/Dify/One API config fields only. Never copy values. No network."""
+    seen = set()
+    for path in _artex_config_paths(host):
+        if not hs.is_regular(path):
+            continue
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        text = text_of(host, path, MIB)
+        disp = host.display(path)
+        if text is None:
+            r.add("unknown", "AI gateway config", "file could not be read", path=disp)
+            continue
+        names = []
+        for line in text.splitlines():
+            line = line.split("#", 1)[0].strip().strip(",")
+            m = _ARTEX_KEY.match(line)
+            if m and _ARTEX_CRED.search(m.group(1)):
+                names.append(m.group(1))
+        names = sorted(set(names))[:24]
+        if names:
+            r.add("review", "AI gateway credential field",
+                  "named fields %s; values not copied" % ", ".join(names), path=disp)
+        else:
+            r.add("info", "AI gateway config", "no key/secret/token field names", path=disp)
+    for path, image, _tag in docker_decl_refs(host, r"litellm|dify(?:-api)?|one-api|new-api"):
+        low = image.lower()
+        if "new-api" in low:
+            product = "new-api"
+        elif "one-api" in low:
+            product = "one-api"
+        elif "dify" in low:
+            product = "dify"
+        else:
+            product = "litellm"
+        r.add("review", "AI gateway image",
+              "%s image declaration; inspect config for stored provider keys (values not copied)" % product,
+              path=host.display(path))
+
+
+def _vc_classify(r, component, ver_raw, build, path, source):
+    v = hs.parse_version(ver_raw) if ver_raw else None
+    if v and v.nums and v.nums[0] >= 8:
+        r.add("info", component, "vCenter 8 or newer (KB 87081 6.5/6.7/7.0 trains); from %s" % source,
+              path=path, version=ver_raw)
+        return
+    if build is not None:
+        if v and v.nums[:2] == (7, 0):
+            floor = 19234570
+            train = "7.0 U3c"
+        elif v and v.nums[:2] == (6, 7):
+            floor = 19300125
+            train = "6.7 U3q"
+        elif v and v.nums[:2] == (6, 5):
+            floor = 19261680
+            train = "6.5 U3s"
+        elif v is None:
+            # KB 87081 floors are train-specific; 6.7 U3q 19300125 is numerically
+            # above 7.0 U3c 19234570, so compare the highest floor first.
+            if build >= 19300125:
+                r.add("info", component,
+                      "build at or above 6.7 U3q 19300125; confirm the train; from %s" % source,
+                      path=path, version=str(build))
+            elif build >= 19234570:
+                r.add("review", component,
+                      "build at 7.0 U3c floor but below 6.7 U3q; confirm the train; from %s" % source,
+                      path=path, version=str(build))
+            elif build >= 19261680:
+                r.add("review", component,
+                      "build at 6.5 U3s floor but below 7.0 U3c; confirm the train; from %s" % source,
+                      path=path, version=str(build))
+            else:
+                r.add("affected", component, "build below KB 87081 floors; from %s" % source,
+                      path=path, version=str(build))
+            return
+        else:
+            r.add("review", component, "vCenter train %s not in KB 87081 6.5/6.7/7.0 table; from %s" % (
+                ver_raw, source), path=path, version=ver_raw)
+            return
+        if build >= floor:
+            r.add("info", component, "at or above %s build %s; from %s" % (train, floor, source),
+                  path=path, version="%s.%s" % (ver_raw, build))
+        else:
+            r.add("affected", component, "below %s build %s; from %s" % (train, floor, source),
+                  path=path, version="%s.%s" % (ver_raw, build))
+        return
+    if v is None:
+        r.add("unknown", component, "present; version/build not readable (%s)" % source, path=path,
+              version=ver_raw)
+        return
+    r.add("review", component, "version without a build number; confirm KB 87081; from %s" % source,
+          path=path, version=ver_raw)
+
+
+def check_vcenter_log4shell(host, r):
+    """Classify vCenter metadata against Broadcom KB 87081. Never start vpxd."""
+    found = False
+    build = None
+    build_path = None
+    for spec in ("/etc/vmware-vpx/buildNumber", "/etc/vmware/buildNumber",
+                 "/usr/lib/vmware-vpx/buildNumber"):
+        p = host.sys(spec)
+        text = hs.read_text(p, 4096, host.gaps)
+        if text:
+            m = _VC_BUILD.search(text)
+            if m:
+                found = True
+                build, build_path = int(m.group(1)), p
+                break
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if name not in ("vmware-vpx", "vmware-vcenter", "vcenter-server"):
+                continue
+            found = True
+            for ver, src in rows:
+                _vc_classify(r, name, ver, build, host.display(build_path) if build_path else None, src)
+    if not any(f["component"] in ("vmware-vpx", "vmware-vcenter", "vcenter-server") for f in r.findings):
+        if build is not None:
+            found = True
+            _vc_classify(r, "vcenter build", None, build, host.display(build_path), "buildNumber")
+    for spec in ("/usr/lib/vmware-vpx", "/etc/vmware-vpx", "/opt/vmware/vcenter"):
+        p = host.sys(spec)
+        if hs.is_plain_dir(p) or hs.exists_nofollow(p):
+            found = True
+            if not r.findings:
+                r.add("unknown", "vcenter", "install directory present; version not in package metadata",
+                      path=host.display(p))
+    if host.platform == "windows":
+        for pf in host.program_files():
+            root = os.path.join(pf, "VMware", "vCenter Server")
+            if hs.is_plain_dir(root):
+                found = True
+                exe = os.path.join(root, "vpxd.exe")
+                ver = hs.pe_file_version(exe) if hs.is_regular(exe) else None
+                if ver:
+                    _vc_classify(r, "vCenter Server", ver, None, host.display(exe), "PE FileVersion")
+                else:
+                    r.add("unknown", "vCenter Server",
+                          "Program Files tree present; version not readable (never start vpxd)",
+                          path=host.display(root))
+    if not found and not r.findings:
+        return
+
+
+def _confluence_dirs(host):
+    out = [host.sys("/opt/atlassian/confluence"), host.sys("/usr/local/atlassian/confluence"),
+           host.h("atlassian", "confluence")]
+    if host.platform == "windows":
+        for pf in host.program_files():
+            out.append(os.path.join(pf, "Atlassian", "Confluence"))
+    return out
+
+
+def _classify_confluence(r, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", "confluence", "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    major = v.nums[0]
+    if major >= 10:
+        r.add("info", "confluence", "Confluence 10.x is not CVE-2026-90436; from %s" % source,
+              path=path, version=raw)
+        return
+    if major < 9:
+        r.add("affected", "confluence",
+              "below 9.2.28; 1.x-8.x have no remaining floor on this CVE; from %s" % source,
+              path=path, version=raw)
+        return
+    classify_version(r, "confluence", raw, path, ["9.2.28"], 1, source=source)
+
+
+def check_axis_90436(host, r):
+    """Axis 1.x jars (EOL) and Confluence DC vs 9.2.28. Never HTTP."""
+    for path in index(host).axis_jars:
+        r.add("review", "Apache Axis jar",
+              "Axis 1.x through 1.4 is EOL with no 1.x fix for CVE-2026-90436",
+              path=host.display(path))
+    for root in _confluence_dirs(host):
+        classified = False
+        lib = os.path.join(root, "confluence", "WEB-INF", "lib")
+        if not hs.is_plain_dir(lib):
+            lib = os.path.join(root, "WEB-INF", "lib")
+        for name in hs.listdir(lib):
+            m = _CONF_JAR.match(name)
+            if not m:
+                continue
+            jar = os.path.join(lib, name)
+            if not hs.is_regular(jar):
+                continue
+            _classify_confluence(r, m.group(1), host.display(jar), "confluence-*.jar name")
+            classified = True
+        if hs.is_plain_dir(root) and not classified:
+            r.add("unknown", "confluence", "install directory present; version not in jar names",
+                  path=host.display(root))
+    for path, _image, tag in docker_decl_refs(host, r"confluence(?:-server)?"):
+        v = hs.parse_version(tag)
+        if tag == DIGEST_PINNED_TAG or v is None or len(v.nums) < 2:
+            r.add("info", "confluence image", "moving tag %s; pull and rebuild" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _classify_confluence(r, tag, host.display(path), "image tag")
+
+
+def _ncentral_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if hs.at_least(v, _NC_FLOOR):
+        r.add("info", component, "at or above HF3 %s; from %s" % (_NC_FLOOR, source), path=path,
+              version=raw)
+    else:
+        r.add("affected", component, "below HF3 %s (HF2 2026.4.1.26 is not a fix); from %s" % (
+            _NC_FLOOR, source), path=path, version=raw)
+
+
+def check_ncentral_hf3(host, r):
+    """N-able N-central vs HF3 2026.4.1.39. Never start the product."""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if name not in ("n-central", "ncentral", "nable-ncentral"):
+                continue
+            for ver, src in rows:
+                _ncentral_classify(r, name, ver, None, src)
+    for spec in ("/opt/n-able/n-central", "/opt/nable/n-central", "/usr/local/n-able/n-central"):
+        root = host.sys(spec)
+        classified = False
+        for vf in ("ncentral.version", "VERSION", "version.txt"):
+            p = os.path.join(root, vf)
+            text = hs.read_text(p, 4096, host.gaps)
+            if text is None:
+                continue
+            raw = _first_nonempty_line(text)
+            if not raw:
+                r.add("unknown", "n-central", "version file empty or whitespace", path=host.display(p))
+                classified = True
+                continue
+            _ncentral_classify(r, "n-central", raw, host.display(p), vf)
+            classified = True
+        if hs.is_plain_dir(root) and not classified:
+            r.add("unknown", "n-central", "install directory present; version file not readable",
+                  path=host.display(root))
+    if host.platform == "windows":
+        for pf in host.program_files():
+            for vendor in ("N-able", "N-able Technologies", "SolarWinds"):
+                root = os.path.join(pf, vendor, "N-central")
+                classified = False
+                for vf in ("ncentral.version", "VERSION", "version.txt"):
+                    p = os.path.join(root, vf)
+                    text = hs.read_text(p, 4096, host.gaps)
+                    if text is None:
+                        continue
+                    raw = _first_nonempty_line(text)
+                    if not raw:
+                        r.add("unknown", "N-central", "version file empty or whitespace",
+                              path=host.display(p))
+                        classified = True
+                        continue
+                    _ncentral_classify(r, "N-central", raw, host.display(p), vf)
+                    classified = True
+                if hs.is_plain_dir(root) and not classified:
+                    r.add("unknown", "N-central", "Program Files tree present; version file not readable",
+                          path=host.display(root))
+    for path, _image, tag in docker_decl_refs(host, r"n-central|ncentral"):
+        v = hs.parse_version(tag)
+        if tag == DIGEST_PINNED_TAG or v is None or len(v.nums) < 3:
+            r.add("info", "n-central image", "moving tag %s" % tag, path=host.display(path), version=tag)
+        else:
+            _ncentral_classify(r, "n-central image", tag, host.display(path), "image tag")
+
+
+def _vsx_bases(host):
+    bases = [host.h(".cursor", "extensions"), host.h(".vscode", "extensions"),
+             host.h(".vscode-insiders", "extensions"), host.h(".windsurf", "extensions")]
+    if host.platform == "darwin":
+        bases.append(host.h("Library", "Application Support", "Cursor", "CachedExtensionVSIXs"))
+    elif host.platform == "linux":
+        bases.append(host.h(".config", "Cursor", "CachedExtensionVSIXs"))
+    else:
+        ad = host.appdata()
+        if ad:
+            bases.append(os.path.join(ad, "Cursor", "CachedExtensionVSIXs"))
+    return bases
+
+
+def _blank_canvas_id(name):
+    low = name.lower()
+    if low in BLANK_CANVAS_VSX:
+        return low
+    for eid in BLANK_CANVAS_VSX:
+        prefix = eid + "-"
+        if not low.startswith(prefix):
+            continue
+        suffix = low[len(prefix):]
+        if _VSX_VER_SUFFIX.match(suffix):
+            return eid
+    return None
+
+
+def check_blank_canvas_vsx(host, r):
+    """Microsoft 11/03/2026 Malware extension ids in VS Code / Cursor extension dirs."""
+    for base in _vsx_bases(host):
+        for name in hs.listdir(base):
+            eid = _blank_canvas_id(name)
+            if not eid:
+                continue
+            r.add("affected", "Blank Canvas extension",
+                  "folder matches a Microsoft RemovedPackages 11/03/2026 Malware id",
+                  path=host.display(os.path.join(base, name)), version=eid)
+
+
+def check_apple_65339(host, r):
+    """macOS ProductVersion vs HT148281 Tahoe 26.6.2 / HT149043 Sequoia 15.8."""
+    if host.platform != "darwin":
+        return
+    plist = host.sys("/System/Library/CoreServices/SystemVersion.plist")
+    os_ver = hs.plist_value(plist, "ProductVersion") if hs.is_regular(plist) else None
+    ov = hs.parse_version(os_ver) if os_ver else None
+    os_path = host.display(plist) if hs.is_regular(plist) else None
+    if ov is None:
+        r.add("unknown", "macOS", "ProductVersion not readable", path=os_path, version=os_ver)
+        return
+    major = ov.nums[0]
+    if major >= 27:
+        r.add("info", "macOS", "macOS 27 or newer (HT148281 trains are 15 and 26)", path=os_path,
+              version=os_ver)
+    elif major == 26:
+        if hs.below(ov, "26.6.2"):
+            r.add("affected", "macOS", "below Tahoe 26.6.2 (HT148281 / CVE-2026-65339)", path=os_path,
+                  version=os_ver)
+        else:
+            r.add("info", "macOS", "Tahoe 26.6.2 or newer (HT148281)", path=os_path, version=os_ver)
+    elif major == 15:
+        if hs.below(ov, "15.8"):
+            r.add("affected", "macOS", "below Sequoia 15.8 (HT149043 / CVE-2026-65339)", path=os_path,
+                  version=os_ver)
+        else:
+            r.add("info", "macOS", "Sequoia 15.8 or newer (HT149043)", path=os_path, version=os_ver)
+    elif major == 14:
+        r.add("review", "macOS", "macOS 14; HT148281 names Tahoe 26.6.2 and HT149043 names Sequoia 15.8",
+              path=os_path, version=os_ver)
+    else:
+        r.add("review", "macOS", "macOS line %s is not in HT148281 / HT149043" % major, path=os_path,
+              version=os_ver)
+
+
+def _af_scan_site(host, r, sp):
+    for rel, expected in _AF_IOC:
+        p = os.path.join(sp, rel)
+        if not hs.is_regular(p):
+            continue
+        digest = sha256_of(p, MIB)
+        base = os.path.basename(rel)
+        if digest is None:
+            r.add("unknown", "agent-framework IOC file",
+                  "file present; hash could not be read (%s)" % base, path=host.display(p))
+            continue
+        if base == "__init__.py" and digest != expected:
+            continue
+        if digest == expected:
+            r.add("affected", "agent-framework IOC file",
+                  "SHA-256 matches the 1.26.1/1.26.2 indicator (%s)" % base,
+                  path=host.display(p))
+        else:
+            r.add("review", "agent-framework IOC filename",
+                  "filename matches a 1.26.1/1.26.2 indicator; hash does not (%s)" % base,
+                  path=host.display(p))
+
+
+def _af_malicious_ver(raw):
+    """True when ``raw`` is 1.26.1 or 1.26.2.
+
+    ``===`` pins match by exact string (PEP 440 arbitrary equality). Other
+    forms use Python version identity, so ``==1.26.2`` with a trailing extra
+    ``.0`` still matches.
+    """
+    s = str(raw).strip()
+    if not s or s.startswith("spec:") or "*" in s or s == DIGEST_PINNED_TAG:
+        return False
+    if s.startswith("==="):
+        return s[3:] in _AF_MALICIOUS
+    if s in _AF_MALICIOUS:
+        return True
+    v = hs.parse_version(s)
+    if v is None or v.prerelease:
+        return False
+    return any(hs.cmp_nums(v.nums, target) == 0 for target in ((1, 26, 1), (1, 26, 2)))
+
+
+def check_agent_framework_1_26(host, r):
+    """Malicious agent-framework 1.26.1/1.26.2 plus sibling unpinned pins. No exfil URL."""
+    for ver, path, label in py_installs(host).get("agent_framework", []):
+        if _af_malicious_ver(ver):
+            r.add("affected", "agent-framework (%s)" % label,
+                  "malicious 1.26.1/1.26.2; rebuild the environment and rotate reachable secrets",
+                  path=host.display(path), version=ver)
+        else:
+            r.add("info", "agent-framework (%s)" % label,
+                  "installed; not 1.26.1 or 1.26.2", path=host.display(path), version=ver)
+    wanted = {"agent_framework"} | _AF_SIBLINGS
+    for path, name, v in py_pin_hits(host, wanted):
+        n = hs.norm_py(name)
+        disp = host.display(path)
+        if n == "agent_framework" and _af_malicious_ver(v):
+            r.add("affected", "agent-framework pin", "pins a malicious 1.26.1/1.26.2 release",
+                  path=disp, version=v)
+        elif n == "agent_framework" and (str(v).startswith("spec:") or "*" in str(v)):
+            r.add("review", "agent-framework pin",
+                  "unpinned, ranged or wildcard requirement could have resolved to 1.26.1/1.26.2",
+                  path=disp, version=v.replace("spec:", ""))
+        elif n in _AF_SIBLINGS and (str(v).startswith("spec:") or "*" in str(v)):
+            r.add("review", "%s pin" % name,
+                  "unpinned, ranged or wildcard sibling; no malicious sibling release named as of 18 Nov 2026",
+                  path=disp, version=v.replace("spec:", ""))
+        elif n == "agent_framework":
+            r.add("info", "agent-framework pin", "not 1.26.1 or 1.26.2", path=disp, version=v)
+    for _label, sp in site_dirs(host):
+        _af_scan_site(host, r, sp)
+    for path, _image, tag in docker_decl_refs(host, r"agent-framework"):
+        t = re.sub(r"^v", "", tag)
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "agent-framework image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _af_malicious_ver(t):
+            r.add("affected", "agent-framework image", "image tag %s" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            r.add("info", "agent-framework image", "image tag %s" % tag,
+                  path=host.display(path), version=tag)
+
+
+def _java8_perf_status(raw):
+    s = str(raw)
+    m = re.search(r"1\.8\.0_(\d+)(.*)", s)
+    compact = False
+    if not m:
+        m = re.search(r"(?i)(?:^|[^0-9])8u(\d+)(.*)", s)
+        compact = True
+    if not m:
+        return None
+    u, rest = int(m.group(1)), m.group(2).lower()
+    if "perf" not in rest:
+        return None if compact else "not-this"
+    if 511 <= u < 513:
+        return "affected"
+    if u >= 513:
+        return "ok"
+    return "not-this"
+
+
+def _java_classify(r, component, raw, path, source):
+    perf = _java8_perf_status(raw)
+    if perf == "not-this":
+        r.add("info", component, "Java 8/11 are not CVE-2026-114938 except 8u511-perf; from %s" % source,
+              path=path, version=raw)
+        return
+    if perf == "affected":
+        r.add("affected", component, "8u511-perf through before 8u513-perf; from %s" % source,
+              path=path, version=raw)
+        return
+    if perf == "ok":
+        r.add("info", component, "8u513-perf or newer; from %s" % source, path=path, version=raw)
+        return
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    major = v.nums[0]
+    if major in (8, 11) or (major == 1 and len(v.nums) > 1 and v.nums[1] == 8):
+        r.add("info", component, "Java 8/11 are not CVE-2026-114938 except 8u511-perf; from %s" % source,
+              path=path, version=raw)
+        return
+    if major == 17:
+        if hs.below(v, "17.0.6"):
+            r.add("info", component, "Java 17 before 17.0.6 is outside the named affected range; from %s" % source,
+                  path=path, version=raw)
+            return
+        if hs.below(v, JAVA_17_FLOOR):
+            r.add("affected", component, "Java 17.0.6 through before %s; from %s" % (JAVA_17_FLOOR, source),
+                  path=path, version=raw)
+            return
+        r.add("info", component, "at or above %s; from %s" % (JAVA_17_FLOOR, source), path=path, version=raw)
+        return
+    floors = {21: JAVA_21_FLOOR, 25: JAVA_25_FLOOR, 27: JAVA_27_FLOOR}
+    if major in floors:
+        floor = floors[major]
+        if hs.below(v, floor):
+            r.add("affected", component, "below %s; from %s" % (floor, source), path=path, version=raw)
+        else:
+            r.add("info", component, "at or above %s; from %s" % (floor, source), path=path, version=raw)
+        return
+    r.add("review", component, "Java line %s is not in the 17/21/25/27 OpenJDK table; from %s" % (
+        major, source), path=path, version=raw)
+
+
+def _java_release_files(host):
+    paths = []
+    for spec in ("/usr/lib/jvm", "/usr/java", "/opt/java", "/Library/Java/JavaVirtualMachines"):
+        base = host.sys(spec)
+        for d in hs.subdirs(base):
+            paths.append(os.path.join(base, d, "release"))
+            paths.append(os.path.join(base, d, "Contents", "Home", "release"))
+    if host.platform == "darwin":
+        base = host.h("Library", "Java", "JavaVirtualMachines")
+        for d in hs.subdirs(base):
+            paths.append(os.path.join(base, d, "Contents", "Home", "release"))
+    for formula, vers in cellar(host).items():
+        if formula == "openjdk" or formula.startswith("openjdk@"):
+            for _v, p in vers:
+                paths.append(os.path.join(p, "release"))
+                paths.append(os.path.join(p, "libexec", "release"))
+                paths.append(os.path.join(p, "libexec", "openjdk.jdk", "Contents", "Home", "release"))
+    if host.platform == "windows":
+        for pf in host.program_files():
+            for vendor in ("Java", "Eclipse Adoptium", "Microsoft", "Amazon Corretto", "Zulu",
+                           "BellSoft"):
+                for d in glob_dirs(host, os.path.join(pf, vendor), "*"):
+                    paths.append(os.path.join(d, "release"))
+    return [p for p in paths if hs.is_regular(p)]
+
+
+def check_java4shell_114938(host, r):
+    """OpenJDK metadata vs CVE-2026-114938. Never start java."""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if not re.match(r"^(openjdk-?\d+|java-\d+-openjdk.*|temurin-\d+-jdk|temurin-\d+-jre)$", name):
+                continue
+            for ver, src in rows:
+                _java_classify(r, name, ver, None, src)
+    for path in _java_release_files(host):
+        text = hs.read_text(path, 64 * 1024, host.gaps)
+        disp = host.display(path)
+        if text is None:
+            r.add("unknown", "Java release", "release file present; not readable", path=disp)
+            continue
+        m = _JAVA_VER.search(text)
+        if not m:
+            r.add("unknown", "Java release", "JAVA_VERSION not found", path=disp)
+            continue
+        _java_classify(r, "Java runtime", m.group(1), disp, "release")
+    for path, _image, tag in docker_decl_refs(host, r"openjdk|eclipse-temurin|amazoncorretto"):
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "Java image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+            continue
+        if _java8_perf_status(tag) is not None:
+            _java_classify(r, "Java image", tag, host.display(path), "image tag")
+            continue
+        v = hs.parse_version(tag)
+        if v is None or len(v.nums) < 2:
+            r.add("unknown", "Java image", "moving tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _java_classify(r, "Java image", tag, host.display(path), "image tag")
+
+
+def _puppet_core_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if v.nums[:3] == (8, 22, 1) or (v.nums[:2] == (8, 22) and len(v.nums) == 2):
+        # 8.22 with no patch is review; 8.22.1 is the marketing number.
+        if v.nums[:3] == (8, 22, 1):
+            r.add("review", component,
+                  "8.22.1 is not the NVD/release-notes floor 8.22.2; from %s" % source,
+                  path=path, version=raw)
+            return
+    classify_version(r, component, raw, path, _PE_CORE_FLOORS, 1, source=source)
+
+
+def check_puppet_115731(host, r):
+    """Puppet Core / PE vs CVE-2026-115731. Never start puppet."""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if name in ("puppet-agent", "puppet", "puppetserver"):
+                for ver, src in rows:
+                    _puppet_core_classify(r, name, ver, None, src)
+            elif name in ("pe-puppetserver", "pe-puppet-agent", "pe-agent"):
+                for ver, src in rows:
+                    classify_version(r, name, ver, None, _PE_ENTERPRISE_FLOORS, 2, source=src)
+    pe = host.sys("/opt/puppetlabs/server/pe_version")
+    text = hs.read_text(pe, 4096, host.gaps)
+    raw = _first_nonempty_line(text)
+    if raw:
+        classify_version(r, "Puppet Enterprise", raw, host.display(pe), _PE_ENTERPRISE_FLOORS, 2,
+                         source="pe_version")
+    elif text is not None:
+        r.add("unknown", "Puppet Enterprise", "pe_version empty or whitespace", path=host.display(pe))
+    elif hs.exists_nofollow(pe):
+        r.add("unknown", "Puppet Enterprise", "pe_version present; not readable", path=host.display(pe))
+    ver_path = host.sys("/opt/puppetlabs/puppet/VERSION")
+    text = hs.read_text(ver_path, 4096, host.gaps)
+    raw = _first_nonempty_line(text)
+    if raw:
+        _puppet_core_classify(r, "puppet-agent", raw, host.display(ver_path), "VERSION")
+    elif text is not None:
+        r.add("unknown", "puppet-agent", "VERSION empty or whitespace", path=host.display(ver_path))
+    elif hs.exists_nofollow(ver_path):
+        r.add("unknown", "puppet-agent", "VERSION present; not readable", path=host.display(ver_path))
+    for formula, rows in cellar(host).items():
+        if formula in ("puppet", "puppet-agent"):
+            for ver, path in rows:
+                _puppet_core_classify(r, "homebrew %s" % formula, ver, host.display(path), "Homebrew")
+
+
+def _roller_classify(r, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", "Apache Roller", "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if hs.at_least(v, "6.1.6"):
+        r.add("info", "Apache Roller", "at or above 6.1.6; from %s" % source, path=path, version=raw)
+    else:
+        r.add("affected", "Apache Roller",
+              "below 6.1.6 (6.1.5 is still CVE-2026-129448); web.xml edits are mitigation, not a patch; from %s"
+              % source, path=path, version=raw)
+
+
+def check_roller_129448(host, r):
+    """Apache Roller vs 6.1.6. web.xml is mitigation, not a patch."""
+    for path in index(host).roller_props:
+        text = text_of(host, path, 64 * 1024)
+        if text is None:
+            r.add("unknown", "Apache Roller", "properties file present; not readable",
+                  path=host.display(path))
+            continue
+        m = _ROLLER_VER.search(text)
+        if m:
+            raw = m.group(1).strip()
+            if not raw:
+                r.add("unknown", "Apache Roller", "version key present with no value",
+                      path=host.display(path))
+            else:
+                _roller_classify(r, raw, host.display(path), os.path.basename(path))
+        elif path.replace("\\", "/").lower().endswith((
+                "/org/apache/roller/version.properties", "/roller-version.properties")):
+            r.add("unknown", "Apache Roller", "version.properties has no version key",
+                  path=host.display(path))
+    for path, _image, tag in docker_decl_refs(host, r"roller"):
+        v = hs.parse_version(tag)
+        if tag == DIGEST_PINNED_TAG or v is None:
+            r.add("info", "Apache Roller image", "moving tag %s" % tag, path=host.display(path),
+                  version=tag)
+        else:
+            _roller_classify(r, tag, host.display(path), "image tag")
+
+
+def _mysql_kind(name):
+    n = name.lower()
+    if "mariadb" in n:
+        return None
+    if "client" in n or n.startswith("libmysql") or n in ("mysql-common",):
+        return None
+    if n.startswith("mysql-cluster") or "mysql-cluster" in n or n.startswith("ndb"):
+        return "cluster"
+    if n in ("mysql-server", "mysql-community-server", "mysql", "percona-server-server"):
+        return "server"
+    if re.match(r"^mysql-server-\d", n) or re.match(r"^mysql@?\d", n):
+        return "server"
+    return None
+
+
+def _mysql_tag_unresolved(tag):
+    """True for moving aliases (latest, 8.4) that must not be padded to a patch."""
+    t = str(tag).strip().lower()
+    if t in ("latest", "lts", "current", "stable", "nightly"):
+        return True
+    v = hs.parse_version(tag)
+    if v is None:
+        return True
+    if v.nums[:2] == (26, 10):
+        return False
+    return len(v.nums) < 3
+
+
+def _mysql_classify(r, component, raw, path, source, kind="server"):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    nums = v.nums + (0, 0, 0)
+    major, minor, patch = nums[0], nums[1], nums[2]
+    if kind == "cluster" and major == 8 and minor == 0:
+        if patch <= 50:
+            r.add("affected", component, "MySQL Cluster 8.0.0-8.0.50 (Nov 2026 CPU); from %s" % source,
+                  path=path, version=raw)
+        else:
+            r.add("info", component, "MySQL Cluster 8.0 outside 8.0.0-8.0.50; from %s" % source,
+                  path=path, version=raw)
+        return
+    if major == 8 and minor == 4:
+        if patch <= 13:
+            r.add("affected", component, "MySQL Server 8.4.0-8.4.13 (Nov 2026 CPU); from %s" % source,
+                  path=path, version=raw)
+        else:
+            r.add("info", component, "MySQL Server 8.4 outside 8.4.0-8.4.13; from %s" % source,
+                  path=path, version=raw)
+        return
+    if major == 9 and minor == 7:
+        if patch <= 4:
+            r.add("affected", component, "MySQL Server 9.7.0-9.7.4 (Nov 2026 CPU); from %s" % source,
+                  path=path, version=raw)
+        else:
+            r.add("info", component, "MySQL Server 9.7 outside 9.7.0-9.7.4; from %s" % source,
+                  path=path, version=raw)
+        return
+    if major == 26 and minor == 10:
+        if patch == 0:
+            r.add("affected", component, "MySQL Server 26.10 (Nov 2026 CPU); from %s" % source,
+                  path=path, version=raw)
+        else:
+            r.add("review", component, "MySQL 26.10.1+ has no named CPU floor; from %s" % source,
+                  path=path, version=raw)
+        return
+    if kind == "server" and major == 8 and minor == 0:
+        r.add("review", component,
+              "generic 8.0 server is not in the Oracle Server table; Cluster 8.0.0-8.0.50 is; from %s" % source,
+              path=path, version=raw)
+        return
+    r.add("review", component, "release line not in the Nov 2026 CPU named ranges; from %s" % source,
+          path=path, version=raw)
+
+
+def check_mysql_114952(host, r):
+    """MySQL Server metadata vs Oracle Nov 2026 CPU ranges. Never start mysql. Skip MariaDB."""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            kind = _mysql_kind(name)
+            if not kind:
+                continue
+            for ver, src in rows:
+                _mysql_classify(r, name, ver, None, src, kind)
+    for formula, rows in cellar(host).items():
+        if formula == "mysql" or formula.startswith("mysql@"):
+            for ver, path in rows:
+                _mysql_classify(r, "homebrew %s" % formula, ver, host.display(path), "Homebrew")
+        if formula.startswith("mariadb"):
+            continue
+    if host.platform == "windows":
+        for spec in ("C:/Program Files/MySQL", "C:/Program Files (x86)/MySQL"):
+            root = host.sys(spec)
+            for name in hs.listdir(root):
+                hdr = os.path.join(root, name, "include", "mysql_version.h")
+                text = hs.read_text(hdr, 64 * 1024, host.gaps)
+                if not text:
+                    continue
+                m = _MYSQL_SERVER_H.search(text)
+                if m:
+                    _mysql_classify(r, "MySQL Server", m.group(1), host.display(hdr), "mysql_version.h")
+    for path, image, tag in docker_decl_refs(host, r"mysql"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last != "mysql" or "mariadb" in image.lower():
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "mysql image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _mysql_tag_unresolved(tag):
+            r.add("unknown", "mysql image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _mysql_classify(r, "mysql image", tag, host.display(path), "image tag")
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -6252,21 +7314,127 @@ CHECKS = [
                "Deploy the RHSA image for that 3.x train. Restricting /keys is mitigation, not a vendor patch. "
                "This tool never starts Quay.",
                ALL_OS, check_quay_123710),
+    check_meta("artex-gateway-keys",
+               "LiteLLM / Dify / One API gateway config files (ARTEX key theft)",
+               "check_now", "confirmed", "config",
+               ["aws-artex", "thn-connectwise"],
+               "ARTEX activity stole AI-gateway keys from LiteLLM, Dify and One API deployments. "
+               "This check reads named local config files and records credential field names only. "
+               "C2 hosts and IPs are not evaluated (no network).",
+               "If named credential fields are present, rotate the upstream provider keys from a clean "
+               "device. This tool never copies values.",
+               ALL_OS, check_artex_gateway_keys),
+    check_meta("vcenter-log4shell",
+               "VMware vCenter Server Log4Shell (Broadcom KB 87081)",
+               "check_if_used", "confirmed", "runtime",
+               ["broadcom-kb-87081"],
+               "Exploitation of vCenter via Log4Shell. Vendor floors 7.0 U3c build 19234570, "
+               "6.7 U3q 19300125, 6.5 U3s 19261680. 8.x is outside those trains. Workaround files "
+               "are not a vendor patch. Never start vpxd.",
+               "If vCenter is present, apply the KB 87081 build for that train. This tool never starts vpxd.",
+               ALL_OS, check_vcenter_log4shell, uses_walk=False),
+    check_meta("axis-90436",
+               "Apache Axis 1.x / Confluence DC below 9.2.28 (CVE-2026-90436)",
+               "check_if_used", "confirmed", "runtime",
+               ["oss-axis-90436", "cve-90436", "atlassian-90436"],
+               "CVE-2026-90436: Apache Axis 1.x through 1.4 is EOL with no 1.x fix. Confluence Data Center "
+               "1.x-9.x floor 9.2.28; 10.x is not affected. Remote API off is mitigation. Never HTTP.",
+               "Remove Axis 1.x or upgrade Confluence DC to 9.2.28. Remote API off is mitigation, not a patch. "
+               "This tool never probes HTTP.",
+               ALL_OS, check_axis_90436),
+    check_meta("ncentral-hf3",
+               "N-able N-central below 2026.4.1.39 HF3",
+               "check_if_used", "confirmed", "runtime",
+               ["nable-hf3"],
+               "N-central on-prem floor HF3 2026.4.1.39. HF2 2026.4.1.26 is still affected. Hosted NCOD "
+               "is not this check. Never start N-central.",
+               "Upgrade on-prem N-central to 2026.4.1.39 (HF3). This tool never starts N-central.",
+               ALL_OS, check_ncentral_hf3),
+    check_meta("blank-canvas-vsx",
+               "Blank Canvas malicious VS Code / Cursor extensions (11/03/2026)",
+               "check_now", "confirmed", "config",
+               ["ms-removed-packages"],
+               "Microsoft RemovedPackages 11/03/2026 Malware rows (131 ids, including TiroAppTeam and "
+               "JonnyClyde). This check matches extension folder names only.",
+               "Uninstall matching extensions from a clean profile. This tool never deletes them.",
+               ALL_OS, check_blank_canvas_vsx, uses_walk=False),
+    check_meta("apple-65339",
+               "macOS below Tahoe 26.6.2 / Sequoia 15.8 (CVE-2026-65339)",
+               "check_if_used", "confirmed", "runtime",
+               ["apple-148281", "apple-149043", "cve-65339"],
+               "CVE-2026-65339 (audiomxd). HT148281: macOS Tahoe 26.6.2. HT149043: Sequoia 15.8. macOS 14 is "
+               "review. iOS / iPadOS need MDM and are skipped.",
+               "Install HT148281 (Tahoe 26.6.2) or HT149043 (Sequoia 15.8). This tool never starts audiomxd.",
+               "macOS only", check_apple_65339, uses_walk=False),
+    check_meta("agent-framework-1-26",
+               "Microsoft agent-framework 1.26.1 / 1.26.2 malicious PyPI releases",
+               "check_now", "confirmed", "dependency",
+               ["aikido-agent-framework", "ghsa-764m-3ppc-5m73", "safedep-agent-framework"],
+               "agent-framework 1.26.1 and 1.26.2 shipped a .pth credential stealer (removed from PyPI). "
+               "Last clean release 1.26.0. IOC filenames and SHA-256 from Aikido/GHSA. Sibling unpinned "
+               "pins are a lead. The exfil URL is not stored in this helper.",
+               "If 1.26.1/1.26.2 or a matching IOC file is present, rebuild the environment and rotate "
+               "reachable secrets. Pin agent-framework==1.26.0. This tool never starts Python.",
+               ALL_OS, check_agent_framework_1_26),
+    check_meta("java4shell-114938",
+               "OpenJDK below %s / %s / %s / %s (CVE-2026-114938)" % (
+                   JAVA_17_FLOOR, JAVA_21_FLOOR, JAVA_25_FLOOR, JAVA_27_FLOOR),
+               "check_if_used", "confirmed", "runtime",
+               ["openjdk-2026-11-17", "cve-114938"],
+               "CVE-2026-114938 (Java4Shell). OpenJDK 17.0.6-17.0.21 and matching 21/25/27 trains below "
+               "the 17 Nov 2026 floors. 8/11 are not this CVE except 8u511-perf until 8u513-perf. "
+               "Never start java.",
+               "Install the 17 Nov 2026 CPU build for that train. This tool never starts java.",
+               ALL_OS, check_java4shell_114938),
+    check_meta("puppet-115731",
+               "Puppet Core / PE below 9.1.3 / 8.22.2 / PE 2026.0.1 (CVE-2026-115731, CISA KEV)",
+               "check_if_used", "confirmed", "runtime",
+               ["cve-115731", "cisa-kev-2026-11-17", "puppet-whats-new"],
+               "CVE-2026-115731 (CISA KEV 17 Nov 2026). PE floors 2023.8.13 / 2025.12.1 / 2026.0.1. "
+               "Core 9.1.3 and 8.22.2. 8.22.1 is review. Never start puppet.",
+               "Upgrade Puppet Enterprise or Core to the named floor. This tool never starts puppet.",
+               ALL_OS, check_puppet_115731, uses_walk=False),
+    check_meta("roller-129448",
+               "Apache Roller below 6.1.6 (CVE-2026-129448 / CVE-2026-82384)",
+               "check_if_used", "confirmed", "runtime",
+               ["roller-security", "oss-roller-129448", "cve-129448"],
+               "CVE-2026-129448 (also CVE-2026-82384). Floor 6.1.6; 6.1.5 is still affected. "
+               "web.xml changes are mitigation, not a patch.",
+               "Upgrade Apache Roller to 6.1.6. Do not treat web.xml edits as a vendor patch.",
+               ALL_OS, check_roller_129448),
+    check_meta("mysql-114952",
+               "MySQL Server in Oracle Nov 2026 CPU ranges (CVE-2026-114952)",
+               "check_if_used", "confirmed", "runtime",
+               ["oracle-cpu-nov-2026", "cve-114952"],
+               "CVE-2026-114952. Oracle Nov 2026 CPU affected ranges: Server 8.4.0-8.4.13, 9.7.0-9.7.4, "
+               "26.10; Cluster also 8.0.0-8.0.50. MariaDB is not this check. Never start mysql or mysqld.",
+               "Apply the Nov 2026 CPU for that train. This tool never starts mysql or mysqld.",
+               ALL_OS, check_mysql_114952),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
                     "planted-agent-instructions", "function-color-npm-package", "litellm-1-107-0",
-                    "claude-code-vsx-21313", "yoba-fake-ai-apps"}
+                    "claude-code-vsx-21313", "yoba-fake-ai-apps",
+                    "artex-gateway-keys", "blank-canvas-vsx", "agent-framework-1-26"}
 
 
 def run_check(host, meta):
     r = Result()
+    host._py_installs_used = False
     try:
         meta["fn"](host, r)
     except Exception as exc:  # a parser bug must not hide other checks
         r.blocked.append("check error: %s" % textscan.diagnostic_text(type(exc).__name__))
     kinds = {f["result"] for f in r.findings}
     walk_stopped = meta["uses_walk"] and not index(host).complete
+    py_stopped = host._py_installs_used and not host._cache.get("py_installs_complete", True)
+    scan_stopped = walk_stopped or py_stopped
+    stopped_bits = []
+    if walk_stopped:
+        stopped_bits.append("home walk stopped early (%s)" % index(host).stopped)
+    if py_stopped:
+        stopped_bits.append("python environment scan stopped")
+    stopped_note = "; ".join(stopped_bits)
     if kinds & {"affected", "review"}:
         status = "FAIL"
         n_aff = sum(f["result"] == "affected" for f in r.findings)
@@ -6276,8 +7444,8 @@ def run_check(host, meta):
         status, reason = "BLOCKED", "present but version or state could not be read without executing it"
     elif r.blocked:
         status, reason = "BLOCKED", "; ".join(r.blocked)
-    elif walk_stopped:
-        status, reason = "BLOCKED", "home walk stopped early (%s); nothing found in the part that was listed" % index(host).stopped
+    elif scan_stopped:
+        status, reason = "BLOCKED", stopped_note + "; nothing found in the part that was listed"
     elif meta["id"] in INDICATOR_CHECKS or r.present:
         status = "PASS"
         reason = "nothing to fix found in the listed scope" if meta["id"] in INDICATOR_CHECKS else \
@@ -6286,6 +7454,8 @@ def run_check(host, meta):
         status, reason = "NOT_APPLICABLE", "not present: no install, package, file or config found"
     if r.blocked and status == "FAIL":
         reason += "; also incomplete: " + "; ".join(r.blocked)
+    if scan_stopped and status in ("FAIL", "PASS", "BLOCKED") and stopped_note not in reason:
+        reason += "; " + stopped_note
     deep = host.gaps.counts.get("max_depth", 0) if meta["uses_walk"] else 0
     if deep and status in ("PASS", "FAIL", "NOT_APPLICABLE"):
         reason += "; %d folder(s) deeper than --max-depth %d were not listed" % (deep, host.max_depth)
@@ -6295,7 +7465,8 @@ def run_check(host, meta):
     out = {k: meta[k] for k in ("id", "title", "section", "confirmation", "layer", "briefing_fact", "remediation",
                                 "os_support")}
     out.update({"status": status, "reason": reason, "findings": findings[:500], "notes": r.notes,
-                "sources": [{"title": SRC[s][0], "url": SRC[s][1]} for s in meta["sources"]]})
+                "sources": [{"title": SRC[s][0], "url": SRC[s][1]} for s in meta["sources"]],
+                "scan_truncated": bool(scan_stopped)})
     if len(findings) > 500:
         out["findings_truncated"] = len(findings) - 500
     if meta["id"].startswith("testmetest") and status == "FAIL":
@@ -6323,8 +7494,10 @@ def report_fragments(doc, target, collected_on):
                                                            ", ".join("%s=%d" % kv for kv in sorted(counts.items())) or "none",
                                                            (". First: " + top) if top else "")
         status = "complete"
-        if c["status"] == "BLOCKED":
-            status = "truncated" if "stopped" in c["reason"] else "unparsed"
+        if c.get("scan_truncated") or (c["status"] == "BLOCKED" and "stopped" in c["reason"]):
+            status = "truncated"
+        elif c["status"] == "BLOCKED":
+            status = "unparsed"
         ev = {"id": "ev-host-" + c["id"], "kind": "config_snapshot" if c["layer"] == "config" else "file_excerpt",
               "target": target, "layer": c["layer"], "summary": summary[:1500], "collected_on": collected_on,
               "collection_status": status, "executed": True, "execution_context": "read_only_local",

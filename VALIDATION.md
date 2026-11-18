@@ -2,6 +2,8 @@
 
 Version 0.4.4, checked on 31 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
+Unreleased host-check catch-up (18 Nov 2026) adds eleven ids (71 total) and `profiles/host-advisories-2026-11-18.md`. Reproduce with the commands below; this file's 0.4.4 counts are historical.
+
 ## Executed checks
 
 - **Unit suite:** 421 test methods, green in CI on Ubuntu (Python 3.9 and 3.14), macOS (3.14) and Windows (3.9 and 3.14). 0.4.3 had 370. POSIX-only inventory, package-check and render-output tests skip on Windows. One corpus test iterates 69 adversarial report fixtures; the corpus is included in the suite, not an additional independent benchmark.

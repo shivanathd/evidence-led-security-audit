@@ -270,6 +270,16 @@ class Parsers(unittest.TestCase):
         self.assertEqual(found, {"litellm": "1.107.0", "brotli": "1.2.0"})
         self.assertEqual(hs.vendored_certifi(os.path.join(self.d, "sp"))[0], "2023.07.22")
 
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_python_dists_unlistable_returns_none(self):
+        sp = os.path.join(self.d, "sp")
+        os.makedirs(sp)
+        os.chmod(sp, 0)
+        self.addCleanup(lambda: os.chmod(sp, 0o755))
+        gaps = hs.Gaps(lambda p: p)
+        self.assertIsNone(hs.python_dists(sp, {"litellm"}, gaps))
+        self.assertIn("permission_denied", gaps.counts)
+
     def test_conda_meta(self):
         self.put("cm/certifi-2025.1.31-pyhd8ed1ab_0.json", "{}")
         self.assertEqual(hs.conda_meta(os.path.join(self.d, "cm"), {"certifi"})[0][:2], ("certifi", "2025.1.31"))
@@ -298,6 +308,8 @@ class Parsers(unittest.TestCase):
         self.assertEqual(hs.py_pins(lock, "uv.lock", {"litellm"}), {"litellm": {"1.106.2"}})
         self.assertEqual(hs.py_pins("# litellm==1.107.0\nRUN pip install litellm==1.106.2\n",
                                    "dockerfile", {"litellm"}), {"litellm": {"1.106.2"}})
+        self.assertEqual(hs.py_pins("agent-framework===1.26.2\n", "requirements.txt", {"agent_framework"}),
+                         {"agent_framework": {"===1.26.2"}})
         self.assertEqual(hs.cargo_lock_versions('[[package]]\nname = "wasmtime"\nversion = "48.0.6"\n', {"wasmtime"}),
                          {"wasmtime": {"48.0.6"}})
 

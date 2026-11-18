@@ -134,6 +134,15 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.unrealircd.org",  # UnrealIRCd v6.2.7.1 release / FAQ
     "www.postgresql.org", "postgresql.org",  # CVE-2026-6460 vendor CVE page and news 3442
     "quay.io",  # cited as not this check: generic registry prefix vs Quay app image
+    "aws.amazon.com",  # ARTEX / AI-gateway key theft (Security Blog)
+    "safedep.io",  # agent-framework PyPI compromise
+    "openjdk.org",  # CVE-2026-114938 Java4Shell 17 Nov 2026 advisory
+    "confluence.atlassian.com",  # CVE-2026-90436 Confluence Data Center
+    "status.n-able.com",  # N-central 2026.4 HF3 2026.4.1.39
+    "knowledge.broadcom.com",  # KB 87081 vCenter Log4j
+    "www.puppet.com",  # PE 2026.0.1 / 2025.12.1 / 2023.8.13
+    "roller.apache.org",  # Apache Roller 6.1.6 / CVE-2026-82384
+    "cloud.google.com",  # COLD RELIC Workspace Super Admin (SaaS note only)
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
