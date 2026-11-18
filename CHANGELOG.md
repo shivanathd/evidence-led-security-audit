@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: eleven read-only checks (71 checks total). `artex-gateway-keys` records LiteLLM / Dify / One API credential **field names** only (ARTEX). `vcenter-log4shell` classifies vCenter metadata against Broadcom KB 87081 (7.0 U3c 19234570 / 6.7 U3q 19300125 / 6.5 U3s 19261680). `axis-90436` flags Axis 1.x jars (EOL, no 1.x fix) and Confluence DC below 9.2.28 (CVE-2026-90436; 10.x info; Remote API off is mitigation). `ncentral-hf3` classifies on-prem N-central below 2026.4.1.39 (HF2 2026.4.1.26 is not a fix; hosted NCOD skipped). `blank-canvas-vsx` matches 131 Microsoft RemovedPackages 11/03/2026 Malware extension ids. `apple-65339` classifies macOS ProductVersion against HT148281 Tahoe 26.6.2 and HT149043 Sequoia 15.8 (iOS skipped). `agent-framework-1-26` classifies malicious PyPI 1.26.1 / 1.26.2 plus named IOC file hashes; sibling unpinned pins are a lead; the exfil URL is not stored. `java4shell-114938` classifies OpenJDK metadata against v17.0.21.1 / v21.0.13.1 / v25.0.5.1 / v27.0.1.1 (17.0.6–17.0.21 affected; 8/11 not this CVE except 8u511-perf). `puppet-115731` classifies PE 2023.8.13 / 2025.12.1 / 2026.0.1 and Core 9.1.3 / 8.22.2 (CISA KEV 17 Nov 2026; 8.22.1 is review). `roller-129448` classifies Apache Roller below 6.1.6 (CVE-2026-82384 / CVE-2026-129448; 6.1.5 still affected; web.xml is mitigation). `mysql-114952` classifies MySQL Server metadata against Oracle Nov 2026 CSPU ranges (8.4.0–8.4.13, 9.7.0–9.7.4, 26.10; Cluster also 8.0.0–8.0.50); MariaDB and mysql-client are not this check. Never starts java, mysql, mysqld, vpxd, puppet or N-central.
+- Dated profile: `host-advisories-2026-11-18.md`.
+- `references/saas-identity.md`: Google Workspace Super Admin takeover (Cold Relic) is tenant/admin-console only.
+
+### Changed
+
+- Briefing window through 18 Nov 2026.
+- Reviewed public hosts: `aws.amazon.com`, `safedep.io`, `openjdk.org`, `confluence.atlassian.com`, `status.n-able.com`, `knowledge.broadcom.com`, `www.puppet.com`, `roller.apache.org`, `cloud.google.com`.
+- Claude Code VSX 2.1.312 needs no second floor (`claude-code-vsx-21313`). Quay CVE-2026-110697 is the same RHSA set as `quay-123710`.
+
 ## 0.4.9 - 2026-11-16
 
 ### Added
