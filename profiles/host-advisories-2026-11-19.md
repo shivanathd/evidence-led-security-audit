@@ -48,7 +48,7 @@ Already on main (do not re-implement): `litellm-1-107-0` (malicious 1.107.0), `a
 
 **nginx OSS CVE-2026-123007.** HTTP/2 issue present since 1.9.5, fixed in **1.30.7** / **1.31.9** (18 Nov 2026). The same releases close the rest of that nginx.org security set. OpenResty and NGINX Plus use other version lines. Distro builds may backport. Never run `nginx -v` or reload nginx for this check.
 
-**Ruby2shell (GHSA-34m4-m9fh-gqp5).** Heap overflow in string case conversion; same 18 Nov 2026 releases also fix six regexp/string memory-safety flaws. Fixed in **3.3.14 / 3.4.13 / 4.0.10**. 3.2 and older are EOL. Distinct from `ruby-regex`. GitLab `/opt/gitlab/version-manifest.txt` `ruby` is a vendor-bundled hint; GitLab-only evidence is BLOCKED.
+**Ruby2shell (GHSA-34m4-m9fh-gqp5).** Heap overflow in string case conversion; same 18 Nov 2026 releases also fix six regexp/string memory-safety flaws. Fixed in **3.3.14 / 3.4.13 / 4.0.10**. 3.2 and older are EOL. Distinct from `ruby-regex`. GitLab `/opt/gitlab/version-manifest.txt` `ruby` is a vendor-bundled hint and BLOCKED (not classified against upstream floors). The dpkg `ruby` dependency package is skipped.
 
 **PHP-FPM GHSA-qc49 / CVE-2026-129289.** Unread-body request smuggling, unauthenticated RCE on sapi-fpm/LSAPI. Fixed in **8.2.36 / 8.3.37 / 8.4.28 / 8.5.13**. Distinct from `php2shell`. The same releases also patch CVE-2026-115560; `php2shell` still records `session.upload_progress.enabled`. Never start or reload php-fpm.
 
@@ -76,8 +76,8 @@ Already on main (do not re-implement): `litellm-1-107-0` (malicious 1.107.0), `a
 
 - `litellm-40217`: `py_installs` / `py_pin_hits` / `docker_decl_refs`. Exact `==` / `===` pins classify. Unpinned specs are `review`. Digest-pinned and moving tags are `unknown`.
 - `nginx-123007`: linux packages `nginx` / `nginx-core` / `nginx-full` / `nginx-light` / `nginx-extras` / `nginx-mainline`; Homebrew `nginx`; Windows PE / uninstall registry (`nginx Plus` / OpenResty DisplayNames are `review`); ASCII `nginx/X.Y.Z` in binary bytes; FROM/`image:` tags whose last path component is `nginx` or `nginx-unprivileged`. OpenResty and NGINX Plus are `review`. `nginx-prometheus-exporter` is not this check.
-- `ruby2shell`: `ruby_installs` (rbenv / asdf / mise / chruby / rvm / Homebrew / distro packages / rbconfig.rb); FROM/`image:` tags whose last path component is `ruby`. GitLab `version-manifest.txt` `ruby` is an `info` hint; when it is the only evidence the check is BLOCKED. Digest-pinned and moving tags are `unknown`.
-- `php-129289`: `php_installs` (distro `php` / `php-fpm`, Homebrew, `php_version.h`, MAMP, Windows DLL PE); FROM/`image:` tags whose last path component is `php` or `php-fpm`. php.ini is not this check. Digest-pinned and moving tags are `unknown`.
+- `ruby2shell`: `ruby_installs` (rbenv / asdf / mise / chruby / rvm / Homebrew / distro packages / rbconfig.rb); FROM/`image:` tags whose last path component is `ruby`. GitLab `version-manifest.txt` `ruby` is an `info` hint and BLOCKED. The dpkg `ruby` dependency package is skipped; `ruby3.3` and apk/rpm `ruby` stay. Digest-pinned and moving tags are `unknown`.
+- `php-129289`: `php_installs` (distro `php` / `php-fpm`, Homebrew, `php_version.h`, MAMP, Windows DLL PE); FROM/`image:` tags whose last path component is `php` or `php-fpm`. php.ini is not this check. dpkg `php` / `php-fpm` default-version packages are skipped; `php8.4-fpm` and apk/rpm `php` stay. Digest-pinned and moving tags are `unknown`.
 - `drupal-132165`: walk `composer.lock` / `vendor/composer/installed.json` for `drupal/core` (or `drupal/core-recommended` when core is absent); `core/lib/Drupal.php` `const VERSION` next to `index.php` or `autoload.php`; FROM/`image:` tags whose last path component is `drupal`. `composer.json` is not evidence.
 
 ## What this helper does not check

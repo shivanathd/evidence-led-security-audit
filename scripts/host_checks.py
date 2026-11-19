@@ -168,10 +168,11 @@ LIMITS = [
     "nginx-present remains a presence-only check.",
     "ruby2shell classifies installed Ruby metadata against 4.0.10 / 3.4.13 / 3.3.14 (GHSA-34m4). "
     "3.2 and older have no fix. Distinct from ruby-regex. GitLab version-manifest ruby is an info "
-    "hint; GitLab-only evidence is BLOCKED. Never starts ruby.",
+    "hint; that evidence is BLOCKED (not a patched-build PASS). The dpkg ruby dependency package "
+    "is skipped. Never starts ruby.",
     "php-129289 classifies PHP / PHP-FPM metadata against 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 "
     "(GHSA-qc49 / CVE-2026-129289). Distinct from php2shell. php.ini is not this check. "
-    "Never starts or reloads php-fpm.",
+    "dpkg php / php-fpm default-version packages are skipped. Never starts or reloads php-fpm.",
     "drupal-132165 classifies drupal/core from composer.lock, installed.json and "
     "core/lib/Drupal.php VERSION against 10.6.22 / 11.3.22 / 11.4.13. composer.json is "
     "not evidence. Blocking install.php is mitigation. Never HTTP, never starts drush.",
@@ -1753,12 +1754,23 @@ def dotnet_runtimes(host):
     return out
 
 
+_DPKG_PHP_META = re.compile(r"^php(-(cli|fpm|common|cgi))?$")
+_PHP_PKG = re.compile(r"^php(\d(\.\d)?|\d\d)?(-(cli|fpm|common|cgi))?$")
+_PHP_VER_SAPI = re.compile(r"^php\d\.\d-(cli|fpm|common)$")
+
+
 def php_installs(host):
     out = []
     pk = linux_packages(host)
     for name, vers in pk.items():
-        if re.match(r"^php(\d(\.\d)?|\d\d)?(-(cli|fpm|common|cgi))?$", name) or re.match(r"^php\d\.\d-(cli|fpm|common)$", name):
-            out += [("package %s (%s)" % (name, src), ver, None) for ver, src in vers]
+        if not (_PHP_PKG.match(name) or _PHP_VER_SAPI.match(name)):
+            continue
+        for ver, src in vers:
+            # Debian/Ubuntu ``php`` / ``php-fpm`` are default-version dependency
+            # packages (``2:8.4+96``), not the runtime NVR.
+            if src == "dpkg" and _DPKG_PHP_META.match(name):
+                continue
+            out.append(("package %s (%s)" % (name, src), ver, None))
     for formula, vers in cellar(host).items():
         if formula == "php" or formula.startswith("php@"):
             out += [("homebrew %s" % formula, v, p) for v, p in vers]
@@ -1820,8 +1832,14 @@ def ruby_installs(host):
         if formula == "ruby" or formula.startswith("ruby@"):
             out += [("homebrew %s" % formula, v, p) for v, p in vers]
     for name, vers in linux_packages(host).items():
-        if re.match(r"^ruby(\d(\.\d)?)?$", name) or re.match(r"^ruby\d\.\d$", name):
-            out += [("package %s (%s)" % (name, src), v, None) for v, src in vers]
+        if not (re.match(r"^ruby(\d(\.\d)?)?$", name) or re.match(r"^ruby\d\.\d$", name)):
+            continue
+        for v, src in vers:
+            # Debian/Ubuntu ``ruby`` is a dependency package (``1:3.3+b1``), not
+            # the interpreter NVR. ``ruby3.3`` and apk/rpm ``ruby`` stay.
+            if src == "dpkg" and name == "ruby":
+                continue
+            out.append(("package %s (%s)" % (name, src), v, None))
     roots = []
     if host.platform == "windows":
         roots += glob_dirs(host, host.sys("C:/"), "ruby*")
@@ -7322,9 +7340,8 @@ def check_ruby2shell(host, r):
                 r.add("info", "vendor-bundled Ruby (GitLab)",
                       "vendor-bundled Ruby; confirm the GitLab advisory — not classified against upstream Ruby floors",
                       path=host.display(manifest), version=m.group(1))
-                if not any(f.get("component") != "vendor-bundled Ruby (GitLab)" for f in r.findings):
-                    r.blocked.append(
-                        "vendor-bundled GitLab Ruby is not classified against upstream floors")
+                r.blocked.append(
+                    "vendor-bundled GitLab Ruby is not classified against upstream floors")
 
 
 def _php_129289_classify(r, component, raw, path, source):
@@ -7993,7 +8010,8 @@ CHECKS = [
                ["ghsa-34m4", "ruby-lang-2026-11-18", "cf-ruby2shell", "veria-ruby2shell", "thn-ruby2shell"],
                "GHSA-34m4-m9fh-gqp5 (case-conversion heap overflow) and six regexp/string memory-safety "
                "flaws. Floors 4.0.10 / 3.4.13 / 3.3.14 (18 Nov 2026). Ruby 3.2 and older get no fix. "
-               "Distinct from ruby-regex. Never start ruby.",
+               "Distinct from ruby-regex. GitLab bundled ruby is an info hint and BLOCKED. "
+               "The dpkg ruby dependency package is skipped. Never start ruby.",
                "Upgrade Ruby to 4.0.10, 3.4.13 or 3.3.14. 3.2 and older are EOL. This tool never starts ruby.",
                ALL_OS, check_ruby2shell),
     check_meta("php-129289",
@@ -8002,7 +8020,8 @@ CHECKS = [
                ["ghsa-qc49", "php-changelog-8", "cve-129289"],
                "GHSA-qc49-hpvq-g2w6 / CVE-2026-129289: PHP-FPM unread-body request smuggling. "
                "Floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 (19 Nov 2026). Distro backports may keep an "
-               "old version string. Distinct from php2shell. Never start or reload php-fpm.",
+               "old version string. Distinct from php2shell. dpkg php / php-fpm default-version "
+               "packages are skipped. Never start or reload php-fpm.",
                "Upgrade PHP / PHP-FPM to 8.5.13, 8.4.28, 8.3.37 or 8.2.36, or confirm a distro backport. "
                "This tool never starts or reloads php-fpm.",
                ALL_OS, check_php_129289),

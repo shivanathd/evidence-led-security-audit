@@ -421,12 +421,40 @@ class Ruby2shell(SimCase):
         self.assertIn("vendor-bundled", c["findings"][0]["detail"])
         self.assertIn("not classified", c["reason"])
 
-    def test_gitlab_hint_does_not_block_patched_upstream(self):
+    def test_gitlab_ruby_blocks_even_with_patched_upstream(self):
         self.s.mkdir("~/.rbenv/versions/4.0.10")
         self.s.write("/opt/gitlab/version-manifest.txt", "gitlab-ee 19.6.0\nruby 3.3.13\nomnibus-gitlab 19.6.0\n")
         c = self.s.check("ruby2shell")
-        self.assertStatus(c, "PASS")
+        self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["info", "info"])
+        self.assertIn("not classified", c["reason"])
+
+    def test_gitlab_does_not_hide_affected_upstream(self):
+        self.s.mkdir("~/.rbenv/versions/4.0.9")
+        self.s.write("/opt/gitlab/version-manifest.txt", "gitlab-ee 19.6.0\nruby 3.3.13\nomnibus-gitlab 19.6.0\n")
+        c = self.s.check("ruby2shell")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+        self.assertIn("also incomplete", c["reason"])
+
+    def test_dpkg_ruby_metapackage_does_not_override_interpreter(self):
+        self.s.dpkg({"ruby": "1:3.3+b1", "ruby3.3": "3.3.14-1"})
+        c = self.s.check("ruby2shell")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_ruby_metapackage_alone_is_not_this_check(self):
+        self.s.dpkg({"ruby": "1:3.3+b1"})
+        self.assertStatus(self.s.check("ruby2shell"), "NOT_APPLICABLE")
+
+    def test_apk_ruby_is_the_interpreter(self):
+        self.s.apk({"ruby": "3.3.13-r0"})
+        self.assertEqual(results(self.s.check("ruby2shell")), ["affected"])
+        ok = self.sim("linux")
+        ok.apk({"ruby": "3.3.14-r0"})
+        c = ok.check("ruby2shell")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
 
     def test_never_starts_ruby(self):
         self.s.mkdir("~/.rbenv/versions/3.3.13")
@@ -528,6 +556,25 @@ class Php129289(SimCase):
         system.assert_not_called()
         self.assertNotIn("check error", c["reason"])
         self.assertStatus(c, "FAIL")
+
+    def test_dpkg_php_metapackage_does_not_override_runtime(self):
+        self.s.dpkg({"php": "2:8.4+96", "php-fpm": "2:8.4+96", "php8.4-fpm": "8.4.28-1"})
+        c = self.s.check("php-129289")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_dpkg_php_metapackage_alone_is_not_this_check(self):
+        self.s.dpkg({"php": "2:8.4+96", "php-fpm": "2:8.4+96"})
+        self.assertStatus(self.s.check("php-129289"), "NOT_APPLICABLE")
+
+    def test_apk_php_is_the_runtime(self):
+        self.s.apk({"php": "8.4.27-r0"})
+        self.assertEqual(results(self.s.check("php-129289")), ["affected"])
+        ok = self.sim("linux")
+        ok.apk({"php": "8.4.28-r0"})
+        c = ok.check("php-129289")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
 
 
 class Drupal132165(SimCase):
