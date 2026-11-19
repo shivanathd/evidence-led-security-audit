@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: three read-only checks (76 checks total). `ruby2shell` classifies installed Ruby against GHSA-34m4-m9fh-gqp5 floors 4.0.10 / 3.4.13 / 3.3.14 (18 Nov 2026; 3.2 and older EOL). Distinct from `ruby-regex`. GitLab `version-manifest.txt` `ruby` is info only. `php-129289` classifies PHP / PHP-FPM against GHSA-qc49-hpvq-g2w6 / CVE-2026-129289 floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36. Distinct from `php2shell`. php.ini is not this check. `drupal-132165` classifies Drupal core against SA-CORE-2026-017 / CVE-2026-132165 floors 10.6.22 / 11.3.22 / 11.4.13 from `composer.lock`, `installed.json` and `core/lib/Drupal.php`. `composer.json` is not evidence. Never starts ruby, php-fpm or drush, and never HTTP-probes `install.php`.
+
+### Changed
+
+- `php2shell` ini wording: CVE-2026-115560 now also has 19 Nov 2026 patched releases (`php-129289`); mitigation remains `session.upload_progress.enabled=0`.
+- Dated profile `host-advisories-2026-11-19.md` extended for the evening watch.
+- Reviewed public hosts: `www.ruby-lang.org`, `ruby-lang.org`, `verialabs.com`.
+- Skipped as not host-checkable or already covered: CVE-2026-115560 as a second check, PostgreSQL CVE-2026-116331 (already `postgresql-6460`), MySQL CVE-2026-101786, ClickHouse Depthfirst PoC, Oracle Text / ORDS, European Commission ARTEX incident, N-able Mail Assure hosted cloud.
+
 ## 0.4.11 - 2026-11-19
 
 ### Added

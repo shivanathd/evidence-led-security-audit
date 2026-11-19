@@ -4630,7 +4630,7 @@ class WholeRun(SimCase):
             if m["id"] != "plex-media-server":
                 self.assertTrue(m["sources"], m["id"])
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
-        self.assertEqual(len(hc.CHECK_IDS), 73)
+        self.assertEqual(len(hc.CHECK_IDS), 76)
         self.assertIn("nodered-admin-http", hc.CHECK_IDS)
         self.assertIn("cryptopayment-gateway-81648", hc.CHECK_IDS)
         self.assertIn("apt-109518", hc.CHECK_IDS)
@@ -4647,6 +4647,9 @@ class WholeRun(SimCase):
         self.assertIn("mysql-114952", hc.CHECK_IDS)
         self.assertIn("litellm-40217", hc.CHECK_IDS)
         self.assertIn("nginx-123007", hc.CHECK_IDS)
+        self.assertIn("ruby2shell", hc.CHECK_IDS)
+        self.assertIn("php-129289", hc.CHECK_IDS)
+        self.assertIn("drupal-132165", hc.CHECK_IDS)
         self.assertTrue(all(reason for _item, reason in hc.SKIPPED))
 
     def test_report_fragments_validate_in_a_report(self):
