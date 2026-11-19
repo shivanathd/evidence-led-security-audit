@@ -168,7 +168,7 @@ LIMITS = [
     "nginx-present remains a presence-only check.",
     "ruby2shell classifies installed Ruby metadata against 4.0.10 / 3.4.13 / 3.3.14 (GHSA-34m4). "
     "3.2 and older have no fix. Distinct from ruby-regex. GitLab version-manifest ruby is an info "
-    "hint; that evidence is BLOCKED (not a patched-build PASS). The dpkg ruby dependency package "
+    "hint; BLOCKED unless another Ruby is affected (FAIL wins). The dpkg ruby dependency package "
     "is skipped. Never starts ruby.",
     "php-129289 classifies PHP / PHP-FPM metadata against 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 "
     "(GHSA-qc49 / CVE-2026-129289). Distinct from php2shell. php.ini is not this check. "
@@ -8010,7 +8010,8 @@ CHECKS = [
                ["ghsa-34m4", "ruby-lang-2026-11-18", "cf-ruby2shell", "veria-ruby2shell", "thn-ruby2shell"],
                "GHSA-34m4-m9fh-gqp5 (case-conversion heap overflow) and six regexp/string memory-safety "
                "flaws. Floors 4.0.10 / 3.4.13 / 3.3.14 (18 Nov 2026). Ruby 3.2 and older get no fix. "
-               "Distinct from ruby-regex. GitLab bundled ruby is an info hint and BLOCKED. "
+               "Distinct from ruby-regex. GitLab bundled ruby is an info hint; BLOCKED unless "
+               "another Ruby is affected. "
                "The dpkg ruby dependency package is skipped. Never start ruby.",
                "Upgrade Ruby to 4.0.10, 3.4.13 or 3.3.14. 3.2 and older are EOL. This tool never starts ruby.",
                ALL_OS, check_ruby2shell),

@@ -4,7 +4,7 @@
 
 ### Added
 
-- `scripts/host_checks.py`: three read-only checks (76 checks total). `ruby2shell` classifies installed Ruby against GHSA-34m4-m9fh-gqp5 floors 4.0.10 / 3.4.13 / 3.3.14 (18 Nov 2026; 3.2 and older EOL). Distinct from `ruby-regex`. GitLab `version-manifest.txt` `ruby` is an info hint and BLOCKED (not a patched-build PASS). The dpkg `ruby` dependency package is skipped. `php-129289` classifies PHP / PHP-FPM against GHSA-qc49-hpvq-g2w6 / CVE-2026-129289 floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36. Distinct from `php2shell`. php.ini is not this check. dpkg `php` / `php-fpm` default-version packages are skipped. `drupal-132165` classifies Drupal core against SA-CORE-2026-017 / CVE-2026-132165 floors 10.6.22 / 11.3.22 / 11.4.13 from `composer.lock`, `installed.json` and `core/lib/Drupal.php`. `composer.json` is not evidence. Never starts ruby, php-fpm or drush, and never HTTP-probes `install.php`.
+- `scripts/host_checks.py`: three read-only checks (76 checks total). `ruby2shell` classifies installed Ruby against GHSA-34m4-m9fh-gqp5 floors 4.0.10 / 3.4.13 / 3.3.14 (18 Nov 2026; 3.2 and older EOL). Distinct from `ruby-regex`. GitLab `version-manifest.txt` `ruby` is an info hint; BLOCKED unless another Ruby is affected (FAIL wins). The dpkg `ruby` dependency package is skipped. `php-129289` classifies PHP / PHP-FPM against GHSA-qc49-hpvq-g2w6 / CVE-2026-129289 floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36. Distinct from `php2shell`. php.ini is not this check. dpkg `php` / `php-fpm` default-version packages are skipped. `drupal-132165` classifies Drupal core against SA-CORE-2026-017 / CVE-2026-132165 floors 10.6.22 / 11.3.22 / 11.4.13 from `composer.lock`, `installed.json` and `core/lib/Drupal.php`. `composer.json` is not evidence. Never starts ruby, php-fpm or drush, and never HTTP-probes `install.php`.
 
 ### Changed
 
@@ -12,7 +12,7 @@
 - Dated profile `host-advisories-2026-11-19.md` extended for the evening watch.
 - Reviewed public hosts: `www.ruby-lang.org`, `ruby-lang.org`, `verialabs.com`.
 - Skipped as not host-checkable or already covered: CVE-2026-115560 as a second check, PostgreSQL CVE-2026-116331 (already `postgresql-6460`), MySQL CVE-2026-101786, ClickHouse Depthfirst PoC, Oracle Text / ORDS, European Commission ARTEX incident, N-able Mail Assure hosted cloud.
-- GHSA-34m4 source URL is the ruby/ruby repository advisory (the generic github.com/advisories path 404s). GitLab bundled ruby is BLOCKED whenever the manifest names it. Drupal.php discovery requires `core` and `core/lib` to be plain directories. dpkg default-version `php` / `ruby` dependency packages are skipped (`php8.4-fpm` / `ruby3.3` and apk/rpm `php` / `ruby` stay).
+- GHSA-34m4 source URL is the ruby/ruby repository advisory (the generic github.com/advisories path 404s). GitLab bundled ruby is BLOCKED when the manifest names it and no other Ruby is affected; FAIL still wins if another Ruby is affected. Drupal.php discovery requires `core` and `core/lib` to be plain directories. dpkg default-version `php` / `ruby` dependency packages are skipped (`php8.4-fpm` / `ruby3.3` and apk/rpm `php` / `ruby` stay).
 
 ## 0.4.11 - 2026-11-19
 
