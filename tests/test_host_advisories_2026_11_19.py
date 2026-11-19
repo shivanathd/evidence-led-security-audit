@@ -227,6 +227,24 @@ class Nginx123007(SimCase):
         self.assertEqual(results(c), ["affected"])
         self.assertEqual(c["findings"][0]["version"], "1.30.6")
 
+    def test_banner_plain_floor_is_info(self):
+        self.s.write("/usr/sbin/nginx", b"\x7fELF" + b"\x00" * 64 + b"nginx/1.30.7" + b"\x00" * 32)
+        c = self.s.check("nginx-123007")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_banner_prerelease_of_stable_floor_is_affected(self):
+        self.s.write("/usr/sbin/nginx", b"\x7fELF" + b"\x00" * 64 + b"nginx/1.30.7rc1" + b"\x00" * 32)
+        c = self.s.check("nginx-123007")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "1.30.7rc1")
+        self.assertIn("prerelease", c["findings"][0]["detail"])
+
+    def test_banner_prerelease_of_mainline_floor_is_affected(self):
+        self.s.write("/usr/sbin/nginx", b"\x7fELF" + b"\x00" * 64 + b"nginx/1.31.9rc1" + b"\x00" * 32)
+        self.assertEqual(results(self.s.check("nginx-123007")), ["affected"])
+
     def test_unversioned_binary_is_unknown(self):
         self.s.write("/usr/sbin/nginx", b"\x7fELF" + b"\x00" * 128)
         c = self.s.check("nginx-123007")

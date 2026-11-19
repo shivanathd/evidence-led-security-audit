@@ -128,7 +128,7 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `roller-129448` | Walk `*.properties` under a `roller` path (`ro.version=`); image `roller` | same | same |
 | `mysql-114952` | Homebrew `mysql` (not `mariadb`); `mysql` image tags | dpkg/apk/pacman/rpm `mysql-server*` (not client, not MariaDB); image tags. Never `mysql`/`mysqld` | Program Files `MySQL/*/include/mysql_version.h` |
 | `litellm-40217` | venv/conda `litellm`; pins; `*litellm*` image tags | same | same |
-| `nginx-123007` | Homebrew `nginx`; ASCII `nginx/X.Y.Z` in binary bytes; image tags | dpkg/apk/pacman/rpm `nginx` / `nginx-core` / `nginx-full` / `nginx-light` / `nginx-extras` / `nginx-mainline`; OpenResty / Plus are `review`; image tags. Never starts nginx | Program Files / `C:\nginx*` PE; uninstall registry (`nginx Plus` / OpenResty names are `review`); image tags |
+| `nginx-123007` | Homebrew `nginx`; ASCII `nginx/X.Y.Z` (optional `rc`/`pre` suffix) in binary bytes; image tags | dpkg/apk/pacman/rpm `nginx` / `nginx-core` / `nginx-full` / `nginx-light` / `nginx-extras` / `nginx-mainline`; OpenResty / Plus are `review`; image tags. Never starts nginx | Program Files / `C:\nginx*` PE; uninstall registry (`nginx Plus` / OpenResty names are `review`); image tags |
 
 ## Known limits
 

@@ -6972,7 +6972,8 @@ _NGINX_OSS_PKGS = frozenset({
     "nginx", "nginx-core", "nginx-full", "nginx-light", "nginx-extras", "nginx-mainline",
 })
 _NGINX_REVIEW_PKGS = frozenset({"openresty", "nginx-plus", "nginxplus"})
-_NGINX_BANNER = re.compile(rb"nginx/(\d+(?:\.\d+){1,3})")
+_NGINX_BANNER = re.compile(
+    rb"nginx/(\d+(?:\.\d+){1,3}(?:(?:rc|pre|alpha|beta)[-._]?\d*)?)", re.I)
 _MOVING_TAGS = frozenset({"latest", "lts", "current", "stable", "mainline", "alpine", "nightly", "dev"})
 
 
