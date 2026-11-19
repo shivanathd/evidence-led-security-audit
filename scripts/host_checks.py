@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central or any audited program,
+- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central, nginx, litellm or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -57,10 +57,10 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.10"
-BRIEFING = ("Security briefings, 16 Oct-18 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
-            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16 and 2026-11-18)")
-BRIEFING_DATE = "2026-11-18"
+VERSION = "0.4.11"
+BRIEFING = ("Security briefings, 16 Oct-19 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16, 2026-11-18 and 2026-11-19)")
+BRIEFING_DATE = "2026-11-19"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -157,6 +157,15 @@ LIMITS = [
     "roller-129448: web.xml changes are mitigation, never a vendor patch. 6.1.5 is not 6.1.6.",
     "mysql-114952 never starts mysql or mysqld. MariaDB is not this check. Cluster 8.0 ranges are "
     "not applied to a generic mysql-server 8.0 package.",
+    "litellm-40217 classifies installed and pinned litellm against GHSA-wxxx-gvqv-xp7p "
+    "(1.81.8 to before 1.83.10). first_patched_version is 1.83.10; the advisory body also names "
+    "1.83.11. Unpinned specs are review. Digest-pinned and moving image tags are unknown. "
+    "Never starts LiteLLM. Distinct from litellm-1-107-0 (malicious 1.107.0) and artex-gateway-keys.",
+    "nginx-123007 classifies nginx OSS metadata against 1.30.7 (stable) and 1.31.9 (mainline). "
+    "Older trains below those floors are affected. OpenResty and NGINX Plus are review. "
+    "Vendor-suffix package strings may be distro backports. Version comes from package DB, "
+    "Homebrew, PE resources or ASCII nginx/X.Y.Z in binary bytes. Never starts or reloads nginx. "
+    "nginx-present remains a presence-only check.",
 ]
 
 CLEANUP_ORDER = [
@@ -464,6 +473,27 @@ SRC = {
     "cve-129448": ("CVE-2026-129448", "https://www.cve.org/CVERecord?id=CVE-2026-129448"),
     "cloud-cold-relic": ("Google Cloud: COLD RELIC Workspace Super Admin takeover",
                          "https://cloud.google.com/blog/topics/threat-intelligence/"),
+    "ghsa-wxxx-gvqv-xp7p": ("GHSA-wxxx-gvqv-xp7p: LiteLLM custom-code guardrail sandbox escape",
+                            "https://github.com/advisories/GHSA-wxxx-gvqv-xp7p"),
+    "cve-40217": ("CVE-2026-40217", "https://www.cve.org/CVERecord?id=CVE-2026-40217"),
+    "nvd-40217": ("NVD: CVE-2026-40217", "https://nvd.nist.gov/vuln/detail/CVE-2026-40217"),
+    "cisa-kev-2026-11-18": ("CISA: four KEVs added 18 Nov 2026 (CVE-2026-40217)",
+                            "https://www.cisa.gov/news-events/alerts/2026/11/18/cisa-adds-four-known-exploited-vulnerabilities-catalog"),
+    "x41-2026-001": ("X41 D-Sec: X41-2026-001 LiteLLM advisory",
+                     "https://www.x41-dsec.de/lab/advisories/x41-2026-001-litellm"),
+    "nginx-advisories": ("nginx.org security advisories (CVE-2026-123007)",
+                         "https://nginx.org/en/security_advisories.html"),
+    "nginx-changes": ("nginx.org CHANGES (mainline 1.31.9)", "https://nginx.org/en/CHANGES"),
+    "nginx-changes-130": ("nginx.org CHANGES-1.30 (stable 1.30.7)",
+                          "https://nginx.org/en/CHANGES-1.30"),
+    "cve-123007": ("CVE-2026-123007", "https://www.cve.org/CVERecord?id=CVE-2026-123007"),
+    "nvd-123007": ("NVD: CVE-2026-123007", "https://nvd.nist.gov/vuln/detail/CVE-2026-123007"),
+    "cf-nginx2root": ("Cloudflare Radar: nginx2root",
+                      "https://radar.cloudflare.com/zero-wire/nginx2root"),
+    "wiz-nginx2root": ("Wiz: nginx HTTP/2 RCE vulnerabilities",
+                       "https://www.wiz.io/blog/nginx-http2-rce-vulnerabilities"),
+    "xint-nginx2root": ("Xint: nginx2root remote code execution",
+                        "https://xint.io/blog/nginx2root-remote-code-execution"),
 }
 
 SKIPPED = [
@@ -564,6 +594,16 @@ SKIPPED = [
      "Deutsche Bank, StubHub, Fugaku, Irish credit unions, IIHF, Telegram Android, CISA ICS advisories, "
      "TPM lockout reset, bunny" + ".net)",
      "Org/SaaS/CDN/OT/mobile/firmware incidents; no host-level file hash, package or version floor."),
+    ("Synology DSM / BeeStation CVE-2024-10441 (CISA KEV)",
+     "Appliance firmware (DSM/BSM); no laptop or general-purpose server package this helper reads."),
+    ("REDCap CVE-2026-90817 (CISA KEV)",
+     "Survey appliance / PHP application; no vendor version-file primary for a read-only host check."),
+    ("Apache Axis CVE-2026-90436 as a second check",
+     "Already axis-90436 (v0.4.10)."),
+    ("F5 BIG-IP TMM flaws (CVE-2026-123637 / 121805 / 120292 / 120285 / 116953 / 120722)",
+     "Network appliance; engineering hotfixes. Needs the F5 console, not a laptop scan."),
+    ("TfL Oyster photocard breach",
+     "Org/SaaS incident; no host-level file hash, package or version floor."),
 ]
 
 
@@ -6924,6 +6964,238 @@ def check_mysql_114952(host, r):
             _mysql_classify(r, "mysql image", tag, host.display(path), "image tag")
 
 
+LITELLM_40217_INTRO = "1.81.8"
+LITELLM_40217_FLOOR = "1.83.10"
+NGINX_STABLE_FLOOR = "1.30.7"
+NGINX_MAINLINE_FLOOR = "1.31.9"
+_NGINX_OSS_PKGS = frozenset({
+    "nginx", "nginx-core", "nginx-full", "nginx-light", "nginx-extras", "nginx-mainline",
+})
+_NGINX_REVIEW_PKGS = frozenset({"openresty", "nginx-plus", "nginxplus"})
+_NGINX_BANNER = re.compile(
+    rb"nginx/(\d+(?:\.\d+){1,3}(?:(?:rc|pre|alpha|beta)[-._]?\d*)?)", re.I)
+_MOVING_TAGS = frozenset({"latest", "lts", "current", "stable", "mainline", "alpine", "nightly", "dev"})
+
+
+def _litellm_40217_unresolved(tag):
+    t = str(tag).strip().lower()
+    if t in _MOVING_TAGS or t == DIGEST_PINNED_TAG:
+        return True
+    v = hs.parse_version(tag)
+    return v is None or len(v.nums) < 3
+
+
+def _litellm_40217_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if hs.at_least(v, LITELLM_40217_FLOOR):
+        r.add("info", component, "at or above GHSA first_patched_version 1.83.10; from %s" % source,
+              path=path, version=raw)
+        return
+    if hs.at_least(v, LITELLM_40217_INTRO):
+        r.add("affected", component,
+              "CVE-2026-40217 (CISA KEV); GHSA-wxxx-gvqv-xp7p range 1.81.8 to before 1.83.10; from %s"
+              % source, path=path, version=raw)
+        return
+    r.add("info", component, "below 1.81.8; GHSA range starts at 1.81.8; from %s" % source,
+          path=path, version=raw)
+
+
+def check_litellm_40217(host, r):
+    """LiteLLM vs GHSA-wxxx-gvqv-xp7p / CVE-2026-40217. Never start LiteLLM."""
+    for ver, path, label in py_installs(host).get("litellm", []):
+        _litellm_40217_classify(r, "litellm (%s)" % label, ver, host.display(path), "dist-info")
+    for path, _n, v in py_pin_hits(host, {"litellm"}):
+        exact = _py_pin_exact(v)
+        if exact is None:
+            r.add("review", "litellm pin",
+                  "unpinned or wildcard spec; resolution could land in 1.81.8-1.83.9",
+                  path=host.display(path), version=str(v).replace("spec:", ""))
+        else:
+            _litellm_40217_classify(r, "litellm pin", exact, host.display(path), "pin")
+    for path, image, tag in docker_decl_refs(host, r"[\w-]*litellm[\w-]*"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if "litellm" not in last:
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "litellm image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+            continue
+        t = re.sub(r"^(?:main-)?v?", "", tag)
+        if _litellm_40217_unresolved(t):
+            r.add("unknown", "litellm image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _litellm_40217_classify(r, "litellm image", t, host.display(path), "image tag")
+
+
+def _nginx_backport_note(v):
+    if v.vendor_suffix:
+        return "; distribution build string, confirm any vendor backport in its changelog"
+    return ""
+
+
+def _nginx_tag_unresolved(tag):
+    t = str(tag).strip().lower()
+    if t in _MOVING_TAGS or t == DIGEST_PINNED_TAG:
+        return True
+    v = hs.parse_version(tag)
+    return v is None or len(v.nums) < 3
+
+
+def _nginx_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    note = _nginx_backport_note(v)
+    nums = v.nums + (0, 0)
+    major, minor = nums[0], nums[1]
+    if major == 1 and minor == 30:
+        if hs.at_least(v, NGINX_STABLE_FLOOR):
+            r.add("info", component, "at or above nginx OSS stable floor 1.30.7; from %s" % source,
+                  path=path, version=raw)
+            return
+        extra = ""
+        if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(NGINX_STABLE_FLOOR).nums) == 0:
+            extra = "; prerelease of 1.30.7 is not treated as fixed"
+        r.add("affected", component,
+              "nginx OSS 1.30.x below 1.30.7 (CVE-2026-123007 and 18 Nov 2026 security set)%s%s; from %s"
+              % (extra, note, source), path=path, version=raw)
+        return
+    if major == 1 and minor == 31:
+        if hs.at_least(v, NGINX_MAINLINE_FLOOR):
+            r.add("info", component, "at or above nginx OSS mainline floor 1.31.9; from %s" % source,
+                  path=path, version=raw)
+            return
+        extra = ""
+        if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(NGINX_MAINLINE_FLOOR).nums) == 0:
+            extra = "; prerelease of 1.31.9 is not treated as fixed"
+        r.add("affected", component,
+              "nginx OSS 1.31.x below 1.31.9 (CVE-2026-123007 and 18 Nov 2026 security set)%s%s; from %s"
+              % (extra, note, source), path=path, version=raw)
+        return
+    if hs.at_least(v, "1.32"):
+        r.add("info", component, "newer than named nginx OSS floors 1.30.7 / 1.31.9; from %s" % source,
+              path=path, version=raw)
+        return
+    r.add("affected", component,
+          "nginx OSS below 1.30.7 / 1.31.9 (CVE-2026-123007)%s; from %s" % (note, source),
+          path=path, version=raw)
+
+
+def _nginx_banner_version(path, gaps=None):
+    if not hs.is_regular(path):
+        return None
+    data = hs.read_bytes(path, 16 * MIB, gaps=gaps)
+    if data:
+        m = _NGINX_BANNER.search(data)
+        if m:
+            return m.group(1).decode("ascii")
+    data = hs.read_bytes(path, 256 * 1024, gaps=gaps, tail=True)
+    if data:
+        m = _NGINX_BANNER.search(data)
+        if m:
+            return m.group(1).decode("ascii")
+    return None
+
+
+def _nginx_image_kind(image):
+    last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+    if last == "openresty":
+        return "openresty"
+    if last in ("nginx-plus", "nginxplus"):
+        return "plus"
+    if last in ("nginx", "nginx-unprivileged"):
+        return "oss"
+    return None
+
+
+def check_nginx_123007(host, r):
+    """nginx OSS vs 1.30.7 / 1.31.9 (CVE-2026-123007). Never start or reload nginx."""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if name in _NGINX_OSS_PKGS:
+                for ver, src in rows:
+                    _nginx_classify(r, name, ver, None, src)
+            elif name in _NGINX_REVIEW_PKGS:
+                for ver, src in rows:
+                    r.add("review", name,
+                          "OpenResty / NGINX Plus is not the nginx.org OSS 1.30.7 / 1.31.9 floor; from %s"
+                          % src, version=ver)
+    for formula, rows in cellar(host).items():
+        if formula == "nginx" or formula.startswith("nginx@"):
+            for ver, path in rows:
+                _nginx_classify(r, "homebrew %s" % formula, ver, host.display(path), "Homebrew")
+        elif formula in ("openresty", "nginx-plus"):
+            for ver, path in rows:
+                r.add("review", "homebrew %s" % formula,
+                      "OpenResty / NGINX Plus is not the nginx.org OSS 1.30.7 / 1.31.9 floor",
+                      path=host.display(path), version=ver)
+    extra = [host.sys(p) for p in ("/usr/sbin", "/usr/local/sbin", "/usr/local/nginx/sbin", "/opt/nginx/sbin")]
+    if host.platform == "windows":
+        extra += glob_dirs(host, host.sys("C:/"), "nginx*")
+        extra += [host.sys("C:/Program Files/nginx"), host.sys("C:/Program Files (x86)/nginx")]
+    seen = set()
+    for exe in find_binaries(host, ["nginx"], extra_dirs=extra):
+        real = os.path.normcase(os.path.abspath(exe))
+        if real in seen:
+            continue
+        seen.add(real)
+        if not hs.is_regular(exe):
+            r.add("unknown", "nginx binary",
+                  "path present; not a regular file (symlink not followed; nginx is never started)",
+                  path=host.display(exe))
+            continue
+        ver = _nginx_banner_version(exe, host.gaps)
+        if ver is None and host.platform == "windows":
+            ver = hs.pe_file_version(exe)
+        if ver:
+            _nginx_classify(r, "nginx binary", ver, host.display(exe), "binary metadata")
+        else:
+            r.add("unknown", "nginx binary",
+                  "present; version not readable from bytes (nginx is never started)",
+                  path=host.display(exe))
+    if host.platform == "windows":
+        for e in registry_matches(host, r"^(nginx\b|openresty\b)"):
+            name = e.get("name") or ""
+            if re.search(r"\bplus\b|openresty", name, re.I):
+                r.add("review", "nginx-family product (uninstall registry)",
+                      "OpenResty / NGINX Plus is not the nginx.org OSS 1.30.7 / 1.31.9 floor",
+                      version=e.get("version") or None)
+                continue
+            raw = e.get("version") or ""
+            if raw:
+                _nginx_classify(r, "nginx (uninstall registry)", raw, None, "registry")
+            else:
+                r.add("unknown", "nginx (uninstall registry)", "present; DisplayVersion empty")
+    for path, image, tag in docker_decl_refs(host, r"nginx[\w.-]*|openresty"):
+        kind = _nginx_image_kind(image)
+        if kind is None:
+            continue
+        if kind in ("openresty", "plus"):
+            r.add("review", "nginx-family image",
+                  "OpenResty / NGINX Plus is not the nginx.org OSS 1.30.7 / 1.31.9 floor",
+                  path=host.display(path), version=tag)
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "nginx image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _nginx_tag_unresolved(tag):
+            r.add("unknown", "nginx image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _nginx_classify(r, "nginx image", tag, host.display(path), "image tag")
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -7410,6 +7682,27 @@ CHECKS = [
                "26.10; Cluster also 8.0.0-8.0.50. MariaDB is not this check. Never start mysql or mysqld.",
                "Apply the Nov 2026 CPU for that train. This tool never starts mysql or mysqld.",
                ALL_OS, check_mysql_114952),
+    check_meta("litellm-40217",
+               "LiteLLM below 1.83.10 (CVE-2026-40217, CISA KEV)",
+               "check_if_used", "confirmed", "dependency",
+               ["ghsa-wxxx-gvqv-xp7p", "cve-40217", "nvd-40217", "cisa-kev-2026-11-18", "x41-2026-001"],
+               "CVE-2026-40217 (CISA KEV 18 Nov 2026): sandbox escape in a custom-code guardrail. "
+               "GHSA-wxxx-gvqv-xp7p range 1.81.8 to before 1.83.10 (first_patched_version 1.83.10; "
+               "advisory body also names 1.83.11). Distinct from malicious 1.107.0. Never start LiteLLM.",
+               "Upgrade litellm to 1.83.10 or later. Unpinned specs are a lead, not a named install. "
+               "This tool never starts LiteLLM.",
+               ALL_OS, check_litellm_40217),
+    check_meta("nginx-123007",
+               "nginx OSS below 1.30.7 / 1.31.9 (CVE-2026-123007)",
+               "check_if_used", "confirmed", "runtime",
+               ["nginx-advisories", "nginx-changes", "nginx-changes-130", "cve-123007", "nvd-123007",
+                "cf-nginx2root", "wiz-nginx2root", "xint-nginx2root"],
+               "CVE-2026-123007 (nginx HTTP/2, present since 1.9.5) and the 18 Nov 2026 nginx.org set. "
+               "OSS floors 1.30.7 (stable) and 1.31.9 (mainline). Distro backports may keep an old "
+               "version string. OpenResty and NGINX Plus are not those floors. Never start nginx.",
+               "Upgrade nginx OSS to 1.30.7 or 1.31.9, or confirm the vendor changelog for a backport. "
+               "This tool never starts or reloads nginx.",
+               ALL_OS, check_nginx_123007),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

@@ -2,7 +2,7 @@
 
 Version 0.4.4, checked on 31 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
-Unreleased host-check catch-up (18 Nov 2026) adds eleven ids (71 total) and `profiles/host-advisories-2026-11-18.md`. Reproduce with the commands below; this file's 0.4.4 counts are historical.
+Unreleased 19 Nov 2026 watch adds two ids (73 total) and `profiles/host-advisories-2026-11-19.md`. Reproduce with the commands below; this file's 0.4.4 counts are historical.
 
 ## Executed checks
 

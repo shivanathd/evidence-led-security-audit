@@ -42,7 +42,7 @@ def _pth(line):
 
 class Catalog(SimCase):
     def test_new_ids_and_count(self):
-        self.assertEqual(len(hc.CHECK_IDS), 71)
+        self.assertEqual(len(hc.CHECK_IDS), 73)
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
         for cid in ("artex-gateway-keys", "vcenter-log4shell", "axis-90436", "ncentral-hf3",
                     "blank-canvas-vsx", "apple-65339", "agent-framework-1-26",
