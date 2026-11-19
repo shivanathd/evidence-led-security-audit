@@ -167,8 +167,8 @@ LIMITS = [
     "Homebrew, PE resources or ASCII nginx/X.Y.Z in binary bytes. Never starts or reloads nginx. "
     "nginx-present remains a presence-only check.",
     "ruby2shell classifies installed Ruby metadata against 4.0.10 / 3.4.13 / 3.3.14 (GHSA-34m4). "
-    "3.2 and older have no fix. Distinct from ruby-regex. GitLab version-manifest ruby is info only. "
-    "Never starts ruby.",
+    "3.2 and older have no fix. Distinct from ruby-regex. GitLab version-manifest ruby is an info "
+    "hint; GitLab-only evidence is BLOCKED. Never starts ruby.",
     "php-129289 classifies PHP / PHP-FPM metadata against 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 "
     "(GHSA-qc49 / CVE-2026-129289). Distinct from php2shell. php.ini is not this check. "
     "Never starts or reloads php-fpm.",
@@ -504,7 +504,7 @@ SRC = {
     "xint-nginx2root": ("Xint: nginx2root remote code execution",
                        "https://xint.io/blog/nginx2root-remote-code-execution"),
     "ghsa-34m4": ("GHSA-34m4-m9fh-gqp5: Ruby case-conversion heap overflow",
-                  "https://github.com/advisories/GHSA-34m4-m9fh-gqp5"),
+                  "https://github.com/ruby/ruby/security/advisories/GHSA-34m4-m9fh-gqp5"),
     "ruby-lang-2026-11-18": ("Ruby: multiple vulnerabilities in regexp and string (18 Nov 2026)",
                              "https://www.ruby-lang.org/en/news/2026/11/18/"
                              "multiple-vulnerabilities-in-regexp-and-string/"),
@@ -990,8 +990,10 @@ def build_index(host):
                     (settings and hs.is_regular(settings)) or (load and hs.is_regular(load))):
                 idx.wordpress_core.append(path)
         if "core" in low and ("index.php" in low or "autoload.php" in low):
-            drupal_php = os.path.join(path, low["core"], "lib", "Drupal.php")
-            if hs.is_regular(drupal_php):
+            core_dir = os.path.join(path, low["core"])
+            lib_dir = os.path.join(core_dir, "lib")
+            drupal_php = os.path.join(lib_dir, "Drupal.php")
+            if hs.is_plain_dir(core_dir) and hs.is_plain_dir(lib_dir) and hs.is_regular(drupal_php):
                 idx.drupal_core.append(path)
         if "bin" in low and "app" in low and hs.is_regular(os.path.join(path, low["app"], "etc", "env.php")):
             idx.magento.append(path)
@@ -7320,6 +7322,9 @@ def check_ruby2shell(host, r):
                 r.add("info", "vendor-bundled Ruby (GitLab)",
                       "vendor-bundled Ruby; confirm the GitLab advisory — not classified against upstream Ruby floors",
                       path=host.display(manifest), version=m.group(1))
+                if not any(f.get("component") != "vendor-bundled Ruby (GitLab)" for f in r.findings):
+                    r.blocked.append(
+                        "vendor-bundled GitLab Ruby is not classified against upstream floors")
 
 
 def _php_129289_classify(r, component, raw, path, source):

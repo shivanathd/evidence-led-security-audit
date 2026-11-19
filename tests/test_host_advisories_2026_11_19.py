@@ -13,6 +13,8 @@ from unittest import mock
 import hostfix
 import host_checks as hc
 
+CAN_SYMLINK = hasattr(os, "symlink") and os.name != "nt"
+
 results = hostfix.results
 dotted = hostfix.dotted
 
@@ -414,15 +416,26 @@ class Ruby2shell(SimCase):
     def test_gitlab_bundled_ruby_is_info_only(self):
         self.s.write("/opt/gitlab/version-manifest.txt", "gitlab-ee 19.6.0\nruby 3.3.13\nomnibus-gitlab 19.6.0\n")
         c = self.s.check("ruby2shell")
-        self.assertStatus(c, "PASS")
+        self.assertStatus(c, "BLOCKED")
         self.assertEqual(results(c), ["info"])
         self.assertIn("vendor-bundled", c["findings"][0]["detail"])
+        self.assertIn("not classified", c["reason"])
+
+    def test_gitlab_hint_does_not_block_patched_upstream(self):
+        self.s.mkdir("~/.rbenv/versions/4.0.10")
+        self.s.write("/opt/gitlab/version-manifest.txt", "gitlab-ee 19.6.0\nruby 3.3.13\nomnibus-gitlab 19.6.0\n")
+        c = self.s.check("ruby2shell")
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info", "info"])
 
     def test_never_starts_ruby(self):
         self.s.mkdir("~/.rbenv/versions/3.3.13")
-        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
-                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")) as popen, \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")) as system:
             c = self.s.check("ruby2shell")
+        popen.assert_not_called()
+        system.assert_not_called()
+        self.assertNotIn("check error", c["reason"])
         self.assertStatus(c, "FAIL")
 
 
@@ -508,9 +521,12 @@ class Php129289(SimCase):
 
     def test_never_starts_php_fpm(self):
         self.s.dpkg({"php8.4-fpm": "8.4.27-1"})
-        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
-                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+        with mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")) as popen, \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")) as system:
             c = self.s.check("php-129289")
+        popen.assert_not_called()
+        system.assert_not_called()
+        self.assertNotIn("check error", c["reason"])
         self.assertStatus(c, "FAIL")
 
 
@@ -603,13 +619,26 @@ class Drupal132165(SimCase):
     def test_never_http_or_exec(self):
         self._lock("~/sites/app/composer.lock", "10.6.21")
         self.s.write("~/sites/app/web/core/install.php", "<?php\n")
-        with mock.patch("socket.socket.connect", side_effect=AssertionError("network")), \
-                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")), \
-                mock.patch.object(os, "system", side_effect=AssertionError("exec")):
+        with mock.patch("socket.socket.connect", side_effect=AssertionError("network")) as connect, \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("exec")) as popen, \
+                mock.patch.object(os, "system", side_effect=AssertionError("exec")) as system:
             c = self.s.check("drupal-132165")
+        connect.assert_not_called()
+        popen.assert_not_called()
+        system.assert_not_called()
+        self.assertNotIn("check error", c["reason"])
         self.assertStatus(c, "FAIL")
         for f in c["findings"]:
             self.assertNotIn("install.php", (f.get("path") or "").lower())
+
+    @unittest.skipUnless(CAN_SYMLINK, "needs POSIX symlinks")
+    def test_symlink_core_is_not_indexed(self):
+        real = self.s.mkdir("~/elsewhere/core")
+        self.s.write("~/elsewhere/core/lib/Drupal.php",
+                     "<?php\nclass Drupal {\n  const VERSION = '11.4.12';\n}\n")
+        self.s.write("~/sites/www/index.php", "<?php\n")
+        os.symlink(real, self.s.path("~/sites/www/core"))
+        self.assertStatus(self.s.check("drupal-132165"), "NOT_APPLICABLE")
 
 
 if __name__ == "__main__":
