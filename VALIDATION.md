@@ -2,7 +2,7 @@
 
 Version 0.4.4, checked on 31 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
-Unreleased 19 Nov 2026 watch adds two ids (73 total) and `profiles/host-advisories-2026-11-19.md`. Reproduce with the commands below; this file's 0.4.4 counts are historical.
+Unreleased 19 Nov 2026 evening watch adds three ids (76 total: `ruby2shell`, `php-129289`, `drupal-132165`) on the same dated profile. Reproduce with the commands below; this file's 0.4.4 counts are historical.
 
 ## Executed checks
 

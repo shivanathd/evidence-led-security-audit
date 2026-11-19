@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central, nginx, litellm or any audited program,
+- It never starts node, python, pip, php, php-fpm, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central, nginx, litellm or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -57,7 +57,7 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.11"
+VERSION = "0.4.12"
 BRIEFING = ("Security briefings, 16 Oct-19 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
             "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16, 2026-11-18 and 2026-11-19)")
 BRIEFING_DATE = "2026-11-19"
@@ -166,6 +166,16 @@ LIMITS = [
     "Vendor-suffix package strings may be distro backports. Version comes from package DB, "
     "Homebrew, PE resources or ASCII nginx/X.Y.Z in binary bytes. Never starts or reloads nginx. "
     "nginx-present remains a presence-only check.",
+    "ruby2shell classifies installed Ruby metadata against 4.0.10 / 3.4.13 / 3.3.14 (GHSA-34m4). "
+    "3.2 and older have no fix. Distinct from ruby-regex. GitLab version-manifest ruby is an info "
+    "hint; BLOCKED unless another Ruby is affected (FAIL wins). The dpkg ruby dependency package "
+    "is skipped. Never starts ruby.",
+    "php-129289 classifies PHP / PHP-FPM metadata against 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 "
+    "(GHSA-qc49 / CVE-2026-129289). Distinct from php2shell. php.ini is not this check. "
+    "dpkg php / php-fpm default-version packages are skipped. Never starts or reloads php-fpm.",
+    "drupal-132165 classifies drupal/core from composer.lock, installed.json and "
+    "core/lib/Drupal.php VERSION against 10.6.22 / 11.3.22 / 11.4.13. composer.json is "
+    "not evidence. Blocking install.php is mitigation. Never HTTP, never starts drush.",
 ]
 
 CLEANUP_ORDER = [
@@ -493,7 +503,28 @@ SRC = {
     "wiz-nginx2root": ("Wiz: nginx HTTP/2 RCE vulnerabilities",
                        "https://www.wiz.io/blog/nginx-http2-rce-vulnerabilities"),
     "xint-nginx2root": ("Xint: nginx2root remote code execution",
-                        "https://xint.io/blog/nginx2root-remote-code-execution"),
+                       "https://xint.io/blog/nginx2root-remote-code-execution"),
+    "ghsa-34m4": ("GHSA-34m4-m9fh-gqp5: Ruby case-conversion heap overflow",
+                  "https://github.com/ruby/ruby/security/advisories/GHSA-34m4-m9fh-gqp5"),
+    "ruby-lang-2026-11-18": ("Ruby: multiple vulnerabilities in regexp and string (18 Nov 2026)",
+                             "https://www.ruby-lang.org/en/news/2026/11/18/"
+                             "multiple-vulnerabilities-in-regexp-and-string/"),
+    "cf-ruby2shell": ("Cloudflare Radar: Ruby2shell",
+                      "https://radar.cloudflare.com/zero-wire/ruby2shell"),
+    "veria-ruby2shell": ("Veria Labs: Ruby2shell", "https://verialabs.com/ruby2shell/"),
+    "thn-ruby2shell": ("The Hacker News: Ruby regex and string memory-safety fixes",
+                       "https://thehackernews.com/2026/11/ruby-releases-fixes-for-7-regex-and.html"),
+    "ghsa-qc49": ("GHSA-qc49-hpvq-g2w6: PHP-FPM request smuggling RCE",
+                  "https://github.com/php/php-src/security/advisories/GHSA-qc49-hpvq-g2w6"),
+    "php-changelog-8": ("PHP 8 ChangeLog (8.5.13 / 8.4.28 / 8.3.37 / 8.2.36)",
+                        "https://www.php.net/ChangeLog-8.php"),
+    "cve-129289": ("CVE-2026-129289", "https://www.cve.org/CVERecord?id=CVE-2026-129289"),
+    "sa-core-2026-017": ("Drupal SA-CORE-2026-017 (CVE-2026-132165)",
+                         "https://www.drupal.org/sa-core-2026-017"),
+    "cve-132165": ("CVE-2026-132165", "https://www.cve.org/CVERecord?id=CVE-2026-132165"),
+    "bc-drupal-132165": ("BleepingComputer: Drupal patches critical RCE (CVE-2026-132165)",
+                         "https://www.bleepingcomputer.com/news/security/"
+                         "drupal-patches-critical-rce-flaw-warns-exploits-may-surface-quickly/"),
 }
 
 SKIPPED = [
@@ -604,6 +635,20 @@ SKIPPED = [
      "Network appliance; engineering hotfixes. Needs the F5 console, not a laptop scan."),
     ("TfL Oyster photocard breach",
      "Org/SaaS incident; no host-level file hash, package or version floor."),
+    ("CVE-2026-115560 as a second check",
+     "Already php2shell (session.upload_progress.enabled). 19 Nov 2026 PHP floors also patch it (php-129289)."),
+    ("PostgreSQL CVE-2026-116331 as a second check",
+     "Already postgresql-6460 (same 12 Nov 2026 floors 18.7 / 17.12 / 16.16 / 15.20 / 14.25)."),
+    ("MySQL CVE-2026-101786 (Depthfirst / press)",
+     "Press names 26.7.0-26.7.1; no Oracle primary floor used this run. mysql-114952 is a different Nov CPU CVE."),
+    ("ClickHouse Depthfirst RCE PoC",
+     "No confirmed patched OSS floor. clickhouse-116366 is a different CVE."),
+    ("Oracle Text CVE-2026-114819 / ORDS CVE-2026-91609",
+     "Appliance/product; no cheap local version-file pattern on a laptop or general-purpose server."),
+    ("European Commission cyberattack (ARTEX)",
+     "Org/SaaS incident; no host-level package or version floor. artex-gateway-keys is credential field names."),
+    ("N-able Mail Assure / SpamExperts hosted cloud breach",
+     "Vendor-hosted mail filtering; no local package. ncentral-hf3 is on-prem N-central."),
 ]
 
 
@@ -863,6 +908,7 @@ class Index:
         self.composer_installed = []
         self.drupal_commerce = []
         self.wordpress_core = []
+        self.drupal_core = []
         self.gem_lock = []
         self.axis_jars = []
         self.roller_props = []
@@ -944,6 +990,12 @@ def build_index(host):
             if hs.is_regular(ver) and (
                     (settings and hs.is_regular(settings)) or (load and hs.is_regular(load))):
                 idx.wordpress_core.append(path)
+        if "core" in low and ("index.php" in low or "autoload.php" in low):
+            core_dir = os.path.join(path, low["core"])
+            lib_dir = os.path.join(core_dir, "lib")
+            drupal_php = os.path.join(lib_dir, "Drupal.php")
+            if hs.is_plain_dir(core_dir) and hs.is_plain_dir(lib_dir) and hs.is_regular(drupal_php):
+                idx.drupal_core.append(path)
         if "bin" in low and "app" in low and hs.is_regular(os.path.join(path, low["app"], "etc", "env.php")):
             idx.magento.append(path)
         if "occ" in low and "version.php" in low:
@@ -1702,12 +1754,23 @@ def dotnet_runtimes(host):
     return out
 
 
+_DPKG_PHP_META = re.compile(r"^php(-(cli|fpm|common|cgi))?$")
+_PHP_PKG = re.compile(r"^php(\d(\.\d)?|\d\d)?(-(cli|fpm|common|cgi))?$")
+_PHP_VER_SAPI = re.compile(r"^php\d\.\d-(cli|fpm|common)$")
+
+
 def php_installs(host):
     out = []
     pk = linux_packages(host)
     for name, vers in pk.items():
-        if re.match(r"^php(\d(\.\d)?|\d\d)?(-(cli|fpm|common|cgi))?$", name) or re.match(r"^php\d\.\d-(cli|fpm|common)$", name):
-            out += [("package %s (%s)" % (name, src), ver, None) for ver, src in vers]
+        if not (_PHP_PKG.match(name) or _PHP_VER_SAPI.match(name)):
+            continue
+        for ver, src in vers:
+            # Debian/Ubuntu ``php`` / ``php-fpm`` are default-version dependency
+            # packages (``2:8.4+96``), not the runtime NVR.
+            if src == "dpkg" and _DPKG_PHP_META.match(name):
+                continue
+            out.append(("package %s (%s)" % (name, src), ver, None))
     for formula, vers in cellar(host).items():
         if formula == "php" or formula.startswith("php@"):
             out += [("homebrew %s" % formula, v, p) for v, p in vers]
@@ -1769,8 +1832,14 @@ def ruby_installs(host):
         if formula == "ruby" or formula.startswith("ruby@"):
             out += [("homebrew %s" % formula, v, p) for v, p in vers]
     for name, vers in linux_packages(host).items():
-        if re.match(r"^ruby(\d(\.\d)?)?$", name) or re.match(r"^ruby\d\.\d$", name):
-            out += [("package %s (%s)" % (name, src), v, None) for v, src in vers]
+        if not (re.match(r"^ruby(\d(\.\d)?)?$", name) or re.match(r"^ruby\d\.\d$", name)):
+            continue
+        for v, src in vers:
+            # Debian/Ubuntu ``ruby`` is a dependency package (``1:3.3+b1``), not
+            # the interpreter NVR. ``ruby3.3`` and apk/rpm ``ruby`` stay.
+            if src == "dpkg" and name == "ruby":
+                continue
+            out.append(("package %s (%s)" % (name, src), v, None))
     roots = []
     if host.platform == "windows":
         roots += glob_dirs(host, host.sys("C:/"), "ruby*")
@@ -2618,7 +2687,8 @@ def check_php(host, r):
             off = bool(vals) and vals[-1].lower() in ("0", "off", "false", "no")
             r.add("info" if off else "review", "php.ini session.upload_progress.enabled",
                   "disabled (CVE-2026-115560 mitigation)" if off else
-                  "not disabled; CVE-2026-115560 has no patch, the mitigation is session.upload_progress.enabled=0",
+                  "not disabled; CVE-2026-115560 mitigation is session.upload_progress.enabled=0 "
+                  "(19 Nov 2026 PHP 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 also patch this; see php-129289)",
                   path=host.display(ini))
         if not inis:
             r.add("review", "php.ini", "no php.ini found; the default leaves session.upload_progress enabled")
@@ -7196,6 +7266,237 @@ def check_nginx_123007(host, r):
             _nginx_classify(r, "nginx image", tag, host.display(path), "image tag")
 
 
+RUBY2SHELL_FLOORS = ["4.0.10", "3.4.13", "3.3.14"]
+PHP_129289_FLOORS = ["8.5.13", "8.4.28", "8.3.37", "8.2.36"]
+DRUPAL_CORE_FLOORS = {(10, 6): "10.6.22", (11, 3): "11.3.22", (11, 4): "11.4.13"}
+DRUPAL_CORE_NAMES = ("drupal/core", "drupal/core-recommended")
+DRUPAL_CORE_NAME_RE = re.compile(r'"name"\s*:\s*"drupal/core(?:-recommended)?"')
+DRUPAL_CORE_VER_RE = re.compile(r"const\s+VERSION\s*=\s*'([^']+)'")
+RUBY_MANIFEST_RE = re.compile(r"(?m)^ruby\s+(\S+)")
+
+
+def _semver_tag_unresolved(tag):
+    t = str(tag).strip().lower()
+    if t in _MOVING_TAGS or t == DIGEST_PINNED_TAG:
+        return True
+    v = hs.parse_version(tag)
+    return v is None or len(v.nums) < 3
+
+
+def _backport_note(v):
+    if v.vendor_suffix:
+        return "; distribution build string, confirm any vendor backport in its changelog"
+    return ""
+
+
+def _ruby2shell_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    nums = v.nums + (0, 0)
+    major, minor = nums[0], nums[1]
+    note = _backport_note(v)
+    if major > 4 or (major == 4 and minor >= 1):
+        r.add("info", component, "newer than named Ruby 3.3 / 3.4 / 4.0 floors; from %s" % source,
+              path=path, version=raw)
+        return
+    if major < 3 or (major == 3 and minor < 3):
+        r.add("affected", component,
+              "Ruby 3.2 and older get no fix per ruby-lang.org (EOL)%s; from %s" % (note, source),
+              path=path, version=raw)
+        return
+    classify_version(r, component, raw, path, RUBY2SHELL_FLOORS, 2, (), source)
+
+
+def check_ruby2shell(host, r):
+    """Ruby vs 4.0.10 / 3.4.13 / 3.3.14 (GHSA-34m4). Never start ruby."""
+    for src, ver, path in ruby_installs(host):
+        _ruby2shell_classify(r, "Ruby (%s)" % src, ver, host.display(path), "metadata")
+    for path, image, tag in docker_decl_refs(host, r"ruby"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last != "ruby":
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "Ruby image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _semver_tag_unresolved(tag):
+            r.add("unknown", "Ruby image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _ruby2shell_classify(r, "Ruby image", tag, host.display(path), "image tag")
+    manifest = host.sys("/opt/gitlab/version-manifest.txt")
+    if hs.is_regular(manifest):
+        text = hs.read_text(manifest, 64 * 1024, host.gaps)
+        if text is None:
+            r.add("unknown", "vendor-bundled Ruby (GitLab)",
+                  "version-manifest present; not readable", path=host.display(manifest))
+        else:
+            m = RUBY_MANIFEST_RE.search(text)
+            if m:
+                r.add("info", "vendor-bundled Ruby (GitLab)",
+                      "vendor-bundled Ruby; confirm the GitLab advisory — not classified against upstream Ruby floors",
+                      path=host.display(manifest), version=m.group(1))
+                r.blocked.append(
+                    "vendor-bundled GitLab Ruby is not classified against upstream floors")
+
+
+def _php_129289_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    nums = v.nums + (0, 0)
+    major, minor = nums[0], nums[1]
+    if major > 8 or (major == 8 and minor >= 6):
+        r.add("info", component, "newer than named PHP 8.2-8.5 floors; from %s" % source,
+              path=path, version=raw)
+        return
+    classify_version(r, component, raw, path, PHP_129289_FLOORS, 2, (), source)
+
+
+def check_php_129289(host, r):
+    """PHP-FPM smuggling vs 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36. Never start php-fpm."""
+    for src, ver, path in php_installs(host):
+        if ver == "unknown":
+            r.add("unknown", "PHP (%s)" % src, "installed; version not readable", path=host.display(path))
+            continue
+        _php_129289_classify(r, "PHP (%s)" % src, ver, host.display(path), "metadata")
+    for path, image, tag in docker_decl_refs(host, r"php(?:-fpm)?"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last not in ("php", "php-fpm"):
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "PHP image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _semver_tag_unresolved(tag):
+            r.add("unknown", "PHP image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _php_129289_classify(r, "PHP image", tag, host.display(path), "image tag")
+
+
+def _drupal_core_packages(doc):
+    blocks = []
+    if isinstance(doc, list):
+        blocks = [doc]
+    elif isinstance(doc, dict):
+        for key in ("packages", "packages-dev"):
+            block = doc.get(key)
+            if isinstance(block, list):
+                blocks.append(block)
+    out = []
+    for block in blocks:
+        for pkg in block:
+            if isinstance(pkg, dict) and pkg.get("name") in DRUPAL_CORE_NAMES:
+                out.append((pkg.get("name"), pkg.get("version")))
+    names = {n for n, _v in out}
+    if "drupal/core" in names:
+        out = [(n, v) for n, v in out if n == "drupal/core"]
+    return out
+
+
+def _drupal_132165_classify(r, component, raw, path, source):
+    if raw is None or not str(raw).strip().strip("\"'"):
+        r.add("unknown", component, "version string missing (%s)" % source, path=path)
+        return
+    original = str(raw).strip().strip("\"'")
+    reported = textscan.redact(original)[:64]
+    if COMMERCE_DEV.search(original.lower()) or "#" in original:
+        r.add("review", component, "development or unsupported version suffix (%s)" % source,
+              path=path, version=reported)
+        return
+    v = hs.parse_version(original)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=reported)
+        return
+    nums = v.nums + (0, 0)
+    major, minor = nums[0], nums[1]
+    if major > 11 or (major == 11 and minor > 4):
+        r.add("info", component, "newer than named Drupal 10.6 / 11.3 / 11.4 floors; from %s" % source,
+              path=path, version=reported)
+        return
+    floor = DRUPAL_CORE_FLOORS.get((major, minor))
+    if floor:
+        if hs.at_least(v, floor):
+            r.add("info", component, "at or above SA-CORE-2026-017 floor %s; from %s" % (floor, source),
+                  path=path, version=reported)
+            return
+        extra = ""
+        if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(floor).nums) == 0:
+            extra = "; prerelease of %s is not treated as fixed" % floor
+        r.add("affected", component,
+              "below SA-CORE-2026-017 floor %s (CVE-2026-132165)%s; from %s" % (floor, extra, source),
+              path=path, version=reported)
+        return
+    if major < 10 or (major == 10 and minor < 6) or (major == 11 and minor < 3):
+        r.add("affected", component,
+              "Drupal %s.%s is EOL for SA-CORE-2026-017 and gets no fix; from %s"
+              % (major, minor, source), path=path, version=reported)
+        return
+    r.add("review", component, "release line is not in SA-CORE-2026-017; from %s" % source,
+          path=path, version=reported)
+
+
+def check_drupal_132165(host, r):
+    """Drupal core vs 10.6.22 / 11.3.22 / 11.4.13. Never HTTP, never start drush."""
+    idx = index(host)
+    for path, source in ([(p, "composer.lock") for p in idx.composer_lock]
+                         + [(p, "installed.json") for p in idx.composer_installed]):
+        text = _commerce_read_needed(host, r, path, hs.read_text, 4 * MIB)
+        if text is None:
+            continue
+        text = _commerce_normalize(text)
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            r.blocked.append("%s invalid JSON" % host.display(path))
+            continue
+        vers = _drupal_core_packages(doc)
+        if not vers:
+            if DRUPAL_CORE_NAME_RE.search(text):
+                r.add("unknown", "Drupal core",
+                      "%s mentions drupal/core but no version could be read" % source,
+                      path=host.display(path))
+            continue
+        for name, ver in vers:
+            _drupal_132165_classify(r, name, ver, host.display(path), source)
+    for root in idx.drupal_core:
+        ver_path = os.path.join(root, "core", "lib", "Drupal.php")
+        text = hs.read_text(ver_path, 256 * 1024, host.gaps)
+        if text is None:
+            if hs.exists_nofollow(ver_path):
+                r.add("unknown", "Drupal core", "Drupal.php present; not readable",
+                      path=host.display(ver_path))
+            continue
+        m = DRUPAL_CORE_VER_RE.search(text)
+        if not m:
+            r.add("unknown", "Drupal core", "const VERSION not found", path=host.display(ver_path))
+            continue
+        _drupal_132165_classify(r, "Drupal core", m.group(1), host.display(ver_path), "Drupal.php")
+    for path, image, tag in docker_decl_refs(host, r"drupal"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last != "drupal":
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "Drupal image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _semver_tag_unresolved(tag):
+            r.add("unknown", "Drupal image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _drupal_132165_classify(r, "Drupal image", tag, host.display(path), "image tag")
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -7703,6 +8004,37 @@ CHECKS = [
                "Upgrade nginx OSS to 1.30.7 or 1.31.9, or confirm the vendor changelog for a backport. "
                "This tool never starts or reloads nginx.",
                ALL_OS, check_nginx_123007),
+    check_meta("ruby2shell",
+               "Ruby below 4.0.10 / 3.4.13 / 3.3.14 (GHSA-34m4, Ruby2shell)",
+               "check_if_used", "confirmed", "runtime",
+               ["ghsa-34m4", "ruby-lang-2026-11-18", "cf-ruby2shell", "veria-ruby2shell", "thn-ruby2shell"],
+               "GHSA-34m4-m9fh-gqp5 (case-conversion heap overflow) and six regexp/string memory-safety "
+               "flaws. Floors 4.0.10 / 3.4.13 / 3.3.14 (18 Nov 2026). Ruby 3.2 and older get no fix. "
+               "Distinct from ruby-regex. GitLab bundled ruby is an info hint; BLOCKED unless "
+               "another Ruby is affected. "
+               "The dpkg ruby dependency package is skipped. Never start ruby.",
+               "Upgrade Ruby to 4.0.10, 3.4.13 or 3.3.14. 3.2 and older are EOL. This tool never starts ruby.",
+               ALL_OS, check_ruby2shell),
+    check_meta("php-129289",
+               "PHP below 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 (GHSA-qc49 / CVE-2026-129289)",
+               "check_if_used", "confirmed", "runtime",
+               ["ghsa-qc49", "php-changelog-8", "cve-129289"],
+               "GHSA-qc49-hpvq-g2w6 / CVE-2026-129289: PHP-FPM unread-body request smuggling. "
+               "Floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 (19 Nov 2026). Distro backports may keep an "
+               "old version string. Distinct from php2shell. dpkg php / php-fpm default-version "
+               "packages are skipped. Never start or reload php-fpm.",
+               "Upgrade PHP / PHP-FPM to 8.5.13, 8.4.28, 8.3.37 or 8.2.36, or confirm a distro backport. "
+               "This tool never starts or reloads php-fpm.",
+               ALL_OS, check_php_129289),
+    check_meta("drupal-132165",
+               "Drupal core below 10.6.22 / 11.3.22 / 11.4.13 (CVE-2026-132165)",
+               "check_if_used", "confirmed", "runtime",
+               ["sa-core-2026-017", "cve-132165", "bc-drupal-132165"],
+               "SA-CORE-2026-017 / CVE-2026-132165: install.php reinstall can take over the site. "
+               "Floors 10.6.22 / 11.3.22 / 11.4.13. 11.2.x and below, 10.5.x and below, and 8/9 are EOL. "
+               "composer.json is not evidence. Blocking install.php is mitigation. Never HTTP.",
+               "Upgrade Drupal core to 10.6.22, 11.3.22 or 11.4.13. This tool never HTTP-probes install.php.",
+               ALL_OS, check_drupal_132165),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",

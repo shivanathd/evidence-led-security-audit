@@ -144,7 +144,9 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "roller.apache.org",  # Apache Roller 6.1.6 / CVE-2026-82384
     "cloud.google.com",  # COLD RELIC Workspace Super Admin (SaaS note only)
     "nginx.org",  # CVE-2026-123007 security_advisories and CHANGES
-    "radar.cloudflare.com",  # nginx2root
+    "www.ruby-lang.org", "ruby-lang.org",  # Ruby 18 Nov 2026 regexp/string advisory
+    "verialabs.com",  # Ruby2shell write-up
+    "radar.cloudflare.com",  # nginx2root / ruby2shell
     "www.wiz.io",  # nginx HTTP/2 RCE write-up
     "xint.io",  # nginx2root write-up
     "www.x41-dsec.de",  # X41-2026-001 LiteLLM advisory
