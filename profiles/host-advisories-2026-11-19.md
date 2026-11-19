@@ -45,7 +45,7 @@ Already on main (do not re-implement): `litellm-1-107-0` (malicious 1.107.0), `a
 ## What this helper checks
 
 - `litellm-40217`: `py_installs` / `py_pin_hits` / `docker_decl_refs`. Exact `==` / `===` pins classify. Unpinned specs are `review`. Digest-pinned and moving tags are `unknown`.
-- `nginx-123007`: linux packages `nginx` / `nginx-core` / `nginx-full` / `nginx-light` / `nginx-extras` / `nginx-mainline`; Homebrew `nginx`; Windows PE / uninstall registry; ASCII `nginx/X.Y.Z` in binary bytes; FROM/`image:` tags whose last path component is `nginx` or `nginx-unprivileged`. OpenResty and NGINX Plus are `review`. `nginx-prometheus-exporter` is not this check.
+- `nginx-123007`: linux packages `nginx` / `nginx-core` / `nginx-full` / `nginx-light` / `nginx-extras` / `nginx-mainline`; Homebrew `nginx`; Windows PE / uninstall registry (`nginx Plus` / OpenResty DisplayNames are `review`); ASCII `nginx/X.Y.Z` in binary bytes; FROM/`image:` tags whose last path component is `nginx` or `nginx-unprivileged`. OpenResty and NGINX Plus are `review`. `nginx-prometheus-exporter` is not this check.
 
 ## What this helper does not check
 

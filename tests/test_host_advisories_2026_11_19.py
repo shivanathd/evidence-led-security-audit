@@ -240,6 +240,23 @@ class Nginx123007(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_windows_registry_oss_is_classified(self):
+        w = self.sim("windows")
+        c = w.check("nginx-123007", registry=[{"name": "nginx", "version": "1.30.6"}])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+
+    def test_windows_registry_plus_is_review(self):
+        w = self.sim("windows")
+        c = w.check("nginx-123007", registry=[{"name": "nginx Plus", "version": "R37"}])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_windows_registry_plus_empty_version_is_review(self):
+        w = self.sim("windows")
+        c = w.check("nginx-123007", registry=[{"name": "NGINX Plus R37", "version": ""}])
+        self.assertEqual(results(c), ["review"])
+
     def test_image_patch_level(self):
         self.s.write("~/code/web/Dockerfile", "FROM nginx:1.30.6\n")
         c = self.s.check("nginx-123007")

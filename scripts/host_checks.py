@@ -7163,6 +7163,12 @@ def check_nginx_123007(host, r):
                   path=host.display(exe))
     if host.platform == "windows":
         for e in registry_matches(host, r"^nginx\b"):
+            name = e.get("name") or ""
+            if re.search(r"\bplus\b|openresty", name, re.I):
+                r.add("review", "nginx-family product (uninstall registry)",
+                      "OpenResty / NGINX Plus is not the nginx.org OSS 1.30.7 / 1.31.9 floor",
+                      version=e.get("version") or None)
+                continue
             raw = e.get("version") or ""
             if raw:
                 _nginx_classify(r, "nginx (uninstall registry)", raw, None, "registry")
