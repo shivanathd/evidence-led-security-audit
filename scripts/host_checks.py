@@ -7162,7 +7162,7 @@ def check_nginx_123007(host, r):
                   "present; version not readable from bytes (nginx is never started)",
                   path=host.display(exe))
     if host.platform == "windows":
-        for e in registry_matches(host, r"^nginx\b"):
+        for e in registry_matches(host, r"^(nginx\b|openresty\b)"):
             name = e.get("name") or ""
             if re.search(r"\bplus\b|openresty", name, re.I):
                 r.add("review", "nginx-family product (uninstall registry)",

@@ -257,6 +257,12 @@ class Nginx123007(SimCase):
         c = w.check("nginx-123007", registry=[{"name": "NGINX Plus R37", "version": ""}])
         self.assertEqual(results(c), ["review"])
 
+    def test_windows_registry_openresty_is_review(self):
+        w = self.sim("windows")
+        c = w.check("nginx-123007", registry=[{"name": "OpenResty", "version": "1.27.1"}])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
     def test_image_patch_level(self):
         self.s.write("~/code/web/Dockerfile", "FROM nginx:1.30.6\n")
         c = self.s.check("nginx-123007")
