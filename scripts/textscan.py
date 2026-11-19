@@ -143,6 +143,11 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.puppet.com",  # PE 2026.0.1 / 2025.12.1 / 2023.8.13
     "roller.apache.org",  # Apache Roller 6.1.6 / CVE-2026-82384
     "cloud.google.com",  # COLD RELIC Workspace Super Admin (SaaS note only)
+    "nginx.org",  # CVE-2026-123007 security_advisories and CHANGES
+    "radar.cloudflare.com",  # nginx2root
+    "www.wiz.io",  # nginx HTTP/2 RCE write-up
+    "xint.io",  # nginx2root write-up
+    "www.x41-dsec.de",  # X41-2026-001 LiteLLM advisory
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

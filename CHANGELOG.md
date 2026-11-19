@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: two read-only checks (73 checks total). `litellm-40217` classifies installed and pinned LiteLLM against GHSA-wxxx-gvqv-xp7p / CVE-2026-40217 (CISA KEV 18 Nov 2026; range 1.81.8 to before 1.83.10; `first_patched_version` 1.83.10; advisory body also names 1.83.11). Distinct from `litellm-1-107-0` and `artex-gateway-keys`. `nginx-123007` classifies nginx OSS metadata against 1.30.7 (stable) and 1.31.9 (mainline) for CVE-2026-123007 and the 18 Nov 2026 nginx.org set. Older trains below those floors are affected. OpenResty and NGINX Plus are review. Distro backports may keep an old version string. Version comes from package DB, Homebrew, PE resources or ASCII `nginx/X.Y.Z` in binary bytes. Never starts LiteLLM or nginx. `nginx-present` is unchanged.
+- Dated profile: `host-advisories-2026-11-19.md`.
+- Skipped as not host-checkable: Synology DSM / BeeStation CVE-2024-10441, REDCap CVE-2026-90817, F5 BIG-IP TMM flaws, TfL Oyster photocard breach. Axis CVE-2026-90436 remains `axis-90436`.
+
+### Changed
+
+- Briefing window through 19 Nov 2026.
+- Reviewed public hosts: `nginx.org`, `radar.cloudflare.com`, `www.wiz.io`, `xint.io`, `www.x41-dsec.de`.
+- `MAX_FILES_TARGET` 70 → 75 so the new dated profile stays under the compact-package warning.
+
 ## 0.4.10 - 2026-11-18
 
 ### Added
