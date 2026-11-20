@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: four read-only checks (80 checks total). `openssl-121481` classifies OpenSSL 4.0/4.1 metadata against CVE-2026-121481 / GHSA-83xj-7xh4-4p7x floors 4.0.4 / 4.1.1 (CNA ranges; 3.x and LibreSSL/BoringSSL are info). `gpustack-102895` classifies the PyPI `gpustack` package against GHSA-gj9m-f8ph-pmhr / CVE-2026-102895 floor 2.2.0. `vmware-tools-123894` classifies Windows VMware Tools against VMSA-2026-0009 / CVE-2026-123894 floors 13.1.5 / 12.5.5 (12.4.10 is the named 32-bit floor; Linux `open-vm-tools` is not this CVE). `asus-acce-114202` classifies ASUS Control Center Express against CVE-2026-114202 floor 1.7.29 (Windows registry / Program Files; DisplayNames without Express are not this check). Never starts openssl, gpustack, VMware Tools or Control Center Express, and never HTTP-probes GPUStack.
+- Dated profile: `host-advisories-2026-11-20.md`.
+- Skipped as not host-checkable or already covered: PHP GHSA-gr4f-wgx5-jpfv (same floors as `php-129289`), VMware vCenter CVE-2026-123890 and SDDC Manager CVE-2026-123891/123892/123893 (appliances), CISA ICSA-26-323-01 OpenPLC Runtime, ICSA-26-323-02 Elecbrakes, ICSA-26-323-03 libumqtt, and 20 Nov 2026 breach-only incidents (JPMorgan/Visa/Mastercard third-party, Rakuten Securities, Prime Intellect DeepSeek v4.1 Flash swap, SBC Medical, BundID, Equinor, KPMG Canada).
+
+### Changed
+
+- Briefing window through 20 Nov 2026.
+- Reviewed public hosts: `isc.sans.edu`, `support.broadcom.com`, `www.asus.com`.
+- `php-129289` records that GHSA-gr4f-wgx5-jpfv uses the same 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 floors.
+
 ## 0.4.12 - 2026-11-19
 
 ### Added

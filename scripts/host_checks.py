@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, php-fpm, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central, nginx, litellm or any audited program,
+- It never starts node, python, pip, php, php-fpm, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central, nginx, litellm, openssl, gpustack, VMware Tools, Control Center Express or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -58,9 +58,10 @@ except ImportError:
     winreg = None
 
 VERSION = "0.4.12"
-BRIEFING = ("Security briefings, 16 Oct-19 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
-            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16, 2026-11-18 and 2026-11-19)")
-BRIEFING_DATE = "2026-11-19"
+BRIEFING = ("Security briefings, 16 Oct-20 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16, 2026-11-18, 2026-11-19 "
+            "and 2026-11-20)")
+BRIEFING_DATE = "2026-11-20"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -525,6 +526,29 @@ SRC = {
     "bc-drupal-132165": ("BleepingComputer: Drupal patches critical RCE (CVE-2026-132165)",
                          "https://www.bleepingcomputer.com/news/security/"
                          "drupal-patches-critical-rce-flaw-warns-exploits-may-surface-quickly/"),
+    "ghsa-gr4f": ("GHSA-gr4f-wgx5-jpfv: PHP timezone cache use-after-free",
+                  "https://github.com/php/php-src/security/advisories/GHSA-gr4f-wgx5-jpfv"),
+    "ghsa-83xj": ("GHSA-83xj-7xh4-4p7x: OpenSSL EVP_EncodeBlock output-size overflow",
+                  "https://github.com/advisories/GHSA-83xj-7xh4-4p7x"),
+    "cve-121481": ("CVE-2026-121481", "https://www.cve.org/CVERecord?id=CVE-2026-121481"),
+    "openssl-pr-33652": ("OpenSSL pull request 33652 (EVP_EncodeBlock output size)",
+                         "https://github.com/openssl/openssl/pull/33652"),
+    "ghsa-gj9m": ("GHSA-gj9m-f8ph-pmhr: GPUStack spoofed proxy-header auth bypass",
+                  "https://github.com/advisories/GHSA-gj9m-f8ph-pmhr"),
+    "cve-102895": ("CVE-2026-102895", "https://www.cve.org/CVERecord?id=CVE-2026-102895"),
+    "sans-gpustack": ("SANS ISC: exploit attempts for GPUStack CVE-2026-102895",
+                      "https://isc.sans.edu/diary/Exploit+Attempts+for+GPUStack+"
+                      "Authentication+Bypass+CVE2026102895/33514/"),
+    "vmsa-2026-0009": ("Broadcom VMSA-2026-0009 (vCenter, VMware Tools, SDDC Manager)",
+                       "https://support.broadcom.com/web/ecx/support-content-notification/"
+                       "-/external/content/SecurityAdvisories/0/39495"),
+    "cve-123894": ("CVE-2026-123894", "https://www.cve.org/CVERecord?id=CVE-2026-123894"),
+    "cve-114202": ("CVE-2026-114202", "https://www.cve.org/CVERecord?id=CVE-2026-114202"),
+    "asus-acce": ("ASUS security advisory (Control Center Express)",
+                  "https://www.asus.com/security-advisory/"),
+    "bc-asus-acce": ("BleepingComputer: ASUS Control Center Express hard-coded key",
+                     "https://www.bleepingcomputer.com/news/security/"
+                     "asus-warns-of-critical-hard-coded-key-flaw-in-control-center-express/"),
 }
 
 SKIPPED = [
@@ -649,6 +673,23 @@ SKIPPED = [
      "Org/SaaS incident; no host-level package or version floor. artex-gateway-keys is credential field names."),
     ("N-able Mail Assure / SpamExperts hosted cloud breach",
      "Vendor-hosted mail filtering; no local package. ncentral-hf3 is on-prem N-central."),
+    ("PHP timezone cache UAF GHSA-gr4f-wgx5-jpfv as a second check",
+     "Already php-129289; same 19 Nov 2026 floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36."),
+    ("VMware vCenter CVE-2026-123890 (VMSA-2026-0009)",
+     "Appliance; no laptop package. Distinct from vcenter-log4shell (KB 87081). "
+     "Windows VMware Tools is vmware-tools-123894."),
+    ("VMware SDDC Manager CVE-2026-123891 / CVE-2026-123892 / CVE-2026-123893 (VMSA-2026-0009)",
+     "Appliance; no laptop or general-purpose server package this helper reads."),
+    ("CISA ICSA-26-323-01 OpenPLC Runtime",
+     "OT runtime (≤ 4.2.4); not a laptop or general-purpose server package."),
+    ("CISA ICSA-26-323-02 Elecbrakes EB2/VM1/ELBC2000",
+     "Device firmware; needs the vendor console, not a laptop scan."),
+    ("CISA ICSA-26-323-03 libumqtt",
+     "Embedded library (≤ 1.1.1, no vendor fix); not a host Python/package check."),
+    ("20 Nov 2026 breach-only incidents (JPMorgan/Visa/Mastercard third-party vendor, "
+     "Rakuten Securities test-environment leak, Prime Intellect DeepSeek v4.1 Flash model "
+     "swap, SBC Medical, BundID, Equinor, KPMG Canada)",
+     "Org/SaaS incidents; no host-level file hash, package or version floor."),
 ]
 
 
@@ -1421,7 +1462,8 @@ def site_dirs(host):
 
 WANTED_PY = {"litellm", "brotli", "brotlicffi", "certifi", "pillow", "wasmtime", "lightning_sdk",
              "agent_framework", "agent_framework_openai", "agent_framework_purview",
-             "agent_framework_redis", "agent_framework_tools", "agent_framework_postgres"}
+             "agent_framework_redis", "agent_framework_tools", "agent_framework_postgres",
+             "gpustack"}
 
 
 def py_installs(host):
@@ -7497,6 +7539,406 @@ def check_drupal_132165(host, r):
             _drupal_132165_classify(r, "Drupal image", tag, host.display(path), "image tag")
 
 
+OPENSSL_40_FLOOR = "4.0.4"
+OPENSSL_41_FLOOR = "4.1.1"
+_OPENSSL_BANNER = re.compile(rb"(?<![A-Za-z])OpenSSL (\d+\.\d+\.\d+[a-z]*)")
+_OPENSSL_LIBRE = re.compile(rb"LibreSSL (\d+\.\d+\.\d+[a-z]*)")
+_OPENSSL_STR = re.compile(r'OPENSSL_VERSION_STR\s+"([^"]+)"')
+_OPENSSL_TEXT = re.compile(r'OPENSSL_VERSION_TEXT\s+"(OpenSSL|LibreSSL)\s+([^"]+)"')
+GPUSTACK_FLOOR = "2.2.0"
+VMWARE_TOOLS_13_FLOOR = "13.1.5" + ".0"
+VMWARE_TOOLS_12_FLOOR = "12.5.5"
+VMWARE_TOOLS_12_32 = "12.4.10"
+ASUS_ACCE_FLOOR = "1.7.29"
+
+
+def _openssl_runtime_pkg(name):
+    n = name.lower()
+    if any(tok in n for tok in ("-dev", "-devel", "-doc", "-dbg", "-static", "-perl", "python", "node")):
+        return False
+    if n in ("openssl", "openssl-libs") or re.fullmatch(r"openssl\d+(\.\d+)?", n):
+        return True
+    if re.fullmatch(r"libssl[0-9a-z.]*", n) or re.fullmatch(r"libcrypto[0-9a-z.]*", n):
+        return True
+    return False
+
+
+def _openssl_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    note = _backport_note(v)
+    nums = v.nums + (0, 0)
+    major, minor = nums[0], nums[1]
+    if major < 4:
+        r.add("info", component,
+              "OpenSSL 3.x and older are not CVE-2026-121481 (CNA lists 4.0 and 4.1 only); from %s"
+              % source, path=path, version=raw)
+        return
+    if major == 4 and minor == 0:
+        if hs.at_least(v, OPENSSL_40_FLOOR):
+            r.add("info", component, "at or above OpenSSL 4.0.4; from %s" % source,
+                  path=path, version=raw)
+            return
+        extra = ""
+        if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(OPENSSL_40_FLOOR).nums) == 0:
+            extra = "; prerelease of 4.0.4 is not treated as fixed"
+        r.add("affected", component,
+              "OpenSSL 4.0.x below 4.0.4 (CVE-2026-121481 / GHSA-83xj-7xh4-4p7x)%s%s; from %s"
+              % (extra, note, source), path=path, version=raw)
+        return
+    if major == 4 and minor == 1:
+        if hs.at_least(v, OPENSSL_41_FLOOR):
+            r.add("info", component, "at or above OpenSSL 4.1.1; from %s" % source,
+                  path=path, version=raw)
+            return
+        extra = ""
+        if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(OPENSSL_41_FLOOR).nums) == 0:
+            extra = "; prerelease of 4.1.1 is not treated as fixed"
+        r.add("affected", component,
+              "OpenSSL 4.1.x below 4.1.1 (CVE-2026-121481 / GHSA-83xj-7xh4-4p7x)%s%s; from %s"
+              % (extra, note, source), path=path, version=raw)
+        return
+    r.add("info", component, "newer than named OpenSSL 4.0.4 / 4.1.1 floors; from %s" % source,
+          path=path, version=raw)
+
+
+def _openssl_header_version(text):
+    if not text:
+        return None
+    m = _OPENSSL_TEXT.search(text)
+    if m and m.group(1) == "LibreSSL":
+        return ("libressl", m.group(2).split()[0])
+    m = _OPENSSL_STR.search(text)
+    if m:
+        return ("openssl", m.group(1).split()[0])
+    m = _OPENSSL_TEXT.search(text)
+    if m and m.group(1) == "OpenSSL":
+        return ("openssl", m.group(2).split()[0])
+    return None
+
+
+def _openssl_banner_kind(path, gaps=None):
+    if not hs.is_regular(path):
+        return None
+    chunks = []
+    head = hs.read_bytes(path, 16 * MIB, gaps=gaps)
+    if head:
+        chunks.append(head)
+    tail = hs.read_bytes(path, 256 * 1024, gaps=gaps, tail=True)
+    if tail:
+        chunks.append(tail)
+    for data in chunks:
+        if b"LibreSSL" in data or b"BoringSSL" in data:
+            m = _OPENSSL_LIBRE.search(data)
+            ver = m.group(1).decode("ascii") if m else None
+            kind = "libressl" if b"LibreSSL" in data else "boringssl"
+            return (kind, ver)
+        m = _OPENSSL_BANNER.search(data)
+        if m:
+            return ("openssl", m.group(1).decode("ascii"))
+    return None
+
+
+def check_openssl_121481(host, r):
+    """OpenSSL 4.0/4.1 vs 4.0.4 / 4.1.1 (CVE-2026-121481). Never start openssl."""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if not _openssl_runtime_pkg(name):
+                continue
+            for ver, src in rows:
+                _openssl_classify(r, name, ver, None, src)
+    for formula, rows in cellar(host).items():
+        if formula == "openssl" or formula.startswith("openssl@"):
+            for ver, path in rows:
+                _openssl_classify(r, "homebrew %s" % formula, ver, host.display(path), "Homebrew")
+    heads = [host.sys("/usr/include/openssl/opensslv.h"),
+             host.sys("/usr/local/include/openssl/opensslv.h"),
+             host.sys("/opt/homebrew/opt/openssl/include/openssl/opensslv.h"),
+             host.sys("/usr/local/opt/openssl/include/openssl/opensslv.h")]
+    for base in (host.sys("/opt/homebrew/opt"), host.sys("/usr/local/opt")):
+        heads += [os.path.join(d, "include", "openssl", "opensslv.h")
+                  for d in glob_dirs(host, base, "openssl@*")]
+    for formula, rows in cellar(host).items():
+        if formula == "openssl" or formula.startswith("openssl@"):
+            for _ver, path in rows:
+                heads.append(os.path.join(path, "include", "openssl", "opensslv.h"))
+    seen_h = set()
+    for hpath in heads:
+        key = os.path.normcase(os.path.abspath(hpath))
+        if key in seen_h:
+            continue
+        seen_h.add(key)
+        text = hs.read_text(hpath, 64 * 1024, host.gaps)
+        parsed = _openssl_header_version(text)
+        if not parsed:
+            continue
+        kind, ver = parsed
+        if kind == "libressl":
+            r.add("info", "LibreSSL header",
+                  "LibreSSL is not CVE-2026-121481 (CNA lists OpenSSL 4.0 and 4.1 only)",
+                  path=host.display(hpath), version=ver)
+        else:
+            _openssl_classify(r, "opensslv.h", ver, host.display(hpath), "opensslv.h")
+    extra = [host.sys(p) for p in ("/usr/bin", "/usr/sbin", "/usr/local/bin", "/opt/homebrew/bin")]
+    if host.platform == "windows":
+        for pf in host.program_files():
+            extra += glob_dirs(host, pf, "OpenSSL*")
+            extra += [os.path.join(d, "bin") for d in glob_dirs(host, pf, "OpenSSL*")]
+            extra += [os.path.join(pf, "OpenSSL-Win64", "bin"),
+                      os.path.join(pf, "OpenSSL-Win32", "bin")]
+        extra += [host.sys("C:/OpenSSL-Win64/bin"), host.sys("C:/OpenSSL-Win32/bin")]
+    seen = set()
+    for exe in find_binaries(host, ["openssl"], extra_dirs=extra):
+        real = os.path.normcase(os.path.abspath(exe))
+        if real in seen:
+            continue
+        seen.add(real)
+        if not hs.is_regular(exe):
+            r.add("unknown", "openssl binary",
+                  "path present; not a regular file (symlink not followed; openssl is never started)",
+                  path=host.display(exe))
+            continue
+        parsed = _openssl_banner_kind(exe, host.gaps)
+        ver = None
+        kind = None
+        if parsed:
+            kind, ver = parsed
+        if ver is None and host.platform == "windows":
+            ver = hs.pe_file_version(exe)
+            kind = kind or "openssl"
+        if kind in ("libressl", "boringssl"):
+            r.add("info", "LibreSSL/BoringSSL binary",
+                  "LibreSSL/BoringSSL is not CVE-2026-121481 (CNA lists OpenSSL 4.0 and 4.1 only)",
+                  path=host.display(exe), version=ver)
+        elif ver:
+            _openssl_classify(r, "openssl binary", ver, host.display(exe), "binary metadata")
+        else:
+            r.add("unknown", "openssl binary",
+                  "present; version not readable from bytes (openssl is never started)",
+                  path=host.display(exe))
+    if host.platform == "windows":
+        for e in registry_matches(host, r"\bopenssl\b"):
+            name = e.get("name") or ""
+            if re.search(r"python|node", name, re.I):
+                continue
+            raw = e.get("version") or ""
+            if raw:
+                _openssl_classify(r, "OpenSSL (uninstall registry)", raw, None, "registry")
+            else:
+                r.add("unknown", "OpenSSL (uninstall registry)", "present; DisplayVersion empty")
+    for path, image, tag in docker_decl_refs(host, r"openssl"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last != "openssl":
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "openssl image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _semver_tag_unresolved(tag):
+            r.add("unknown", "openssl image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            _openssl_classify(r, "openssl image", tag, host.display(path), "image tag")
+
+
+def _gpustack_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if hs.at_least(v, GPUSTACK_FLOOR):
+        r.add("info", component, "at or above GHSA first_patched_version 2.2.0; from %s" % source,
+              path=path, version=raw)
+        return
+    extra = ""
+    if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(GPUSTACK_FLOOR).nums) == 0:
+        extra = "; prerelease of 2.2.0 is not treated as fixed"
+    r.add("affected", component,
+          "GPUStack below 2.2.0 (CVE-2026-102895 / GHSA-gj9m-f8ph-pmhr)%s; from %s"
+          % (extra, source), path=path, version=raw)
+
+
+def check_gpustack_102895(host, r):
+    """GPUStack vs 2.2.0 (CVE-2026-102895). Never start gpustack, never HTTP."""
+    for ver, path, label in py_installs(host).get("gpustack", []):
+        _gpustack_classify(r, "gpustack (%s)" % label, ver, host.display(path), "dist-info")
+    docker_files = set(index(host).docker)
+    for path, _n, v in py_pin_hits(host, {"gpustack"}):
+        exact = _py_pin_exact(v)
+        if exact is None:
+            # FROM gpustack/gpustack:tag is not a pip pin; image tags are docker_decl_refs.
+            if path in docker_files and str(v).startswith("spec:"):
+                continue
+            r.add("review", "gpustack pin",
+                  "unpinned or wildcard spec; resolution could land below 2.2.0",
+                  path=host.display(path), version=str(v).replace("spec:", ""))
+        else:
+            _gpustack_classify(r, "gpustack pin", exact, host.display(path), "pin")
+    for path, image, tag in docker_decl_refs(host, r"gpustack"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last != "gpustack":
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "gpustack image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _semver_tag_unresolved(tag):
+            r.add("unknown", "gpustack image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            t = re.sub(r"^v", "", tag)
+            _gpustack_classify(r, "gpustack image", t, host.display(path), "image tag")
+
+
+def _vmware_tools_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    nums = v.nums + (0, 0, 0, 0)
+    major, minor = nums[0], nums[1]
+    if major >= 14:
+        r.add("info", component,
+              "newer than named VMware Tools 12.5.5 / 13.1.5 floors; from %s" % source,
+              path=path, version=raw)
+        return
+    if major == 13:
+        floor = VMWARE_TOOLS_13_FLOOR
+        if hs.at_least(v, floor):
+            r.add("info", component, "at or above VMware Tools 13.1.5; from %s" % source,
+                  path=path, version=raw)
+            return
+        extra = ""
+        if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(floor).nums) == 0:
+            extra = "; prerelease of 13.1.5 is not treated as fixed"
+        r.add("affected", component,
+              "VMware Tools 13.x below 13.1.5 (CVE-2026-123894 / VMSA-2026-0009)%s; from %s"
+              % (extra, source), path=path, version=raw)
+        return
+    if major == 12 and minor >= 5:
+        if hs.at_least(v, VMWARE_TOOLS_12_FLOOR):
+            r.add("info", component, "at or above VMware Tools 12.5.5; from %s" % source,
+                  path=path, version=raw)
+            return
+        r.add("affected", component,
+              "VMware Tools 12.5.x below 12.5.5 (CVE-2026-123894 / VMSA-2026-0009); from %s"
+              % source, path=path, version=raw)
+        return
+    if major == 12 and minor == 4:
+        if hs.at_least(v, VMWARE_TOOLS_12_32):
+            r.add("info", component,
+                  "at or above VMware Tools 12.4.10 (32-bit floor named with 12.5.5); from %s"
+                  % source, path=path, version=raw)
+            return
+        r.add("affected", component,
+              "VMware Tools 12.4.x below 12.4.10 (CVE-2026-123894 / VMSA-2026-0009); from %s"
+              % source, path=path, version=raw)
+        return
+    r.add("affected", component,
+          "VMware Tools below 12.5.5 / 13.1.5 (CVE-2026-123894 / VMSA-2026-0009); from %s"
+          % source, path=path, version=raw)
+
+
+def check_vmware_tools_123894(host, r):
+    """Windows VMware Tools vs 13.1.5 / 12.5.5 (CVE-2026-123894). Never start the agent."""
+    if host.platform != "windows":
+        return
+    for e in registry_matches(host, r"vmware\s+tools"):
+        raw = e.get("version") or ""
+        if raw:
+            _vmware_tools_classify(r, "VMware Tools (uninstall registry)", raw, None, "registry")
+        else:
+            r.add("unknown", "VMware Tools (uninstall registry)", "present; DisplayVersion empty")
+    seen = set()
+    for pf in host.program_files():
+        root = os.path.join(pf, "VMware", "VMware Tools")
+        exe = os.path.join(root, "vmtoolsd.exe")
+        key = os.path.normcase(os.path.abspath(exe))
+        if key in seen:
+            continue
+        seen.add(key)
+        if not hs.is_regular(exe):
+            if hs.is_plain_dir(root):
+                r.add("unknown", "VMware Tools",
+                      "Program Files tree present; version not readable (never start VMware Tools)",
+                      path=host.display(root))
+            continue
+        ver = hs.pe_file_version(exe)
+        if ver:
+            _vmware_tools_classify(r, "VMware Tools", ver, host.display(exe), "PE version")
+        else:
+            r.add("unknown", "VMware Tools",
+                  "present; PE version not readable (never start VMware Tools)",
+                  path=host.display(exe))
+
+
+def _asus_acce_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if hs.at_least(v, ASUS_ACCE_FLOOR):
+        r.add("info", component, "at or above ASUS Control Center Express 1.7.29; from %s" % source,
+              path=path, version=raw)
+        return
+    extra = ""
+    if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(ASUS_ACCE_FLOOR).nums) == 0:
+        extra = "; prerelease of 1.7.29 is not treated as fixed"
+    r.add("affected", component,
+          "ASUS Control Center Express below 1.7.29 (CVE-2026-114202)%s; from %s"
+          % (extra, source), path=path, version=raw)
+
+
+def _first_exe_pe(directory):
+    for name in hs.listdir(directory):
+        if not name.lower().endswith(".exe"):
+            continue
+        p = os.path.join(directory, name)
+        if hs.is_regular(p):
+            return hs.pe_file_version(p), p
+    return None, None
+
+
+def check_asus_acce_114202(host, r):
+    """ASUS Control Center Express vs 1.7.29 (CVE-2026-114202). Windows only. Never start ACCE."""
+    if host.platform != "windows":
+        return
+    for e in registry_matches(host, r"asus.*control\s+center\s+express"):
+        raw = e.get("version") or ""
+        if raw:
+            _asus_acce_classify(r, "ASUS Control Center Express (uninstall registry)", raw, None,
+                                "registry")
+        else:
+            r.add("unknown", "ASUS Control Center Express (uninstall registry)",
+                  "present; DisplayVersion empty")
+    seen = set()
+    for pf in host.program_files():
+        asus = os.path.join(pf, "ASUS")
+        for d in glob_dirs(host, asus, "*"):
+            if not re.search(r"control\s+center\s+express", os.path.basename(d), re.I):
+                continue
+            key = os.path.normcase(os.path.abspath(d))
+            if key in seen:
+                continue
+            seen.add(key)
+            ver, exe = _first_exe_pe(d)
+            if ver:
+                _asus_acce_classify(r, "ASUS Control Center Express", ver, host.display(exe),
+                                    "PE version")
+            elif hs.is_plain_dir(d):
+                r.add("unknown", "ASUS Control Center Express",
+                      "Program Files tree present; version not readable (never start Control Center Express)",
+                      path=host.display(d))
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -8018,11 +8460,12 @@ CHECKS = [
     check_meta("php-129289",
                "PHP below 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 (GHSA-qc49 / CVE-2026-129289)",
                "check_if_used", "confirmed", "runtime",
-               ["ghsa-qc49", "php-changelog-8", "cve-129289"],
+               ["ghsa-qc49", "php-changelog-8", "cve-129289", "ghsa-gr4f"],
                "GHSA-qc49-hpvq-g2w6 / CVE-2026-129289: PHP-FPM unread-body request smuggling. "
-               "Floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 (19 Nov 2026). Distro backports may keep an "
-               "old version string. Distinct from php2shell. dpkg php / php-fpm default-version "
-               "packages are skipped. Never start or reload php-fpm.",
+               "Floors 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 (19 Nov 2026). The same floors also "
+               "patch GHSA-gr4f-wgx5-jpfv (timezone cache use-after-free). Distro backports may "
+               "keep an old version string. Distinct from php2shell. dpkg php / php-fpm "
+               "default-version packages are skipped. Never start or reload php-fpm.",
                "Upgrade PHP / PHP-FPM to 8.5.13, 8.4.28, 8.3.37 or 8.2.36, or confirm a distro backport. "
                "This tool never starts or reloads php-fpm.",
                ALL_OS, check_php_129289),
@@ -8035,6 +8478,47 @@ CHECKS = [
                "composer.json is not evidence. Blocking install.php is mitigation. Never HTTP.",
                "Upgrade Drupal core to 10.6.22, 11.3.22 or 11.4.13. This tool never HTTP-probes install.php.",
                ALL_OS, check_drupal_132165),
+    check_meta("openssl-121481",
+               "OpenSSL 4.0/4.1 below 4.0.4 / 4.1.1 (CVE-2026-121481)",
+               "check_if_used", "confirmed", "runtime",
+               ["ghsa-83xj", "cve-121481", "openssl-pr-33652"],
+               "CVE-2026-121481 / GHSA-83xj-7xh4-4p7x: EVP_EncodeBlock output-size overflow. "
+               "CNA ranges 4.0.0 to before 4.0.4 and 4.1.0 to before 4.1.1. OpenSSL 3.x and "
+               "older, LibreSSL and BoringSSL are not this CVE. Distro backports may keep an "
+               "old version string. Header-only -dev packages are skipped. Never start openssl.",
+               "Upgrade OpenSSL 4.0.x to 4.0.4 or 4.1.x to 4.1.1, or confirm a distro backport. "
+               "This tool never starts openssl.",
+               ALL_OS, check_openssl_121481),
+    check_meta("gpustack-102895",
+               "GPUStack below 2.2.0 (CVE-2026-102895)",
+               "check_if_used", "confirmed", "runtime",
+               ["ghsa-gj9m", "cve-102895", "sans-gpustack"],
+               "CVE-2026-102895 / GHSA-gj9m-f8ph-pmhr: spoofed proxy-header authentication bypass. "
+               "PyPI gpustack below 2.2.0. SANS ISC reported exploit attempts. "
+               "force_auth_localhost is mitigation, not 2.2.0. Never start gpustack, never HTTP.",
+               "Upgrade GPUStack to 2.2.0. This tool never starts gpustack and never HTTP-probes it.",
+               ALL_OS, check_gpustack_102895),
+    check_meta("vmware-tools-123894",
+               "Windows VMware Tools below 13.1.5 / 12.5.5 (CVE-2026-123894)",
+               "check_if_used", "confirmed", "runtime",
+               ["vmsa-2026-0009", "cve-123894"],
+               "VMSA-2026-0009 / CVE-2026-123894: Windows VMware Tools only. Floors 13.1.5 and "
+               "12.5.5; 12.4.10 is the named 32-bit floor. 11.x has no 11-line fix (upgrade to "
+               "12.5.5). Linux open-vm-tools is not this CVE. vCenter and SDDC Manager are "
+               "appliances (not this check). Never start VMware Tools.",
+               "Upgrade Windows VMware Tools to 13.1.5 or 12.5.5 (12.4.10 on 32-bit). This tool "
+               "never starts the Tools agent.",
+               "Windows only (Linux/macOS: recorded only)", check_vmware_tools_123894, uses_walk=False),
+    check_meta("asus-acce-114202",
+               "ASUS Control Center Express below 1.7.29 (CVE-2026-114202)",
+               "check_if_used", "confirmed", "runtime",
+               ["cve-114202", "asus-acce", "bc-asus-acce"],
+               "CVE-2026-114202: ASUS Control Center Express. Vendor bulletin floor 1.7.29 "
+               "(CNA lists through v1.7.27). ASUS Control Center without Express is a different "
+               "product (not this check). No hard-coded key is stored. Never start the app.",
+               "Upgrade ASUS Control Center Express to 1.7.29. This tool never starts the app "
+               "and does not extract keys.",
+               "Windows only (Linux/macOS: recorded only)", check_asus_acce_114202, uses_walk=False),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
