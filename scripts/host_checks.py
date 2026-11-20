@@ -752,7 +752,7 @@ def read_registry_uninstall():
                             ver = winreg.QueryValueEx(sk, "DisplayVersion")[0]
                         except OSError:
                             ver = ""
-                        out.append({"name": str(name), "version": str(ver)})
+                        out.append({"name": str(name), "version": str(ver), "key": path})
                 except OSError:
                     continue
     return out
@@ -7541,7 +7541,9 @@ def check_drupal_132165(host, r):
 
 OPENSSL_40_FLOOR = "4.0.4"
 OPENSSL_41_FLOOR = "4.1.1"
-_OPENSSL_BANNER = re.compile(rb"(?<![A-Za-z])OpenSSL (\d+\.\d+\.\d+[a-z]*)")
+_OPENSSL_BANNER = re.compile(
+    rb"(?<![A-Za-z])OpenSSL (\d+\.\d+\.\d+[a-z]*(?:[-._]?(?:dev|pre|alpha|beta|rc)\d*)?)",
+    re.I)
 _OPENSSL_LIBRE = re.compile(rb"LibreSSL (\d+\.\d+\.\d+[a-z]*)")
 _OPENSSL_STR = re.compile(r'OPENSSL_VERSION_STR\s+"([^"]+)"')
 _OPENSSL_TEXT = re.compile(r'OPENSSL_VERSION_TEXT\s+"(OpenSSL|LibreSSL)\s+([^"]+)"')
@@ -7763,22 +7765,41 @@ def _gpustack_classify(r, component, raw, path, source):
           % (extra, source), path=path, version=raw)
 
 
+def _dockerfile_requirement_hits(host, wanted):
+    """py_pins on Dockerfiles after dropping FROM / image: operands.
+
+    Image tags are classified by docker_decl_refs. RUN pip install lines stay.
+    """
+    out = []
+    for path in index(host).docker:
+        text = text_of(host, path, 8 * MIB)
+        if text is None:
+            continue
+        kept = "\n".join(ln for ln in text.splitlines() if not docker_image_operand(ln))
+        for name, vers in hs.py_pins(kept, "dockerfile", wanted).items():
+            for v in sorted(vers):
+                out.append((path, name, v))
+    return out
+
+
+def _gpustack_pin_hit(r, host, path, v):
+    exact = _py_pin_exact(v)
+    if exact is None:
+        r.add("review", "gpustack pin",
+              "unpinned or wildcard spec; resolution could land below 2.2.0",
+              path=host.display(path), version=str(v).replace("spec:", ""))
+        return
+    _gpustack_classify(r, "gpustack pin", exact, host.display(path), "pin")
+
+
 def check_gpustack_102895(host, r):
     """GPUStack vs 2.2.0 (CVE-2026-102895). Never start gpustack, never HTTP."""
     for ver, path, label in py_installs(host).get("gpustack", []):
         _gpustack_classify(r, "gpustack (%s)" % label, ver, host.display(path), "dist-info")
-    docker_files = set(index(host).docker)
-    for path, _n, v in py_pin_hits(host, {"gpustack"}):
-        exact = _py_pin_exact(v)
-        if exact is None:
-            # FROM gpustack/gpustack:tag is not a pip pin; image tags are docker_decl_refs.
-            if path in docker_files and str(v).startswith("spec:"):
-                continue
-            r.add("review", "gpustack pin",
-                  "unpinned or wildcard spec; resolution could land below 2.2.0",
-                  path=host.display(path), version=str(v).replace("spec:", ""))
-        else:
-            _gpustack_classify(r, "gpustack pin", exact, host.display(path), "pin")
+    for path, _n, v in py_pin_hits(host, {"gpustack"}, include_docker=False):
+        _gpustack_pin_hit(r, host, path, v)
+    for path, _n, v in _dockerfile_requirement_hits(host, {"gpustack"}):
+        _gpustack_pin_hit(r, host, path, v)
     for path, image, tag in docker_decl_refs(host, r"gpustack"):
         last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
         if last != "gpustack":
@@ -7796,7 +7817,23 @@ def check_gpustack_102895(host, r):
             _gpustack_classify(r, "gpustack image", t, host.display(path), "image tag")
 
 
-def _vmware_tools_classify(r, component, raw, path, source):
+def _win_arch_hint(path=None, entry=None, pe_path=None):
+    """x86 / x64 / arm64 from a PE header, Wow6432Node, or Program Files (x86)."""
+    if pe_path:
+        machine = hs.pe_machine(pe_path)
+        if machine in ("x86", "x64", "arm64"):
+            return machine
+    blob = " ".join(filter(None, [
+        path or "",
+        (entry or {}).get("name") or "",
+        (entry or {}).get("key") or "",
+    ]))
+    if re.search(r"(?i)Wow6432Node|Program Files \(x86\)|\b32[- ]bit\b", blob):
+        return "x86"
+    return None
+
+
+def _vmware_tools_classify(r, component, raw, path, source, arch=None):
     v = hs.parse_version(raw)
     if v is None:
         r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
@@ -7832,10 +7869,16 @@ def _vmware_tools_classify(r, component, raw, path, source):
               % source, path=path, version=raw)
         return
     if major == 12 and minor == 4:
+        if arch != "x86":
+            r.add("affected", component,
+                  "VMware Tools 12.4.x; 12.4.10 is the 32-bit floor only "
+                  "(64-bit / unknown arch need 12.5.5) (CVE-2026-123894 / VMSA-2026-0009); from %s"
+                  % source, path=path, version=raw)
+            return
         if hs.at_least(v, VMWARE_TOOLS_12_32):
             r.add("info", component,
-                  "at or above VMware Tools 12.4.10 (32-bit floor named with 12.5.5); from %s"
-                  % source, path=path, version=raw)
+                  "at or above VMware Tools 12.4.10 on 32-bit Windows; from %s" % source,
+                  path=path, version=raw)
             return
         r.add("affected", component,
               "VMware Tools 12.4.x below 12.4.10 (CVE-2026-123894 / VMSA-2026-0009); from %s"
@@ -7853,7 +7896,8 @@ def check_vmware_tools_123894(host, r):
     for e in registry_matches(host, r"vmware\s+tools"):
         raw = e.get("version") or ""
         if raw:
-            _vmware_tools_classify(r, "VMware Tools (uninstall registry)", raw, None, "registry")
+            _vmware_tools_classify(r, "VMware Tools (uninstall registry)", raw, None, "registry",
+                                   arch=_win_arch_hint(entry=e))
         else:
             r.add("unknown", "VMware Tools (uninstall registry)", "present; DisplayVersion empty")
     seen = set()
@@ -7872,7 +7916,8 @@ def check_vmware_tools_123894(host, r):
             continue
         ver = hs.pe_file_version(exe)
         if ver:
-            _vmware_tools_classify(r, "VMware Tools", ver, host.display(exe), "PE version")
+            _vmware_tools_classify(r, "VMware Tools", ver, host.display(exe), "PE version",
+                                   arch=_win_arch_hint(path=host.display(exe), pe_path=exe))
         else:
             r.add("unknown", "VMware Tools",
                   "present; PE version not readable (never start VMware Tools)",
@@ -7897,13 +7942,24 @@ def _asus_acce_classify(r, component, raw, path, source):
           % (extra, source), path=path, version=raw)
 
 
-def _first_exe_pe(directory):
+def _acce_exe_pe(directory):
+    """PE version of an ACCE-named executable; ignore unrelated .exe files."""
+    preferred, extra = [], []
     for name in hs.listdir(directory):
-        if not name.lower().endswith(".exe"):
+        lower = name.lower()
+        if not lower.endswith(".exe"):
             continue
         p = os.path.join(directory, name)
-        if hs.is_regular(p):
-            return hs.pe_file_version(p), p
+        if not hs.is_regular(p):
+            continue
+        if lower == "acce.exe" or re.search(r"control.?center.?express", lower):
+            preferred.append(p)
+        elif re.search(r"(?i)(?:^|[^a-z0-9])acce[^/\\]*\.exe$", lower):
+            extra.append(p)
+    for p in preferred + extra:
+        ver = hs.pe_file_version(p)
+        if ver:
+            return ver, p
     return None, None
 
 
@@ -7929,7 +7985,7 @@ def check_asus_acce_114202(host, r):
             if key in seen:
                 continue
             seen.add(key)
-            ver, exe = _first_exe_pe(d)
+            ver, exe = _acce_exe_pe(d)
             if ver:
                 _asus_acce_classify(r, "ASUS Control Center Express", ver, host.display(exe),
                                     "PE version")
@@ -8503,11 +8559,13 @@ CHECKS = [
                "check_if_used", "confirmed", "runtime",
                ["vmsa-2026-0009", "cve-123894"],
                "VMSA-2026-0009 / CVE-2026-123894: Windows VMware Tools only. Floors 13.1.5 and "
-               "12.5.5; 12.4.10 is the named 32-bit floor. 11.x has no 11-line fix (upgrade to "
-               "12.5.5). Linux open-vm-tools is not this CVE. vCenter and SDDC Manager are "
-               "appliances (not this check). Never start VMware Tools.",
-               "Upgrade Windows VMware Tools to 13.1.5 or 12.5.5 (12.4.10 on 32-bit). This tool "
-               "never starts the Tools agent.",
+               "12.5.5; 12.4.10 is the named 32-bit floor and applies only when the install is "
+               "confirmed 32-bit (PE Machine, Wow6432Node, or Program Files (x86)). 64-bit and "
+               "unknown-arch 12.4.x need 12.5.5. 11.x has no 11-line fix (upgrade to 12.5.5). "
+               "Linux open-vm-tools is not this CVE. vCenter and SDDC Manager are appliances "
+               "(not this check). Never start VMware Tools.",
+               "Upgrade Windows VMware Tools to 13.1.5 or 12.5.5 (12.4.10 on confirmed 32-bit). "
+               "This tool never starts the Tools agent.",
                "Windows only (Linux/macOS: recorded only)", check_vmware_tools_123894, uses_walk=False),
     check_meta("asus-acce-114202",
                "ASUS Control Center Express below 1.7.29 (CVE-2026-114202)",

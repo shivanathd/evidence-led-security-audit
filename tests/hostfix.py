@@ -144,11 +144,21 @@ def components(check):
 
 # -- binary formats ----------------------------------------------------------
 
-def pe_with_version(version, pad=4096):
-    """A blob carrying a VS_FIXEDFILEINFO block; not a runnable executable."""
+def pe_with_version(version, pad=4096, machine=None):
+    """A blob carrying a VS_FIXEDFILEINFO block; not a runnable executable.
+
+    ``machine`` is an optional COFF IMAGE_FILE_HEADER Machine value written at
+    a PE header inside the prefix so ``pe_machine`` can classify architecture.
+    """
     a, b, c, d = (int(x) for x in version.split("."))
     fixed = b"\xbd\x04\xef\xfe" + struct.pack("<IIII", 0x00010000, (a << 16) | b, (c << 16) | d, 0)
-    return b"MZ" + b"\x00" * pad + fixed + b"\x00" * 64
+    prefix = bytearray(b"MZ" + b"\x00" * pad)
+    if machine is not None and pad >= 128:
+        e_lfanew = 64
+        struct.pack_into("<I", prefix, 60, e_lfanew)
+        prefix[e_lfanew:e_lfanew + 4] = b"PE\x00\x00"
+        struct.pack_into("<H", prefix, e_lfanew + 4, machine)
+    return bytes(prefix) + fixed + b"\x00" * 64
 
 
 def go_with_buildinfo(module, version):

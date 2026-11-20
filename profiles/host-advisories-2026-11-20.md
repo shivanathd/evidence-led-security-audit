@@ -10,7 +10,7 @@ Already on main (do not re-implement): `php-129289` (GHSA-qc49 / CVE-2026-129289
 
 - **OpenSSL CNA floors**: **4.0.4** and **4.1.1** from the CVE-2026-121481 CNA version ranges (4.0.0 to before 4.0.4; 4.1.0 to before 4.1.1). OpenSSL 3.x and older are not this CVE. LibreSSL and BoringSSL are not this CVE. Distro packages may backport a fix under an older version string.
 - **GPUStack floor**: **2.2.0** from GHSA-gj9m-f8ph-pmhr `first_patched_version`. `force_auth_localhost` is mitigation, not 2.2.0.
-- **VMware Tools floors**: Windows only, **13.1.5** and **12.5.5** from VMSA-2026-0009 / CVE-2026-123894. **12.4.10** is the named 32-bit floor published with 12.5.5. 11.x has no 11-line fix (upgrade to 12.5.5). Linux `open-vm-tools` is not this CVE.
+- **VMware Tools floors**: Windows only, **13.1.5** and **12.5.5** from VMSA-2026-0009 / CVE-2026-123894. **12.4.10** is the named 32-bit floor published with 12.5.5 and applies only when the install is confirmed 32-bit. 64-bit and unknown-arch 12.4.x need 12.5.5. 11.x has no 11-line fix (upgrade to 12.5.5). Linux `open-vm-tools` is not this CVE.
 - **ASUS Control Center Express floor**: **1.7.29** from the vendor bulletin quoted 20 Nov 2026. CNA CVE-2026-114202 lists through v1.7.27; 1.7.28 is treated as below 1.7.29. ASUS Control Center without Express is a different product.
 
 ## Primary sources
@@ -60,10 +60,10 @@ Already on main (do not re-implement): `php-129289` (GHSA-qc49 / CVE-2026-129289
 
 ## What this helper checks
 
-- `openssl-121481`: linux packages `openssl` / `libssl*` / `libcrypto*` / `openssl-libs` (skip `*-dev` / `*-doc`); Homebrew `openssl` / `openssl@N`; `opensslv.h`; ASCII `OpenSSL X.Y.Z` in binary bytes; Windows PE / uninstall registry; FROM/`image:` tags whose last path component is `openssl`. 3.x and LibreSSL/BoringSSL are `info`. Digest-pinned and moving tags are `unknown`.
-- `gpustack-102895`: `py_installs` / `py_pin_hits` / `docker_decl_refs`. Exact `==` / `===` pins classify. Unpinned specs are `review`. Digest-pinned and moving tags are `unknown`.
-- `vmware-tools-123894`: Windows uninstall registry `VMware Tools` and Program Files `vmtoolsd.exe` PE version. Linux `open-vm-tools` is not this check.
-- `asus-acce-114202`: Windows uninstall registry and Program Files tree matching Control Center Express. DisplayNames without Express are not this check.
+- `openssl-121481`: linux packages `openssl` / `libssl*` / `libcrypto*` / `openssl-libs` (skip `*-dev` / `*-doc`); Homebrew `openssl` / `openssl@N`; `opensslv.h`; ASCII `OpenSSL X.Y.Z` in binary bytes (including `-dev`); Windows PE / uninstall registry; FROM/`image:` tags whose last path component is `openssl`. 3.x and LibreSSL/BoringSSL are `info`. Digest-pinned and moving tags are `unknown`.
+- `gpustack-102895`: `py_installs` / `py_pin_hits` / `docker_decl_refs`. Exact `==` / `===` pins classify. Unpinned specs are `review`, including Dockerfile `RUN pip install` lines. FROM / `image:` operands are not pip pins. Digest-pinned and moving tags are `unknown`.
+- `vmware-tools-123894`: Windows uninstall registry `VMware Tools` and Program Files `vmtoolsd.exe` PE version. 12.4.10 is `info` only for confirmed 32-bit installs. Linux `open-vm-tools` is not this check.
+- `asus-acce-114202`: Windows uninstall registry and Program Files tree matching Control Center Express. DisplayNames without Express are not this check. PE versions come from ACCE-named executables only.
 
 ## Out of scope (not a host check)
 

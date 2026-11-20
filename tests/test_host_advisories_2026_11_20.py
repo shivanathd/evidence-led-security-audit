@@ -179,6 +179,24 @@ class OpenSsl121481(SimCase):
         self.assertEqual(results(c), ["affected"])
         self.assertEqual(c["findings"][0]["version"], "4.0.3")
 
+    def test_binary_banner_dev_of_40_floor_is_affected(self):
+        self.s.write("/usr/bin/openssl", _openssl_banner("4.0.4-dev"))
+        c = self.s.check("openssl-121481")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "4.0.4-dev")
+        self.assertIn("prerelease", c["findings"][0]["detail"])
+
+    def test_binary_banner_dev_of_41_floor_is_affected(self):
+        self.s.write("/usr/bin/openssl", _openssl_banner("4.1.1-dev"))
+        c = self.s.check("openssl-121481")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], "4.1.1-dev")
+
+    def test_binary_banner_floor_release_is_info(self):
+        self.s.write("/usr/bin/openssl", _openssl_banner("4.0.4"))
+        self.assertEqual(results(self.s.check("openssl-121481")), ["info"])
+
     def test_libressl_is_info(self):
         self.s.write("/usr/bin/openssl",
                      b"\x7fELF" + b"\x00" * 64 + b"LibreSSL 3.9.2" + b"\x00" * 32)
@@ -292,6 +310,19 @@ class GpuStack102895(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_dockerfile_unpinned_pip_is_review(self):
+        self.s.write("~/code/app/Dockerfile", "RUN pip install gpustack>=2.0\n")
+        c = self.s.check("gpustack-102895")
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_from_image_does_not_drop_run_pip_review(self):
+        self.s.write("~/code/app/Dockerfile",
+                     "FROM gpustack/gpustack:2.2.0\nRUN pip install gpustack>=2.0\n")
+        kinds = results(self.s.check("gpustack-102895"))
+        self.assertIn("info", kinds)
+        self.assertIn("review", kinds)
+
     def test_moving_tag_is_unknown(self):
         self.s.write("~/code/app/Dockerfile", "FROM registry.example.com/gpustack:latest\n")
         self.assertEqual(results(self.s.check("gpustack-102895")), ["unknown"])
@@ -336,9 +367,17 @@ class VmwareTools123894(SimCase):
         c = w.check("vmware-tools-123894", registry=[{"name": "VMware Tools", "version": "12.5.5"}])
         self.assertEqual(results(c), ["info"])
 
-    def test_windows_12410_is_info(self):
+    def test_windows_12410_without_arch_is_affected(self):
         w = self.sim("windows")
         c = w.check("vmware-tools-123894", registry=[{"name": "VMware Tools", "version": "12.4.10"}])
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("32-bit", c["findings"][0]["detail"])
+
+    def test_windows_12410_32bit_registry_is_info(self):
+        w = self.sim("windows")
+        c = w.check("vmware-tools-123894",
+                    registry=[{"name": "VMware Tools", "version": "12.4.10",
+                               "key": r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"}])
         self.assertEqual(results(c), ["info"])
 
     def test_windows_1249_is_affected(self):
@@ -369,6 +408,20 @@ class VmwareTools123894(SimCase):
         c = w.check("vmware-tools-123894")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
+
+    def test_windows_12410_32bit_pe_is_info(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files (x86)/VMware/VMware Tools/vmtoolsd.exe",
+                hostfix.pe_with_version(dotted(12, 4, 10, 0), machine=0x14C))
+        self.assertEqual(results(w.check("vmware-tools-123894")), ["info"])
+
+    def test_windows_12410_64bit_pe_is_affected(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/VMware/VMware Tools/vmtoolsd.exe",
+                hostfix.pe_with_version(dotted(12, 4, 10, 0), machine=0x8664))
+        c = w.check("vmware-tools-123894")
+        self.assertEqual(results(c), ["affected"])
+        self.assertIn("32-bit", c["findings"][0]["detail"])
 
 
 class AsusAcce114202(SimCase):
@@ -415,6 +468,24 @@ class AsusAcce114202(SimCase):
         c = w.check("asus-acce-114202")
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
+
+    def test_unrelated_exe_is_not_the_product_version(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/ASUS/Control Center Express/AAA.exe",
+                hostfix.pe_with_version(dotted(9, 0, 0, 0)))
+        w.write("C:/Program Files/ASUS/Control Center Express/ACCE.exe",
+                hostfix.pe_with_version(dotted(1, 7, 27, 0)))
+        c = w.check("asus-acce-114202")
+        self.assertEqual(results(c), ["affected"])
+        self.assertEqual(c["findings"][0]["version"], dotted(1, 7, 27, 0))
+
+    def test_unrelated_exe_only_is_unknown(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/ASUS/Control Center Express/Setup.exe",
+                hostfix.pe_with_version(dotted(9, 0, 0, 0)))
+        c = w.check("asus-acce-114202")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
 
 
 if __name__ == "__main__":

@@ -376,6 +376,12 @@ class Parsers(unittest.TestCase):
         head_only = hostfix.pe_with_version(hostfix.dotted(8, 4, 27, 0), pad=48)
         self.assertGreater(len(head_only), 80)
         self.assertEqual(hs.pe_file_version(self.put("head.dll", head_only), limit=80), hostfix.dotted(8, 4, 27, 0))
+        x86 = hostfix.pe_with_version(hostfix.dotted(12, 4, 10, 0), machine=0x14C)
+        self.assertEqual(hs.pe_machine(self.put("x86.exe", x86)), "x86")
+        self.assertEqual(hs.pe_file_version(self.put("x86v.exe", x86)), hostfix.dotted(12, 4, 10, 0))
+        x64 = hostfix.pe_with_version(hostfix.dotted(12, 4, 10, 0), machine=0x8664)
+        self.assertEqual(hs.pe_machine(self.put("x64.exe", x64)), "x64")
+        self.assertIsNone(hs.pe_machine(self.put("plain.exe", hostfix.pe_with_version(hostfix.dotted(1, 0, 0, 0)))))
         self.assertEqual(hs.go_main_module(self.put("ovh", hostfix.go_with_buildinfo("github.com/ovh/ovhcloud-cli", "v0.13.0"))),
                          ("github.com/ovh/ovhcloud-cli", "v0.13.0"))
         self.assertIsNone(hs.go_main_module(self.put("plain", b"\x7fELF" + b"\x00" * 100)))

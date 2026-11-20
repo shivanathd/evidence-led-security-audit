@@ -10,6 +10,10 @@
 
 ### Changed
 
+- `openssl-121481` binary banners keep prerelease suffixes such as `-dev` (4.0.4-dev / 4.1.1-dev are affected).
+- `gpustack-102895` still skips Dockerfile FROM / `image:` operands as pip pins, but keeps `RUN pip install` specs as review evidence.
+- `vmware-tools-123894` applies the 12.4.10 floor only to confirmed 32-bit installs (PE Machine, Wow6432Node, or Program Files (x86)); 64-bit and unknown-arch 12.4.x stay affected until 12.5.5.
+- `asus-acce-114202` reads PE versions only from ACCE-named executables, not the first `.exe` in the tree.
 - Briefing window through 20 Nov 2026.
 - Reviewed public hosts: `isc.sans.edu`, `support.broadcom.com`, `www.asus.com`.
 - `php-129289` records that GHSA-gr4f-wgx5-jpfv uses the same 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 floors.
