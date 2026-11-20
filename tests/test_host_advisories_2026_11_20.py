@@ -172,6 +172,24 @@ class OpenSsl121481(SimCase):
         self.assertEqual(results(c), ["affected"])
         self.assertEqual(c["findings"][0]["version"], "4.0.3")
 
+    def test_whitespace_header_is_unknown(self):
+        self.s.write("/usr/include/openssl/opensslv.h",
+                     '# define OPENSSL_VERSION_STR "   "\n')
+        c = self.s.check("openssl-121481")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("check error", c["reason"])
+
+    def test_whitespace_header_does_not_abort_binary_scan(self):
+        self.s.write("/usr/include/openssl/opensslv.h",
+                     '# define OPENSSL_VERSION_STR "   "\n')
+        self.s.write("/usr/bin/openssl", _openssl_banner("4.0.3"))
+        c = self.s.check("openssl-121481")
+        self.assertStatus(c, "FAIL")
+        self.assertIn("unknown", results(c))
+        self.assertIn("affected", results(c))
+        self.assertNotIn("check error", c["reason"])
+
     def test_binary_banner_not_executed(self):
         self.s.write("/usr/bin/openssl", _openssl_banner("4.0.3"))
         c = self.s.check("openssl-121481")
@@ -422,6 +440,25 @@ class VmwareTools123894(SimCase):
         c = w.check("vmware-tools-123894")
         self.assertEqual(results(c), ["affected"])
         self.assertIn("32-bit", c["findings"][0]["detail"])
+
+    def test_windows_12410_native_32bit_pe_reconciles_registry(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/VMware/VMware Tools/vmtoolsd.exe",
+                hostfix.pe_with_version(dotted(12, 4, 10, 0), machine=0x14C))
+        c = w.check("vmware-tools-123894",
+                    registry=[{"name": "VMware Tools", "version": "12.4.10"}])
+        self.assertStatus(c, "PASS")
+        self.assertEqual(set(results(c)), {"info"})
+        self.assertNotIn("check error", c["reason"])
+
+    def test_windows_12410_64bit_pe_keeps_registry_affected(self):
+        w = self.sim("windows")
+        w.write("C:/Program Files/VMware/VMware Tools/vmtoolsd.exe",
+                hostfix.pe_with_version(dotted(12, 4, 10, 0), machine=0x8664))
+        c = w.check("vmware-tools-123894",
+                    registry=[{"name": "VMware Tools", "version": "12.4.10"}])
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(set(results(c)), {"affected"})
 
 
 class AsusAcce114202(SimCase):

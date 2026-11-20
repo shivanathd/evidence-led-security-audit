@@ -7607,18 +7607,23 @@ def _openssl_classify(r, component, raw, path, source):
           path=path, version=raw)
 
 
+def _openssl_version_token(raw):
+    parts = (raw or "").split()
+    return parts[0] if parts else None
+
+
 def _openssl_header_version(text):
     if not text:
         return None
     m = _OPENSSL_TEXT.search(text)
     if m and m.group(1) == "LibreSSL":
-        return ("libressl", m.group(2).split()[0])
+        return ("libressl", _openssl_version_token(m.group(2)))
     m = _OPENSSL_STR.search(text)
     if m:
-        return ("openssl", m.group(1).split()[0])
+        return ("openssl", _openssl_version_token(m.group(1)))
     m = _OPENSSL_TEXT.search(text)
     if m and m.group(1) == "OpenSSL":
-        return ("openssl", m.group(2).split()[0])
+        return ("openssl", _openssl_version_token(m.group(2)))
     return None
 
 
@@ -7678,6 +7683,11 @@ def check_openssl_121481(host, r):
         if not parsed:
             continue
         kind, ver = parsed
+        if not ver:
+            r.add("unknown", "opensslv.h" if kind == "openssl" else "LibreSSL header",
+                  "OPENSSL_VERSION_* present; version token empty or whitespace",
+                  path=host.display(hpath))
+            continue
         if kind == "libressl":
             r.add("info", "LibreSSL header",
                   "LibreSSL is not CVE-2026-121481 (CNA lists OpenSSL 4.0 and 4.1 only)",
@@ -7817,6 +7827,25 @@ def check_gpustack_102895(host, r):
             _gpustack_classify(r, "gpustack image", t, host.display(path), "image tag")
 
 
+def _version_nums4(raw):
+    v = hs.parse_version(raw)
+    if v is None:
+        return None
+    return (v.nums + (0, 0, 0, 0))[:4]
+
+
+def _arch_by_version(hits):
+    """Map padded version nums to arch. Conflicting arch for one version is None."""
+    out = {}
+    for raw, arch in hits:
+        key = _version_nums4(raw)
+        if key is None or not arch:
+            continue
+        prev = out.get(key, arch)
+        out[key] = arch if prev == arch else None
+    return out
+
+
 def _win_arch_hint(path=None, entry=None, pe_path=None):
     """x86 / x64 / arm64 from a PE header, Wow6432Node, or Program Files (x86)."""
     if pe_path:
@@ -7893,13 +7922,7 @@ def check_vmware_tools_123894(host, r):
     """Windows VMware Tools vs 13.1.5 / 12.5.5 (CVE-2026-123894). Never start the agent."""
     if host.platform != "windows":
         return
-    for e in registry_matches(host, r"vmware\s+tools"):
-        raw = e.get("version") or ""
-        if raw:
-            _vmware_tools_classify(r, "VMware Tools (uninstall registry)", raw, None, "registry",
-                                   arch=_win_arch_hint(entry=e))
-        else:
-            r.add("unknown", "VMware Tools (uninstall registry)", "present; DisplayVersion empty")
+    pe_hits = []
     seen = set()
     for pf in host.program_files():
         root = os.path.join(pf, "VMware", "VMware Tools")
@@ -7915,13 +7938,27 @@ def check_vmware_tools_123894(host, r):
                       path=host.display(root))
             continue
         ver = hs.pe_file_version(exe)
+        arch = _win_arch_hint(path=host.display(exe), pe_path=exe)
         if ver:
+            pe_hits.append((ver, arch))
             _vmware_tools_classify(r, "VMware Tools", ver, host.display(exe), "PE version",
-                                   arch=_win_arch_hint(path=host.display(exe), pe_path=exe))
+                                   arch=arch)
         else:
             r.add("unknown", "VMware Tools",
                   "present; PE version not readable (never start VMware Tools)",
                   path=host.display(exe))
+    by_ver = _arch_by_version(pe_hits)
+    for e in registry_matches(host, r"vmware\s+tools"):
+        raw = e.get("version") or ""
+        if raw:
+            arch = _win_arch_hint(entry=e)
+            if arch is None:
+                nums = _version_nums4(raw)
+                arch = by_ver.get(nums) if nums else None
+            _vmware_tools_classify(r, "VMware Tools (uninstall registry)", raw, None, "registry",
+                                   arch=arch)
+        else:
+            r.add("unknown", "VMware Tools (uninstall registry)", "present; DisplayVersion empty")
 
 
 def _asus_acce_classify(r, component, raw, path, source):

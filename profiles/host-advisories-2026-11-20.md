@@ -60,9 +60,9 @@ Already on main (do not re-implement): `php-129289` (GHSA-qc49 / CVE-2026-129289
 
 ## What this helper checks
 
-- `openssl-121481`: linux packages `openssl` / `libssl*` / `libcrypto*` / `openssl-libs` (skip `*-dev` / `*-doc`); Homebrew `openssl` / `openssl@N`; `opensslv.h`; ASCII `OpenSSL X.Y.Z` in binary bytes (including `-dev`); Windows PE / uninstall registry; FROM/`image:` tags whose last path component is `openssl`. 3.x and LibreSSL/BoringSSL are `info`. Digest-pinned and moving tags are `unknown`.
+- `openssl-121481`: linux packages `openssl` / `libssl*` / `libcrypto*` / `openssl-libs` (skip `*-dev` / `*-doc`); Homebrew `openssl` / `openssl@N`; `opensslv.h`; ASCII `OpenSSL X.Y.Z` in binary bytes (including `-dev`); Windows PE / uninstall registry; FROM/`image:` tags whose last path component is `openssl`. 3.x and LibreSSL/BoringSSL are `info`. An empty or whitespace `OPENSSL_VERSION_*` token is `unknown` and does not abort later sources. Digest-pinned and moving tags are `unknown`.
 - `gpustack-102895`: `py_installs` / `py_pin_hits` / `docker_decl_refs`. Exact `==` / `===` pins classify. Unpinned specs are `review`, including Dockerfile `RUN pip install` lines. FROM / `image:` operands are not pip pins. Digest-pinned and moving tags are `unknown`.
-- `vmware-tools-123894`: Windows uninstall registry `VMware Tools` and Program Files `vmtoolsd.exe` PE version. 12.4.10 is `info` only for confirmed 32-bit installs. Linux `open-vm-tools` is not this check.
+- `vmware-tools-123894`: Windows uninstall registry `VMware Tools` and Program Files `vmtoolsd.exe` PE version. 12.4.10 is `info` only for confirmed 32-bit installs; a registry row without Wow6432Node inherits a matching-version PE Machine. Linux `open-vm-tools` is not this check.
 - `asus-acce-114202`: Windows uninstall registry and Program Files tree matching Control Center Express. DisplayNames without Express are not this check. PE versions come from ACCE-named executables only.
 
 ## Out of scope (not a host check)
