@@ -150,6 +150,9 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.wiz.io",  # nginx HTTP/2 RCE write-up
     "xint.io",  # nginx2root write-up
     "www.x41-dsec.de",  # X41-2026-001 LiteLLM advisory
+    "isc.sans.edu",  # GPUStack CVE-2026-102895 exploit-attempt diary
+    "support.broadcom.com",  # VMSA-2026-0009
+    "www.asus.com",  # ASUS Control Center Express advisory
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
