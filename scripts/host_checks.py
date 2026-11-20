@@ -7545,8 +7545,8 @@ _OPENSSL_BANNER = re.compile(
     rb"(?<![A-Za-z])OpenSSL (\d+\.\d+\.\d+[a-z]*(?:[-._]?(?:dev|pre|alpha|beta|rc)\d*)?)",
     re.I)
 _OPENSSL_LIBRE = re.compile(rb"LibreSSL (\d+\.\d+\.\d+[a-z]*)")
-_OPENSSL_STR = re.compile(r'OPENSSL_VERSION_STR\s+"([^"]+)"')
-_OPENSSL_TEXT = re.compile(r'OPENSSL_VERSION_TEXT\s+"(OpenSSL|LibreSSL)\s+([^"]+)"')
+_OPENSSL_STR = re.compile(r'OPENSSL_VERSION_STR\s+"([^"]*)"')
+_OPENSSL_TEXT = re.compile(r'OPENSSL_VERSION_TEXT\s+"(OpenSSL|LibreSSL)\s+([^"]*)"')
 GPUSTACK_FLOOR = "2.2.0"
 VMWARE_TOOLS_13_FLOOR = "13.1.5" + ".0"
 VMWARE_TOOLS_12_FLOOR = "12.5.5"

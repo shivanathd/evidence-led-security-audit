@@ -180,6 +180,14 @@ class OpenSsl121481(SimCase):
         self.assertEqual(results(c), ["unknown"])
         self.assertNotIn("check error", c["reason"])
 
+    def test_empty_header_is_unknown(self):
+        self.s.write("/usr/include/openssl/opensslv.h",
+                     '# define OPENSSL_VERSION_STR ""\n')
+        c = self.s.check("openssl-121481")
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+        self.assertNotIn("check error", c["reason"])
+
     def test_whitespace_header_does_not_abort_binary_scan(self):
         self.s.write("/usr/include/openssl/opensslv.h",
                      '# define OPENSSL_VERSION_STR "   "\n')
