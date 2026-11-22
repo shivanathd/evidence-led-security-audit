@@ -759,6 +759,26 @@ def pe_file_version(path, limit=16 * 1024 * 1024):
     return None
 
 
+def pe_machine(path, limit=4096):
+    """COFF Machine from a PE IMAGE_FILE_HEADER, or None. Never maps the image."""
+    data = _read_head(path, limit)
+    if not data or len(data) < 64 or data[:2] != b"MZ":
+        return None
+    e_lfanew = struct.unpack_from("<I", data, 60)[0]
+    if e_lfanew < 64 or e_lfanew + 6 > len(data):
+        return None
+    if data[e_lfanew:e_lfanew + 4] != b"PE\x00\x00":
+        return None
+    machine = struct.unpack_from("<H", data, e_lfanew + 4)[0]
+    if machine == 0x14C:
+        return "x86"
+    if machine == 0x8664:
+        return "x64"
+    if machine == 0xAA64:
+        return "arm64"
+    return "other"
+
+
 def _uvarint(buf, pos):
     shift = result = 0
     while pos < len(buf):

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.13 - 2026-11-22
+
+### Added
+
+- `scripts/host_checks.py`: four read-only checks (80 checks total). `openssl-121481` classifies OpenSSL 4.0/4.1 metadata against CVE-2026-121481 / GHSA-83xj-7xh4-4p7x floors 4.0.4 / 4.1.1 (CNA ranges; 3.x and LibreSSL/BoringSSL are info). `gpustack-102895` classifies the PyPI `gpustack` package against GHSA-gj9m-f8ph-pmhr / CVE-2026-102895 floor 2.2.0. `vmware-tools-123894` classifies Windows VMware Tools against VMSA-2026-0009 / CVE-2026-123894 floors 13.1.5 / 12.5.5 (12.4.10 is the named 32-bit floor; Linux `open-vm-tools` is not this CVE). `asus-acce-114202` classifies ASUS Control Center Express against CVE-2026-114202 floor 1.7.29 (Windows registry / Program Files; DisplayNames without Express are not this check). Never starts openssl, gpustack, VMware Tools or Control Center Express, and never HTTP-probes GPUStack.
+- Dated profile: `host-advisories-2026-11-20.md`.
+- Skipped as not host-checkable or already covered: PHP GHSA-gr4f-wgx5-jpfv (same floors as `php-129289`), VMware vCenter CVE-2026-123890 and SDDC Manager CVE-2026-123891/123892/123893 (appliances), CISA ICSA-26-323-01 OpenPLC Runtime, ICSA-26-323-02 Elecbrakes, ICSA-26-323-03 libumqtt, and 20 Nov 2026 breach-only incidents (JPMorgan/Visa/Mastercard third-party, Rakuten Securities, Prime Intellect DeepSeek v4.1 Flash swap, SBC Medical, BundID, Equinor, KPMG Canada).
+
+### Changed
+
+- `openssl-121481` binary banners keep prerelease suffixes such as `-dev` (4.0.4-dev / 4.1.1-dev are affected). An `opensslv.h` `OPENSSL_VERSION_*` value that is empty (`""`) or whitespace is `unknown` and does not abort binary or image inspection.
+- `gpustack-102895` still skips Dockerfile FROM / `image:` operands as pip pins, but keeps `RUN pip install` specs as review evidence.
+- `vmware-tools-123894` applies the 12.4.10 floor only to confirmed 32-bit installs (PE Machine, Wow6432Node, or Program Files (x86)); 64-bit and unknown-arch 12.4.x stay affected until 12.5.5. A native 32-bit uninstall row without Wow6432Node inherits the matching-version `vmtoolsd.exe` PE architecture.
+- `asus-acce-114202` reads PE versions only from ACCE-named executables, not the first `.exe` in the tree.
+- Briefing window through 20 Nov 2026.
+- Reviewed public hosts: `isc.sans.edu`, `support.broadcom.com`, `www.asus.com`.
+- `php-129289` records that GHSA-gr4f-wgx5-jpfv uses the same 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 floors.
+
 ## 0.4.12 - 2026-11-19
 
 ### Added
