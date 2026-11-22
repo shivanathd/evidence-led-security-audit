@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: one read-only check (81 checks total). `bitwarden-cli-42994` classifies npm `@bitwarden/cli` **exactly 2026.4.0** (CVE-2026-42994 / GHSA-999x-2wm3-jfx8; unpublished malicious publish on 22 Apr 2026). Vendor floor **2026.4.1**. Range specs that can include 2026.4.0 are review. Leftover `bw_setup.js` / `bw1.js` (JFrog SHA-256s), `/tmp/tmp.987654321.lock`, `package-updated.tgz`, `/tmp/_tmp_`, unique `~/.bashrc` / `~/.zshrc` needles, and a cheap Dune-pattern git name/description hint remain findings after an upgrade. Scoped cache/pnpm paths use `cli-2026.4.0.tgz` / `@bitwarden+cli@`. Never starts `bw`, bun or gh. Exfil hosts and IPs are not stored.
+- Dated profile: `host-advisories-2026-11-22.md`.
+- Skipped as not host-checkable: unconfirmed Bitwarden-own GitHub Action CI claim, snap / native non-npm CLI, exfil URL/IP, locale kill switch, Runner.Worker memory scrape, and treating GHSA-g98r patched `None` as "no fix".
+
+### Changed
+
+- Briefing window through 22 Nov 2026.
+- Reviewed public hosts: `community.bitwarden.com`, `research.jfrog.com`, `www.stepsecurity.io`, `www.ox.security`, `socket.dev`, `www.ossprey.com`.
+
 ## 0.4.13 - 2026-11-22
 
 ### Added
