@@ -176,6 +176,18 @@ class Ranges(SimCase):
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
+    def test_gt_exact_malicious_is_info(self):
+        self.pkg_json(">2026.4.0")
+        c = self.check()
+        self.assertStatus(c, "PASS")
+        self.assertEqual(results(c), ["info"])
+
+    def test_gt_prerelease_of_malicious_is_review(self):
+        self.pkg_json(">2026.4.0-beta.1")
+        c = self.check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
 
 class ScopedInstall(SimCase):
     def test_node_modules_scoped_2026_4_0(self):

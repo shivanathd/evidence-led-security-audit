@@ -8191,7 +8191,8 @@ def _bw_spec_kind(spec):
         v = hs.parse_version(spec[1:].strip())
         if v is None:
             return "review", "range could include 2026.4.0"
-        if hs.cmp_nums(_bw_nums3(v), _BW_MAL_NUMS) < 0:
+        cmp = hs.cmp_nums(_bw_nums3(v), _BW_MAL_NUMS)
+        if cmp < 0 or (cmp == 0 and v.rest and not v.rest.startswith("+")):
             return "review", "> range can include 2026.4.0"
         return "info", "> range starts at or after 2026.4.0"
     if spec.startswith("<"):
@@ -8411,17 +8412,17 @@ def check_bitwarden_cli_42994(host, r):
     for path in index(host).bw_cli_iocs:
         _bw_add_ioc(host, r, path, ioc_seen)
     for td in _bw_temp_dirs(host):
-        for n in hs.listdir(td)[:5000]:
+        for n in ("bw_setup.js", "bw1.js", _BW_LOCK_NAME, _BW_STAGING_TGZ):
             p = os.path.join(td, n)
-            low = n.lower()
-            if low in ("bw_setup.js", "bw1.js", _BW_LOCK_NAME, _BW_STAGING_TGZ) and hs.is_regular(p):
+            if hs.is_regular(p):
                 _bw_add_ioc(host, r, p, ioc_seen)
-            elif low.rstrip() == _BW_STAGING_DIR and hs.is_plain_dir(p):
-                key = os.path.normcase(os.path.abspath(p))
-                if key not in ioc_seen:
-                    ioc_seen.add(key)
-                    r.add("review", "Bitwarden CLI leftover path",
-                          "published 2026.4.0 staging directory name", path=host.display(p))
+        p = os.path.join(td, _BW_STAGING_DIR)
+        if hs.is_plain_dir(p):
+            key = os.path.normcase(os.path.abspath(p))
+            if key not in ioc_seen:
+                ioc_seen.add(key)
+                r.add("review", "Bitwarden CLI leftover path",
+                      "published 2026.4.0 staging directory name", path=host.display(p))
     for rel in (".bashrc", ".zshrc"):
         p = host.h(rel)
         if not hs.is_regular(p):
