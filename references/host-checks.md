@@ -136,7 +136,7 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `gpustack-102895` | venv/conda `gpustack`; `==`/`===` pins; `gpustack` image tags | same | same |
 | `vmware-tools-123894` | not this CVE (Linux `open-vm-tools` is not classified) | not this CVE | uninstall registry `VMware Tools`; Program Files `vmtoolsd.exe` PE. Never starts the agent |
 | `asus-acce-114202` | not applicable | not applicable | uninstall registry and Program Files matching Control Center Express. Names without Express are not this check. Never starts the app |
-| `bitwarden-cli-42994` | lockfiles / `package.json` / scoped `node_modules/@bitwarden/cli` / pnpm `@bitwarden+cli@` / npm cache `cli-2026.4.0.tgz`; leftover `bw_setup.js` / `bw1.js` hashes; rc needles; Dune-pattern git names. Exactly 2026.4.0 affected; 2026.4.1+ info. Never starts bw/bun/gh | same | same |
+| `bitwarden-cli-42994` | lockfiles / `package.json` / scoped `node_modules/@bitwarden/cli` / pnpm `@bitwarden+cli@` / npm cache `cli-2026.4.0.tgz`; leftover `bw_setup.js` / `bw1.js` hashes (16 MiB bound); `/tmp` and `/private/tmp` leftover names; rc needles; Dune-pattern git names. Exactly 2026.4.0 affected; 2026.4.1+ info; compound/`~2026` ranges review. Never starts bw/bun/gh | same | same |
 
 ## Known limits
 

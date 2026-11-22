@@ -13,6 +13,8 @@ from unittest import mock
 import hostfix
 import host_checks as hc
 
+IS_ROOT = hasattr(os, "geteuid") and os.geteuid() == 0
+
 results = hostfix.results
 at = hostfix.at
 dotted = hostfix.dotted
@@ -108,6 +110,16 @@ class EmptyAndExact(SimCase):
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
 
+    def test_lock_missing_version_is_unknown(self):
+        self.s.write("~/code/app/package-lock.json", json.dumps({
+            "packages": {
+                "node_modules/@bitwarden/cli": {"name": "@bitwarden/cli"}
+            }
+        }))
+        c = self.check()
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
     def test_package_json_exact_pin_is_affected(self):
         self.pkg_json("2026.4.0")
         c = self.check()
@@ -137,6 +149,18 @@ class Ranges(SimCase):
         c = self.check()
         self.assertStatus(c, "PASS")
         self.assertEqual(results(c), ["info"])
+
+    def test_compound_or_range_is_review(self):
+        self.pkg_json("^2026.4.1 || 2026.4.0")
+        c = self.check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+
+    def test_tilde_major_only_is_review(self):
+        self.pkg_json("~2026")
+        c = self.check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
 
     def test_unpinned_latest_is_review(self):
         self.pkg_json("latest")
@@ -214,6 +238,15 @@ class ScopedInstall(SimCase):
                      b"other-cli/-/cli-2026.4.0.tgz\n")
         self.assertStatus(self.check(), "PASS")
 
+    @unittest.skipIf(os.name == "nt" or IS_ROOT, "chmod 000 does not block root or Windows")
+    def test_unreadable_npm_cache_index_records_gap(self):
+        path = self.s.write("~/.npm/_cacache/index-v5/ab/cd/idx", b"not-the-needle\n")
+        os.chmod(path, 0)
+        self.addCleanup(lambda: os.chmod(path, 0o644))
+        doc = self.s.doc(only={CID})
+        self.assertStatus(doc["checks"][0], "PASS")
+        self.assertIn("permission_denied", doc["coverage"]["partial_reasons"])
+
 
 class Iocs(SimCase):
     def test_named_loader_wrong_hash_is_review(self):
@@ -227,6 +260,14 @@ class Iocs(SimCase):
         c = self.check()
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["review"])
+
+    def test_payload_over_one_mib_is_hashed_not_unknown(self):
+        # Larger than the previous 1 MiB hash cap; under the 16 MiB bound.
+        self.s.write("~/code/app/bw1.js", b"x" * (2 * hc.MIB))
+        c = self.check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
+        self.assertNotIn("unknown", results(c))
 
     def test_matching_loader_hash_is_affected(self):
         path = self.s.write("~/code/app/bw_setup.js", b"innocuous loader stand-in\n")
@@ -304,6 +345,16 @@ class Iocs(SimCase):
         self.assertNotIn(EXFIL_HOST, blob)
         self.assertNotIn(EXFIL_IP, blob)
         self.assertNotIn("audit.checkmarx", blob)
+
+
+class DarwinTemp(SimCase):
+    platform = "darwin"
+
+    def test_private_tmp_lock_is_review(self):
+        self.s.write("/private/tmp/tmp.987654321.lock", b"12345\n")
+        c = self.check()
+        self.assertStatus(c, "FAIL")
+        self.assertEqual(results(c), ["review"])
 
 
 class WindowsScoped(SimCase):

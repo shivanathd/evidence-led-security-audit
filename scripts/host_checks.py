@@ -8112,6 +8112,8 @@ _BW_DUNE_WORDS = frozenset({
 _BW_DUNE_REPO = re.compile(r"^([a-z]+)-([a-z]+)-(\d{3})$", re.I)
 _BW_GIT_URL = re.compile(r"(?im)^\s*url\s*=\s*(.+?)\s*$")
 _BW_IOC_HASH = {"bw_setup.js": BW_LOADER_SHA, "bw1.js": BW_PAYLOAD_SHA}
+# StepSecurity lists bw1.js at ~9.7 MB; 1 MiB would skip the published payload hash.
+_BW_HASH_LIMIT = 16 * MIB
 
 
 def _bw_nums3(v):
@@ -8137,7 +8139,9 @@ def _bw_exact_kind(ver):
     if _bw_is_malicious_exact(s):
         return "affected", "malicious @bitwarden/cli 2026.4.0 (CVE-2026-42994); never a valid vendor release"
     v = hs.parse_version(s)
-    if v and not v.prerelease and hs.at_least(v, _BW_FLOOR):
+    if v is None:
+        return "unknown", "version could not be read; not established as 2026.4.0"
+    if not v.prerelease and hs.at_least(v, _BW_FLOOR):
         return "info", "at or above vendor floor 2026.4.1; not this finding"
     return "info", "installed or locked; not 2026.4.0"
 
@@ -8146,6 +8150,8 @@ def _bw_spec_kind(spec):
     spec = str(spec).strip().strip("'\"")
     if not spec or spec.lower() in ("*", "x", "latest"):
         return "review", "unpinned or wildcard range could have resolved to 2026.4.0"
+    if "||" in spec or " - " in spec:
+        return "review", "compound range syntax; confirm it cannot include 2026.4.0"
     m = _BW_PLAIN.match(spec)
     if m:
         return _bw_exact_kind(m.group(1))
@@ -8153,6 +8159,8 @@ def _bw_spec_kind(spec):
         v = hs.parse_version(spec[1:])
         if v is None:
             return "review", "range could include 2026.4.0"
+        if v.rest and not (v.prerelease or v.vendor_suffix):
+            return "review", "compound range syntax; confirm it cannot include 2026.4.0"
         if v.nums[0] != 2026:
             return "info", "caret range cannot include 2026.4.0"
         if hs.cmp_nums(_bw_nums3(v), _BW_MAL_NUMS) <= 0:
@@ -8162,6 +8170,10 @@ def _bw_spec_kind(spec):
         v = hs.parse_version(spec[1:])
         if v is None:
             return "review", "range could include 2026.4.0"
+        if len(v.nums) < 2:
+            if v.nums and v.nums[0] == 2026:
+                return "review", "tilde range can include 2026.4.0"
+            return "info", "tilde range cannot include 2026.4.0"
         nums = _bw_nums3(v)
         if nums[0] != 2026 or nums[1] != 4:
             return "info", "tilde range cannot include 2026.4.0"
@@ -8214,7 +8226,7 @@ def _bw_add_ioc(host, r, path, seen):
         r.add("review", "Bitwarden CLI leftover path",
               "published 2026.4.0 leftover name (%s)" % name, path=disp)
         return
-    digest = sha256_of(path, MIB)
+    digest = sha256_of(path, _BW_HASH_LIMIT)
     if digest is None:
         r.add("unknown", "Bitwarden CLI IOC file",
               "file present; hash could not be read (%s)" % name, path=disp)
@@ -8242,6 +8254,7 @@ def _bw_temp_dirs(host):
 
     if host.platform != "windows":
         add(host.sys("/tmp"))
+        add(host.sys("/private/tmp"))
     for key in ("TMPDIR", "TMP", "TEMP"):
         raw = host.env.get(key)
         if not raw:
@@ -8377,7 +8390,7 @@ def check_bitwarden_cli_42994(host, r):
         hit = None
         while stack and not hit:
             d = stack.pop()
-            for n in hs.listdir(d):
+            for n in hs.listdir(d, host.gaps):
                 p = os.path.join(d, n)
                 if hs.is_plain_dir(p):
                     stack.append(p)
@@ -8387,7 +8400,7 @@ def check_bitwarden_cli_42994(host, r):
                     r.blocked.append("npm cache index scan stopped early")
                     stack = []
                     break
-                data = hs.read_bytes(p, 1 * MIB)
+                data = hs.read_bytes(p, 1 * MIB, host.gaps)
                 if data and _BW_CACHE_NEEDLE in data:
                     hit = p
                     break

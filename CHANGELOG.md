@@ -10,6 +10,7 @@
 
 ### Changed
 
+- `bitwarden-cli-42994`: compound npm ranges (`||`, hyphen) are review so a leading `^2026.4.1` cannot hide `2026.4.0`; major-only `~2026` is review; an unreadable lock version is unknown (BLOCKED); leftover `bw1.js` is hashed up to 16 MiB; macOS leftover paths include `/private/tmp`; npm cache index reads record coverage gaps.
 - Briefing window through 22 Nov 2026.
 - Reviewed public hosts: `community.bitwarden.com`, `research.jfrog.com`, `www.stepsecurity.io`, `www.ox.security`, `socket.dev`, `www.ossprey.com`.
 

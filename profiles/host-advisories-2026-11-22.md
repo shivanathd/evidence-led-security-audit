@@ -56,11 +56,11 @@ TTPs overlap Shai-Hulud / "Third Coming" / TeamPCP. That is attribution context,
 
 ## What this helper checks
 
-- Lockfiles and `package.json` for `@bitwarden/cli`: exact **2026.4.0** is `affected`; exact **2026.4.1+** is `info`; ranges that can resolve to 2026.4.0 (`^2026.3.0`, `*`, `latest`) are `review`; `~2026.3.0` cannot include 2026.4.0 and is `info`.
+- Lockfiles and `package.json` for `@bitwarden/cli`: exact **2026.4.0** is `affected`; exact **2026.4.1+** is `info`; ranges that can resolve to 2026.4.0 (`^2026.3.0`, `*`, `latest`, `~2026`, compound `||`) are `review`; `~2026.3.0` and a plain `^2026.4.1` cannot include 2026.4.0 and are `info`. An unreadable lock version is `unknown`.
 - Scoped install path `node_modules/@bitwarden/cli` (`os.path.join(nm, "@bitwarden", "cli")`), global npm / nvm / fnm / volta / bun / pnpm prefixes, `.package-lock.json`, pnpm virtual store `@bitwarden+cli@` plus version 2026.4.0.
 - npm cache index needle `/@bitwarden/cli/-/cli-2026.4.0` (not `@bitwarden/cli-2026.4.0.tgz`).
-- Leftover `bw_setup.js` / `bw1.js` under walked roots, the scoped install dir, and temp dirs: matching published SHA-256 is `affected`; name-only is `review`; unreadable is `unknown`.
-- Published leftover names: `tmp.987654321.lock`, `package-updated.tgz`, directory `_tmp_`.
+- Leftover `bw_setup.js` / `bw1.js` under walked roots, the scoped install dir, and temp dirs: matching published SHA-256 is `affected`; name-only is `review`; unreadable is `unknown`. Payload hash bound is 16 MiB (published `bw1.js` is ~9.7 MB).
+- Published leftover names: `tmp.987654321.lock`, `package-updated.tgz`, directory `_tmp_`. Temp scan includes `/tmp` and the canonical macOS `/private/tmp` (the `/tmp` symlink is not followed).
 - `~/.bashrc` and `~/.zshrc` unique needles only (loader/payload names, butlerian-jihad string, `Shai-Hulud: The Third Coming`, `echo << 'EOF'`). Ordinary "bitwarden" or lone Dune-word mentions are not findings. No Windows rc named in the write-ups.
 - Cheap git hint: indexed repo directory names, remotes, or `.git/description` matching the published Dune `{word}-{word}-{3digits}` pattern or the exact description string. `review` only. No GitHub API.
 
