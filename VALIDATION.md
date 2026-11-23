@@ -2,7 +2,7 @@
 
 Version 0.4.4, checked on 31 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
-Unreleased 20 Nov 2026 watch adds four ids (80 total: `openssl-121481`, `gpustack-102895`, `vmware-tools-123894`, `asus-acce-114202`) on dated profile `host-advisories-2026-11-20.md`. GHSA-gr4f-wgx5-jpfv stays on `php-129289`. Reproduce with the commands below; this file's 0.4.4 counts are historical.
+Unreleased 22 Nov 2026 watch adds one id (81 total: `bitwarden-cli-42994`) on dated profile `host-advisories-2026-11-22.md`. CVE-2026-42994 is npm `@bitwarden/cli` exactly 2026.4.0; vendor floor 2026.4.1. Reproduce with the commands below; this file's 0.4.4 counts are historical.
 
 ## Executed checks
 

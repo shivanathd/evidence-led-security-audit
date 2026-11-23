@@ -153,6 +153,12 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "isc.sans.edu",  # GPUStack CVE-2026-102895 exploit-attempt diary
     "support.broadcom.com",  # VMSA-2026-0009
     "www.asus.com",  # ASUS Control Center Express advisory
+    "community.bitwarden.com",  # CVE-2026-42994 vendor statement
+    "research.jfrog.com",  # Bitwarden CLI hijack hashes / loader
+    "www.stepsecurity.io",  # Bitwarden CLI npm hijack write-up
+    "www.ox.security",  # Shai-Hulud Bitwarden CLI write-up
+    "socket.dev",  # Bitwarden CLI compromised write-up
+    "www.ossprey.com",  # Bitwarden CLI supply-chain write-up
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

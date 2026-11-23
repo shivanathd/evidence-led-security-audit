@@ -13,7 +13,7 @@ What it does:
   the briefing fact it relies on, and the briefing's source URLs.
 
 What it never does:
-- It never starts node, python, pip, php, php-fpm, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central, nginx, litellm, openssl, gpustack, VMware Tools, Control Center Express or any audited program,
+- It never starts node, python, pip, php, php-fpm, ruby, git, TeamViewer, Drupal, drush, composer, unrealircd, postgres, psql, pg_config, quay, java, mysql, mysqld, vpxd, puppet, n-central, nginx, litellm, openssl, gpustack, VMware Tools, Control Center Express, bw, bun, gh or any audited program,
   never installs, never contacts a network, never revokes or rotates a
   credential, and never changes a file. The only write is --out.
 - It never prints a secret value. Config files are reduced to names, env var
@@ -57,11 +57,11 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.13"
-BRIEFING = ("Security briefings, 16 Oct-20 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
-            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16, 2026-11-18, 2026-11-19 "
-            "and 2026-11-20)")
-BRIEFING_DATE = "2026-11-20"
+VERSION = "0.4.14"
+BRIEFING = ("Security briefings, 16 Oct-22 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+            "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16, 2026-11-18, 2026-11-19, "
+            "2026-11-20 and 2026-11-22)")
+BRIEFING_DATE = "2026-11-22"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -177,6 +177,12 @@ LIMITS = [
     "drupal-132165 classifies drupal/core from composer.lock, installed.json and "
     "core/lib/Drupal.php VERSION against 10.6.22 / 11.3.22 / 11.4.13. composer.json is "
     "not evidence. Blocking install.php is mitigation. Never HTTP, never starts drush.",
+    "bitwarden-cli-42994 classifies only @bitwarden/cli exactly 2026.4.0 as affected. "
+    "2026.4.1 and later exact pins are info. Range specs that can include 2026.4.0 are "
+    "review. Do not use npm_package_check (it flags every version; its cache needle is "
+    "unscoped). Leftover bw_setup.js / bw1.js, the published lock-file path, staging "
+    "names and unique rc needles stay findings after an upgrade. Exfil hosts and IPs "
+    "are not stored. Never starts bw, bun or gh.",
 ]
 
 CLEANUP_ORDER = [
@@ -549,6 +555,28 @@ SRC = {
     "bc-asus-acce": ("BleepingComputer: ASUS Control Center Express hard-coded key",
                      "https://www.bleepingcomputer.com/news/security/"
                      "asus-warns-of-critical-hard-coded-key-flaw-in-control-center-express/"),
+    "bw-community-42994": ("Bitwarden: statement on Checkmarx supply-chain incident",
+                           "https://community.bitwarden.com/t/"
+                           "bitwarden-statement-on-checkmarx-supply-chain-incident/96127"),
+    "nvd-42994": ("NVD: CVE-2026-42994", "https://nvd.nist.gov/vuln/detail/CVE-2026-42994"),
+    "ghsa-999x": ("GHSA-999x-2wm3-jfx8: @bitwarden/cli 2026.4.0 (CVE-2026-42994)",
+                  "https://github.com/advisories/GHSA-999x-2wm3-jfx8"),
+    "ghsa-g98r": ("GHSA-g98r-qjhg-4fmr: malicious @bitwarden/cli 2026.4.0 (malware advisory)",
+                  "https://github.com/advisories/GHSA-g98r-qjhg-4fmr"),
+    "bw-clients-20353": ("bitwarden/clients#20353: npm CLI 2026.4.0 tracking",
+                         "https://github.com/bitwarden/clients/issues/20353"),
+    "jfrog-bw-cli": ("JFrog: Bitwarden CLI hijack on npm",
+                     "https://research.jfrog.com/post/bitwarden-cli-hijack/"),
+    "stepsecurity-bw-cli": ("StepSecurity: Bitwarden CLI hijacked on npm",
+                            "https://www.stepsecurity.io/blog/"
+                            "bitwarden-cli-hijacked-on-npm-bun-staged-credential-stealer-targets-"
+                            "developers-github-actions-and-ai-tools"),
+    "ox-bw-cli": ("OX Security: Shai-Hulud Bitwarden CLI supply-chain attack",
+                  "https://www.ox.security/blog/shai-hulud-bitwarden-cli-supply-chain-attack/"),
+    "socket-bw-cli": ("Socket: Bitwarden CLI compromised on npm",
+                      "https://socket.dev/blog/bitwarden-cli-compromised"),
+    "ossprey-bw-cli": ("Ossprey: Bitwarden CLI supply-chain attack",
+                       "https://www.ossprey.com/blog/bitwarden-cli-supply-chain-attack"),
 }
 
 SKIPPED = [
@@ -690,6 +718,25 @@ SKIPPED = [
      "Rakuten Securities test-environment leak, Prime Intellect DeepSeek v4.1 Flash model "
      "swap, SBC Medical, BundID, Equinor, KPMG Canada)",
      "Org/SaaS incidents; no host-level file hash, package or version floor."),
+    ("Bitwarden / Checkmarx GitHub Action CI vector (unconfirmed)",
+     "The YouTube Short claimed a compromised GitHub Action inside Bitwarden's own CI. "
+     "Bitwarden attributes the npm delivery path to a broader Checkmarx incident and says "
+     "compromised access was revoked. Researcher write-ups discuss GitHub Action / "
+     "publish-workflow abuse (sometimes naming checkmarx/ast-github-action or a stolen "
+     "token). Conflict recorded; not a host check."),
+    ("Bitwarden snap package for CVE-2026-42994",
+     "Vendor community statement: snap was not affected. This CVE is the npm 2026.4.0 path."),
+    ("Bitwarden CLI native / Homebrew / Chocolatey installs (not npm @bitwarden/cli)",
+     "CVE-2026-42994 is the npm 2026.4.0 tarball. Other distribution channels are not this check."),
+    ("@bitwarden/cli 2026.4.0 exfil HTTPS host / IP",
+     "Network IOC; this helper makes no network calls and does not store that URL or IP."),
+    ("bw1.js Russian locale kill switch",
+     "OX describes an Intl / LANG kill switch; executing payload logic is out of scope. Context only."),
+    ("GitHub Actions Runner.Worker memory scrape",
+     "Ossprey/Socket describe a gzipped Python scrape of Runner.Worker on Linux GITHUB_ACTIONS. "
+     "This helper never reads process memory."),
+    ("GHSA-g98r-qjhg-4fmr patched versions None as 'no fix'",
+     "Malware-advisory style. Bitwarden tells users to install 2026.4.1 (later 2026.x exist)."),
 ]
 
 
@@ -953,6 +1000,7 @@ class Index:
         self.gem_lock = []
         self.axis_jars = []
         self.roller_props = []
+        self.bw_cli_iocs = []
         self.complete = True
         self.stopped = None
 
@@ -1105,6 +1153,8 @@ def build_index(host):
             idx.axis_jars.append(path)
         if low.endswith(".properties") and ("roller" in plow or "roller" in low):
             idx.roller_props.append(path)
+        if low in ("bw_setup.js", "bw1.js", "package-updated.tgz", "tmp.987654321.lock"):
+            idx.bw_cli_iocs.append(path)
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
 
@@ -8032,6 +8082,363 @@ def check_asus_acce_114202(host, r):
                       path=host.display(d))
 
 
+# JFrog / StepSecurity published SHA-256 for the 2026.4.0 loader and payload.
+BW_LOADER_SHA = "18f784b3bc9a0bcdcb1a8d7f51bc5f54323fc40cbd874119354ab609bef6e4cb"
+BW_PAYLOAD_SHA = "8605e365edf11160aad517c7d79a3b26b62290e5072ef97b102a01ddbb343f14"
+_BW_PKG = "@bitwarden/cli"
+_BW_MALICIOUS = "2026.4.0"
+_BW_FLOOR = "2026.4.1"
+_BW_MAL_NUMS = (2026, 4, 0)
+_BW_PLAIN = re.compile(r"^v?(\d+\.\d+\.\d+)$")
+_BW_PNPM_PREFIX = "@bitwarden+cli@"
+_BW_CACHE_NEEDLE = b"/@bitwarden/cli/-/cli-2026.4.0"
+_BW_LOCK_NAME = "tmp.987654321.lock"
+_BW_STAGING_TGZ = "package-updated.tgz"
+_BW_STAGING_DIR = "_tmp_"
+_BW_SHAI_DESC = "Shai-Hulud: The Third Coming"
+_BW_RC_NEEDLES = (
+    "Would be executing butlerian jihad!",
+    "bw_setup.js",
+    "bw1.js",
+    _BW_SHAI_DESC,
+    "echo << 'EOF'",
+)
+_BW_DUNE_WORDS = frozenset({
+    "atreides", "cogitor", "fedaykin", "fremen", "futar", "gesserit", "ghola", "harkonnen",
+    "heighliner", "kanly", "kralizec", "lasgun", "laza", "melange", "mentat", "navigator",
+    "ornithopter", "phibian", "powindah", "prana", "prescient", "sandworm", "sardaukar",
+    "sayyadina", "sietch", "siridar", "slig", "stillsuit", "thumper", "tleilaxu",
+})
+_BW_DUNE_REPO = re.compile(r"^([a-z]+)-([a-z]+)-(\d{3})$", re.I)
+_BW_GIT_URL = re.compile(r"(?im)^\s*url\s*=\s*(.+?)\s*$")
+_BW_IOC_HASH = {"bw_setup.js": BW_LOADER_SHA, "bw1.js": BW_PAYLOAD_SHA}
+# StepSecurity lists bw1.js at ~9.7 MB; 1 MiB would skip the published payload hash.
+_BW_HASH_LIMIT = 16 * MIB
+
+
+def _bw_nums3(v):
+    nums = tuple(v.nums) + (0, 0, 0)
+    return nums[:3]
+
+
+def _bw_is_malicious_exact(raw):
+    s = str(raw).strip()
+    if s.startswith("==="):
+        s = s[3:].strip()
+    m = _BW_PLAIN.match(s)
+    if m:
+        return m.group(1) == _BW_MALICIOUS
+    v = hs.parse_version(s)
+    if v is None or v.prerelease or v.vendor_suffix:
+        return s == _BW_MALICIOUS
+    return _bw_nums3(v) == _BW_MAL_NUMS and (len(v.nums) <= 3 or all(n == 0 for n in v.nums[3:]))
+
+
+def _bw_exact_kind(ver):
+    s = str(ver).strip()
+    if _bw_is_malicious_exact(s):
+        return "affected", "malicious @bitwarden/cli 2026.4.0 (CVE-2026-42994); never a valid vendor release"
+    v = hs.parse_version(s)
+    if v is None:
+        return "unknown", "version could not be read; not established as 2026.4.0"
+    if not v.prerelease and hs.at_least(v, _BW_FLOOR):
+        return "info", "at or above vendor floor 2026.4.1; not this finding"
+    return "info", "installed or locked; not 2026.4.0"
+
+
+def _bw_spec_kind(spec):
+    spec = str(spec).strip().strip("'\"")
+    if not spec or spec.lower() in ("*", "x", "latest"):
+        return "review", "unpinned or wildcard range could have resolved to 2026.4.0"
+    if "||" in spec or " - " in spec:
+        return "review", "compound range syntax; confirm it cannot include 2026.4.0"
+    m = _BW_PLAIN.match(spec)
+    if m:
+        return _bw_exact_kind(m.group(1))
+    if spec.startswith("^"):
+        v = hs.parse_version(spec[1:])
+        if v is None:
+            return "review", "range could include 2026.4.0"
+        if v.rest and not (v.prerelease or v.vendor_suffix):
+            return "review", "compound range syntax; confirm it cannot include 2026.4.0"
+        if v.nums[0] != 2026:
+            return "info", "caret range cannot include 2026.4.0"
+        if hs.cmp_nums(_bw_nums3(v), _BW_MAL_NUMS) <= 0:
+            return "review", "caret range can include 2026.4.0"
+        return "info", "caret range starts after 2026.4.0"
+    if spec.startswith("~"):
+        v = hs.parse_version(spec[1:])
+        if v is None:
+            return "review", "range could include 2026.4.0"
+        if len(v.nums) < 2:
+            if v.nums and v.nums[0] == 2026:
+                return "review", "tilde range can include 2026.4.0"
+            return "info", "tilde range cannot include 2026.4.0"
+        nums = _bw_nums3(v)
+        if nums[0] != 2026 or nums[1] != 4:
+            return "info", "tilde range cannot include 2026.4.0"
+        if hs.cmp_nums(nums, _BW_MAL_NUMS) <= 0:
+            return "review", "tilde range can include 2026.4.0"
+        return "info", "tilde range starts after 2026.4.0"
+    if spec.startswith(">="):
+        v = hs.parse_version(spec[2:].strip())
+        if v is None:
+            return "review", "range could include 2026.4.0"
+        if hs.cmp_nums(_bw_nums3(v), _BW_MAL_NUMS) <= 0:
+            return "review", ">= range can include 2026.4.0"
+        return "info", ">= range starts after 2026.4.0"
+    if spec.startswith(">") and not spec.startswith(">="):
+        v = hs.parse_version(spec[1:].strip())
+        if v is None:
+            return "review", "range could include 2026.4.0"
+        cmp = hs.cmp_nums(_bw_nums3(v), _BW_MAL_NUMS)
+        if cmp < 0 or (cmp == 0 and v.rest and not v.rest.startswith("+")):
+            return "review", "> range can include 2026.4.0"
+        return "info", "> range starts at or after 2026.4.0"
+    if spec.startswith("<"):
+        return "review", "upper-bound range; confirm it cannot resolve to 2026.4.0"
+    return "review", "range syntax could include 2026.4.0"
+
+
+def _bw_token_kind(raw):
+    s = str(raw).strip()
+    if s.startswith("spec:"):
+        return _bw_spec_kind(s[5:])
+    if "*" in s or s.lower() in ("latest", "x"):
+        return "review", "unpinned or wildcard could have resolved to 2026.4.0"
+    if s.startswith("==="):
+        return _bw_exact_kind(s[3:])
+    return _bw_exact_kind(s)
+
+
+def _bw_cli_dir(nm):
+    return os.path.join(nm, "@bitwarden", "cli")
+
+
+def _bw_add_ioc(host, r, path, seen):
+    key = os.path.normcase(os.path.abspath(path))
+    if key in seen:
+        return
+    seen.add(key)
+    name = os.path.basename(path)
+    expected = _BW_IOC_HASH.get(name.lower())
+    disp = host.display(path)
+    if expected is None:
+        r.add("review", "Bitwarden CLI leftover path",
+              "published 2026.4.0 leftover name (%s)" % name, path=disp)
+        return
+    digest = sha256_of(path, _BW_HASH_LIMIT)
+    if digest is None:
+        r.add("unknown", "Bitwarden CLI IOC file",
+              "file present; hash could not be read (%s)" % name, path=disp)
+        return
+    if digest == expected:
+        r.add("affected", "Bitwarden CLI IOC file",
+              "SHA-256 matches the published 2026.4.0 indicator (%s)" % name,
+              path=disp, sha256=digest)
+    else:
+        r.add("review", "Bitwarden CLI IOC filename",
+              "filename matches a 2026.4.0 indicator; hash does not (%s)" % name, path=disp)
+
+
+def _bw_temp_dirs(host):
+    out, seen = [], set()
+
+    def add(path):
+        if not path or not hs.is_plain_dir(path):
+            return
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(path)
+
+    if host.platform != "windows":
+        add(host.sys("/tmp"))
+        add(host.sys("/private/tmp"))
+    for key in ("TMPDIR", "TMP", "TEMP"):
+        raw = host.env.get(key)
+        if not raw:
+            continue
+        if host.platform == "windows":
+            add(host.winvar(key, None))
+        elif host.sysroot and str(raw).startswith("/"):
+            add(host.sys(raw))
+        else:
+            add(raw)
+    return out
+
+
+def _bw_dune_name(name):
+    m = _BW_DUNE_REPO.match(name or "")
+    if not m:
+        return False
+    return m.group(1).lower() in _BW_DUNE_WORDS and m.group(2).lower() in _BW_DUNE_WORDS
+
+
+def _bw_url_last(url):
+    s = str(url).strip().rstrip("/")
+    if s.lower().endswith(".git"):
+        s = s[:-4]
+    return s.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _bw_scan_git(host, r, seen):
+    for repo, gitdir in index(host).repos.items():
+        base = os.path.basename(repo.rstrip(os.sep))
+        if _bw_dune_name(base):
+            key = ("name", os.path.normcase(os.path.abspath(repo)))
+            if key not in seen:
+                seen.add(key)
+                r.add("review", "Dune-pattern directory",
+                      "local folder name matches the published {word}-{word}-{3digits} fallback repo pattern",
+                      path=host.display(repo))
+        if not hs.is_plain_dir(gitdir):
+            continue
+        desc = os.path.join(gitdir, "description")
+        if hs.is_regular(desc):
+            text = text_of(host, desc, 4096)
+            if text is None:
+                r.add("unknown", "git description", "file could not be read", path=host.display(desc))
+            elif _BW_SHAI_DESC in text:
+                key = ("desc", os.path.normcase(os.path.abspath(desc)))
+                if key not in seen:
+                    seen.add(key)
+                    r.add("review", "git description",
+                          "matches the published Shai-Hulud Third Coming description string",
+                          path=host.display(desc))
+        cfg = os.path.join(gitdir, "config")
+        if not hs.is_regular(cfg):
+            continue
+        text = text_of(host, cfg, MIB)
+        if text is None:
+            r.add("unknown", "git config", "file could not be read", path=host.display(cfg))
+            continue
+        if not text:
+            continue
+        for m in _BW_GIT_URL.finditer(text):
+            last = _bw_url_last(m.group(1))
+            if not _bw_dune_name(last):
+                continue
+            key = ("url", os.path.normcase(os.path.abspath(cfg)), last.lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            r.add("review", "git remote",
+                  "remote last path component matches the published Dune-pattern repo name",
+                  path=host.display(cfg))
+
+
+def check_bitwarden_cli_42994(host, r):
+    """Exact @bitwarden/cli 2026.4.0 plus leftover IOCs. Never start bw/bun/gh. No exfil URL."""
+    wanted = {_BW_PKG}
+    for path, name, ver in lock_hits(host, wanted):
+        kind, note = _bw_token_kind(ver)
+        r.add(kind, name, note + "; listed in %s" % os.path.basename(path),
+              path=host.display(path), version=str(ver).replace("spec:", "range "))
+    nms = index(host).node_modules[:20000] + global_node_modules(host)
+    ioc_seen = set()
+    git_seen = set()
+    for nm in nms:
+        pkg = _bw_cli_dir(nm)
+        pj = os.path.join(pkg, "package.json")
+        if hs.is_regular(pj):
+            doc = hs.read_json(pj, 1 * MIB, host.gaps)
+            if not isinstance(doc, dict):
+                r.add("unknown", _BW_PKG, "package.json could not be parsed", path=host.display(pj))
+            else:
+                ver = doc.get("version") if isinstance(doc.get("version"), str) else None
+                if not ver:
+                    r.add("unknown", _BW_PKG, "installed; version not in package.json",
+                          path=host.display(pj))
+                else:
+                    kind, note = _bw_token_kind(ver)
+                    r.add(kind, _BW_PKG, note + "; installed in node_modules",
+                          path=host.display(pj), version=ver)
+        for n in ("bw_setup.js", "bw1.js"):
+            p = os.path.join(pkg, n)
+            if hs.is_regular(p):
+                _bw_add_ioc(host, r, p, ioc_seen)
+        hidden = os.path.join(nm, ".package-lock.json")
+        if hs.is_regular(hidden):
+            text = text_of(host, hidden)
+            if text is None:
+                r.add("unknown", _BW_PKG,
+                      "node_modules/.package-lock.json could not be read",
+                      path=host.display(hidden))
+            else:
+                for n, vers in hs.npm_lock_versions(text, ".package-lock.json", wanted).items():
+                    for v in sorted(vers):
+                        kind, note = _bw_token_kind(v)
+                        r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
+                              path=host.display(hidden), version=v)
+        for d in hs.listdir(os.path.join(nm, ".pnpm")):
+            low = d.lower()
+            if not low.startswith(_BW_PNPM_PREFIX):
+                continue
+            ver = d[len(_BW_PNPM_PREFIX):].split("_", 1)[0]
+            kind, note = _bw_token_kind(ver)
+            r.add(kind, _BW_PKG, note + "; present in the pnpm virtual store",
+                  path=host.display(os.path.join(nm, ".pnpm", d)), version=ver)
+    caches = [host.h(".npm", "_cacache", "index-v5"),
+              os.path.join(host.localappdata(), "npm-cache", "_cacache", "index-v5")]
+    for cache in caches:
+        if not hs.is_plain_dir(cache):
+            continue
+        budget = hs.Budget(min(10.0, max(0.0, host.budget.left())))
+        files = 0
+        stack = [cache]
+        hit = None
+        while stack and not hit:
+            d = stack.pop()
+            for n in hs.listdir(d, host.gaps):
+                p = os.path.join(d, n)
+                if hs.is_plain_dir(p):
+                    stack.append(p)
+                    continue
+                files += 1
+                if files > 200_000 or budget.over():
+                    r.blocked.append("npm cache index scan stopped early")
+                    stack = []
+                    break
+                data = hs.read_bytes(p, 1 * MIB, host.gaps)
+                if data and _BW_CACHE_NEEDLE in data:
+                    hit = p
+                    break
+        if hit:
+            r.add("review", _BW_PKG,
+                  "tarball recorded in the npm cache index (downloaded at some point)",
+                  path=host.display(cache))
+    for path in index(host).bw_cli_iocs:
+        _bw_add_ioc(host, r, path, ioc_seen)
+    for td in _bw_temp_dirs(host):
+        for n in ("bw_setup.js", "bw1.js", _BW_LOCK_NAME, _BW_STAGING_TGZ):
+            p = os.path.join(td, n)
+            if hs.is_regular(p):
+                _bw_add_ioc(host, r, p, ioc_seen)
+        p = os.path.join(td, _BW_STAGING_DIR)
+        if hs.is_plain_dir(p):
+            key = os.path.normcase(os.path.abspath(p))
+            if key not in ioc_seen:
+                ioc_seen.add(key)
+                r.add("review", "Bitwarden CLI leftover path",
+                      "published 2026.4.0 staging directory name", path=host.display(p))
+    for rel in (".bashrc", ".zshrc"):
+        p = host.h(rel)
+        if not hs.is_regular(p):
+            continue
+        text = text_of(host, p, MIB)
+        if text is None:
+            r.add("unknown", "shell rc", "file could not be read", path=host.display(p))
+            continue
+        hits = [n for n in _BW_RC_NEEDLES if n in text]
+        if hits:
+            r.add("affected", "shell rc persistence",
+                  "contains published 2026.4.0 needle(s): %s" % ", ".join(hits),
+                  path=host.display(p))
+    _bw_scan_git(host, r, git_seen)
+
+
 ALL_OS = "macOS, Linux, Windows"
 CHECKS = [
     check_meta("testmetest-ai-hooks", "AI tool hook files nobody added (testmetest worm)", "check_now", "confirmed",
@@ -8614,12 +9021,27 @@ CHECKS = [
                "Upgrade ASUS Control Center Express to 1.7.29. This tool never starts the app "
                "and does not extract keys.",
                "Windows only (Linux/macOS: recorded only)", check_asus_acce_114202, uses_walk=False),
+    check_meta("bitwarden-cli-42994",
+               "Malicious npm @bitwarden/cli 2026.4.0 (CVE-2026-42994)",
+               "check_now", "confirmed", "dependency",
+               ["bw-community-42994", "nvd-42994", "ghsa-999x", "ghsa-g98r", "bw-clients-20353",
+                "jfrog-bw-cli", "stepsecurity-bw-cli", "ox-bw-cli", "socket-bw-cli", "ossprey-bw-cli"],
+               "npm @bitwarden/cli exactly 2026.4.0 was a short-lived malicious publish on 22 Apr 2026 "
+               "(unpublished). Vendor window 21:57Z-23:30Z; npm time 21:22:59Z (about 35 minutes earlier). "
+               "2026.4.1 is the vendor floor (bin.bw = build/bw.js). GHSA-g98r patched None is malware-style; "
+               "install 2026.4.1. Leftover bw_setup.js / bw1.js (JFrog SHA-256s), lock/staging names and unique "
+               "rc needles remain findings after an upgrade. Snap is not this CVE. Exfil hosts are not stored.",
+               "Remove 2026.4.0, leftover loader/payload files and rc injections. Install @bitwarden/cli "
+               "2026.4.1 or later from a clean device and rotate reachable tokens. This tool never starts "
+               "bw, bun or gh.",
+               ALL_OS, check_bitwarden_cli_42994),
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
                     "planted-agent-instructions", "function-color-npm-package", "litellm-1-107-0",
                     "claude-code-vsx-21313", "yoba-fake-ai-apps",
-                    "artex-gateway-keys", "blank-canvas-vsx", "agent-framework-1-26"}
+                    "artex-gateway-keys", "blank-canvas-vsx", "agent-framework-1-26",
+                    "bitwarden-cli-42994"}
 
 
 def run_check(host, meta):

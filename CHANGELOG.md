@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.14 - 2026-11-23
+
+### Added
+
+- `scripts/host_checks.py`: one read-only check (81 checks total). `bitwarden-cli-42994` classifies npm `@bitwarden/cli` **exactly 2026.4.0** (CVE-2026-42994 / GHSA-999x-2wm3-jfx8; unpublished malicious publish on 22 Apr 2026). Vendor floor **2026.4.1**. Range specs that can include 2026.4.0 are review. Leftover `bw_setup.js` / `bw1.js` (JFrog SHA-256s), `/tmp/tmp.987654321.lock`, `package-updated.tgz`, `/tmp/_tmp_`, unique `~/.bashrc` / `~/.zshrc` needles, and a cheap Dune-pattern git name/description hint remain findings after an upgrade. Scoped cache/pnpm paths use `cli-2026.4.0.tgz` / `@bitwarden+cli@`. Never starts `bw`, bun or gh. Exfil hosts and IPs are not stored.
+- Dated profile: `host-advisories-2026-11-22.md`.
+- Skipped as not host-checkable: unconfirmed Bitwarden-own GitHub Action CI claim, snap / native non-npm CLI, exfil URL/IP, locale kill switch, Runner.Worker memory scrape, and treating GHSA-g98r patched `None` as "no fix".
+
+### Changed
+
+- `bitwarden-cli-42994`: compound npm ranges (`||`, hyphen) are review so a leading `^2026.4.1` cannot hide `2026.4.0`; major-only `~2026` is review; `>2026.4.0-beta.1` is review while `>2026.4.0` stays info; an unreadable lock version is unknown (BLOCKED); leftover `bw1.js` is hashed up to 16 MiB; leftover names are looked up directly under `/tmp` and `/private/tmp` (no 5,000-entry listing slice); npm cache index reads record coverage gaps.
+- Briefing window through 22 Nov 2026.
+- Reviewed public hosts: `community.bitwarden.com`, `research.jfrog.com`, `www.stepsecurity.io`, `www.ox.security`, `socket.dev`, `www.ossprey.com`.
+
 ## 0.4.13 - 2026-11-22
 
 ### Added
