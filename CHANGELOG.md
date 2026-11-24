@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: six read-only checks (87 checks total). `binary-parser-134814` classifies npm `binary-parser` against CVE-2026-134814 / GHSA-xmxc-6c22-m377 floor **2.3.1**. `leadstack-crm-connect` flags exact malicious `@leadstack/crm-connect` publishes plus leftover `~/.leadstack` / systemd unit names (no C2 host/IP stored). `monailabel-133968` classifies pip `monailabel` against CVE-2026-133968 / GHSA-qc22-rmgc-vg94 floor **0.8.6**. `gpgme-129975` classifies GPGME against CVE-2026-129975 floor **2.3.1** (Debian bookworm/trixie series floors; Gpg4win 5.1.2). `ghostscript-125396` classifies Ghostscript against CVE-2026-125396 floor **10.08.0** (Debian series floors). `idunno-anticsrf-131914` flags `Idunno.AntiCsrf.dll` by Mandiant MNDT-2026-0048 SHA-256 (or name/Web.config review); no vendor patch. Never starts node, monailabel, gpgme-tool, gpg, gs or IIS.
+- Dated profile: `host-advisories-2026-11-24.md`.
+- Skipped as not host-checkable or already covered: Azure APIM Classic credential theft, CVE-2026-134624 Mail Assure SSRF (hosted skip), SonicWall Gen6 EOL, React2STEAL, MoldyRoost iOS, SAP NetWeaver, Cisco Expressway, CERT-In AI-assisted attacks advisory, and named 24 Nov / queued breach-only incidents.
+
+### Changed
+
+- Briefing window through 24 Nov 2026.
+- Reviewed public hosts: `lists.gnupg.org`, `www.gpg4win.org`, `safedep.io` (already present).
+- `MAX_FILES_TARGET` 75 → 80 so the new dated profile stays under the compact-package warning.
+
 ## 0.4.14 - 2026-11-23
 
 ### Added

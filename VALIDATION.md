@@ -2,7 +2,7 @@
 
 Version 0.4.4, checked on 31 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
-Unreleased 22 Nov 2026 watch adds one id (81 total: `bitwarden-cli-42994`) on dated profile `host-advisories-2026-11-22.md`. CVE-2026-42994 is npm `@bitwarden/cli` exactly 2026.4.0; vendor floor 2026.4.1. Reproduce with the commands below; this file's 0.4.4 counts are historical.
+Unreleased 24 Nov 2026 watch adds six ids (87 total: `binary-parser-134814`, `leadstack-crm-connect`, `monailabel-133968`, `gpgme-129975`, `ghostscript-125396`, `idunno-anticsrf-131914`) on dated profile `host-advisories-2026-11-24.md`. Reproduce with the commands below; this file's 0.4.4 counts are historical.
 
 ## Executed checks
 
