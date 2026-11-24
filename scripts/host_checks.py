@@ -183,6 +183,11 @@ LIMITS = [
     "unscoped). Leftover bw_setup.js / bw1.js, the published lock-file path, staging "
     "names and unique rc needles stay findings after an upgrade. Exfil hosts and IPs "
     "are not stored. Never starts bw, bun or gh.",
+    "whmcs-82981 classifies self-hosted WHMCS from includes/version.php against "
+    "CVE-2026-82981 floors 9.1.2 and 9.0.10. Fingerprint is configuration.php presence "
+    "plus includes/version.php with a WHMCS marker. Never opens configuration.php "
+    "(secrets). Never starts PHP, ionCube or HTTP-probes the shopping cart. Versions "
+    "below 9.0 are outside this CVE range (info).",
 ]
 
 CLEANUP_ORDER = [
@@ -609,6 +614,21 @@ SRC = {
                             "https://www.bleepingcomputer.com/news/security/microsoft-azure-flaw-exploited-to-steal-customers-api-credentials/"),
     "nvd-134624": ("NVD: CVE-2026-134624 (N-able Mail Assure SSRF)",
                    "https://nvd.nist.gov/vuln/detail/CVE-2026-134624"),
+    "whmcs-82981": ("WHMCS: CVE-2026-82981 shopping cart SQL injection (2026-11-23)",
+                    "https://help.whmcs.com/m/125386/l/2151347-cve-2026-82981-whmcs-security-update-2026-11-23"),
+    "whmcs-sec-2026-11-23": ("WHMCS Security Update 2026-11-23 (8.13.8 / 9.0.10 / 9.1.2)",
+                            "https://blog.whmcs.com/133803/security-update-2026-11-23"),
+    "nvd-82981": ("NVD: CVE-2026-82981", "https://nvd.nist.gov/vuln/detail/CVE-2026-82981"),
+    "vmsa-2026-0011": ("Broadcom VMSA-2026-0011 (vCenter CVE-2026-123903..123907 and related)",
+                      "https://support.broadcom.com/web/ecx/support-content-notification/-/external/content/SecurityAdvisories/0/39626"),
+    "bc-mcdonalds-japan": ("BleepingComputer: McDonald's Japan app location data breach",
+                           "https://www.bleepingcomputer.com/news/security/mcdonalds-japan-data-breach-exposes-customer-location-information/"),
+    "heise-hugendubel": ("heise online: Hugendubel / Tolino Cloud / eBook" + ".de cyberattack",
+                         "https://www.heise.de/en/news/After-cyberattack-Hugendubel-Tolino-Cloud-and-eBook-de-are-disrupted-11534318.html"),
+    "rackspace-spot-winddown": ("Rackspace Spot status: service wind-down 8 Dec 2026",
+                                "https://status.spot.rackspace.com/status/uptime"),
+    "baas-playstation-ato": ("baas: PlayStation Network account-takeover zero-day (patched)",
+                             "https://0xbaas.com/posts/playstation-zero-day/"),
 }
 
 SKIPPED = [
@@ -791,6 +811,20 @@ SKIPPED = [
      "Appliance (Expressway); needs the Cisco console, not a laptop scan."),
     ("CERT-In AI-assisted attacks advisory (India bank payments, 23 Nov 2026)",
      "Campaign / advisory; no host-level package or version floor named for this helper."),
+    ("VMware vCenter CVE-2026-123903 / CVE-2026-123904 / CVE-2026-123905 / "
+     "CVE-2026-123906 / CVE-2026-123907 (VMSA-2026-0011)",
+     "Appliance; distinct from CVE-2026-123890 (VMSA-2026-0009). Floors 8.0 U3m / "
+     "9.1.2 / 9.0.2.0300 / VCF 5.2.5. No laptop package. vcenter-log4shell is KB 87081; "
+     "Windows VMware Tools remains vmware-tools-123894."),
+    ("PlayStation Network account-takeover zero-day (patched by Sony)",
+     "Hosted identity service; no local package or version floor."),
+    ("McDonald's Japan official app database breach (location / purchase history)",
+     "Org/SaaS mobile-app backend; no host-level package or version floor."),
+    ("Hugendubel / Tolino Cloud / eBook" + ".de cyberattack and outage",
+     "Org/SaaS retailer / ebook cloud; no host-level package or version floor."),
+    ("Rackspace Spot wind-down 8 Dec 2026 5pm CT (after 17 Nov 2026 security incident)",
+     "Hosted Kubernetes spot service; retrieve data before wind-down. No local package. "
+     "Already named in the 24 Nov breach-only row; wind-down is an update to that incident."),
 ]
 
 
@@ -1060,6 +1094,7 @@ class Index:
         self.idunno_dlls = []
         self.idunno_webconfig = []
         self.idunno_webconfig_truncated = False
+        self.whmcs = []
         self.complete = True
         self.stopped = None
 
@@ -1148,6 +1183,14 @@ def build_index(host):
             idx.magento.append(path)
         if "occ" in low and "version.php" in low:
             idx.nextcloud.append(path)
+        # WHMCS: configuration.php + includes/version.php. Never open configuration.php
+        # (secrets). Confirm WHMCS later by reading version.php for a WHMCS marker.
+        if "configuration.php" in low and "includes" in low:
+            inc = os.path.join(path, low["includes"])
+            ver = os.path.join(inc, "version.php")
+            cfg = os.path.join(path, low["configuration.php"])
+            if hs.is_plain_dir(inc) and hs.is_regular(ver) and hs.is_regular(cfg):
+                idx.whmcs.append(path)
         if any(n.lower() in {"psconfig.sh", "psappsrv.cfg"} for n in names) or (
                 "allowedhosts.properties" in low and any(k in plow for k in ("peoplesoft", "peopletools", "psft", "pia"))):
             idx.peoplesoft.append(path)
@@ -8671,6 +8714,75 @@ def check_idunno_anticsrf_131914(host, r):
                   path=host.display(path))
 
 
+# WHMCS CVE-2026-82981 (unauthenticated shopping-cart SQLi). Floors from the vendor
+# advisory; 8.x is outside this CVE's affected range.
+WHMCS_FLOORS = ("9.1.2", "9.0.10")
+_WHMCS_MARKER = re.compile(r"(?i)\bWHMCS\b")
+_WHMCS_HEADER_VER = re.compile(
+    r"(?im)^\s*(?://|#|\*)\s*\*?\s*Version:\s*([0-9]+(?:\.[0-9]+)+(?:[-._][A-Za-z0-9._]+)*)")
+_WHMCS_ASSIGN_VER = re.compile(
+    r"(?m)^\s*\$whmcsversion\s*=\s*['\"]([^'\"]+)['\"]\s*;")
+
+
+def _whmcs_parse_version(text):
+    """Return a version string from includes/version.php, or None."""
+    if not text:
+        return None
+    m = _WHMCS_HEADER_VER.search(text)
+    if m:
+        return m.group(1).strip()
+    m = _WHMCS_ASSIGN_VER.search(text)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
+def _whmcs_classify(r, raw, path):
+    """Classify a WHMCS version against CVE-2026-82981 floors only."""
+    source = "includes/version.php"
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", "WHMCS", "version string could not be parsed; from %s" % source,
+              path=path, version=textscan.redact(str(raw))[:64])
+        return
+    major = v.nums[0]
+    minor = v.nums[1] if len(v.nums) > 1 else 0
+    if major < 9:
+        r.add("info", "WHMCS",
+              "below 9.0; CVE-2026-82981 range starts at 9.0.0; from %s" % source,
+              path=path, version=raw)
+        return
+    if major == 9 and minor == 0:
+        classify_version(r, "WHMCS", raw, path, ("9.0.10",), 2, source=source)
+        return
+    if major == 9 and minor == 1:
+        classify_version(r, "WHMCS", raw, path, ("9.1.2",), 2, source=source)
+        return
+    r.add("info", "WHMCS",
+          "9.2+ / newer major; outside named CVE-2026-82981 floors; from %s" % source,
+          path=path, version=raw)
+
+
+def check_whmcs_82981(host, r):
+    """Classify self-hosted WHMCS against CVE-2026-82981. Never read configuration.php."""
+    for root in index(host).whmcs:
+        ver_path = os.path.join(root, "includes", "version.php")
+        text = hs.read_text(ver_path, 256 * 1024, host.gaps)
+        if text is None:
+            r.add("unknown", "WHMCS", "includes/version.php present; not readable",
+                  path=host.display(ver_path))
+            continue
+        if not _WHMCS_MARKER.search(text):
+            continue
+        raw = _whmcs_parse_version(text)
+        if raw is None:
+            r.add("unknown", "WHMCS",
+                  "WHMCS marker present; version string not found in includes/version.php",
+                  path=host.display(ver_path))
+            continue
+        _whmcs_classify(r, raw, host.display(ver_path))
+
+
 # JFrog / StepSecurity published SHA-256 for the 2026.4.0 loader and payload.
 BW_LOADER_SHA = "18f784b3bc9a0bcdcb1a8d7f51bc5f54323fc40cbd874119354ab609bef6e4cb"
 BW_PAYLOAD_SHA = "8605e365edf11160aad517c7d79a3b26b62290e5072ef97b102a01ddbb343f14"
@@ -9677,6 +9789,17 @@ CHECKS = [
                "Remove or replace Idunno.AntiCsrf; there is no patched build. This tool never starts IIS "
                "or loads the DLL.",
                ALL_OS, check_idunno_anticsrf_131914),
+    check_meta("whmcs-82981",
+               "WHMCS below 9.0.10 / 9.1.2 (CVE-2026-82981)",
+               "check_if_used", "confirmed", "runtime",
+               ["whmcs-82981", "whmcs-sec-2026-11-23", "nvd-82981"],
+               "CVE-2026-82981: unauthenticated shopping-cart SQL injection on WHMCS 9.0.0 and later. "
+               "Floors 9.0.10 and 9.1.2. Version from includes/version.php only; configuration.php is "
+               "never opened. Sibling CVEs 82979 / 93700 share the 9.x floors (8.13.8 is a different "
+               "CVE). Never starts PHP or ionCube, never HTTP-probes the cart.",
+               "Upgrade WHMCS to 9.0.10 or 9.1.2 (or the latest supported branch). This tool never "
+               "starts PHP/ionCube and never opens configuration.php.",
+               ALL_OS, check_whmcs_82981),
 
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]

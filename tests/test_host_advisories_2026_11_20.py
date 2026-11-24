@@ -41,7 +41,7 @@ class SimCase(unittest.TestCase):
 
 class Catalog(SimCase):
     def test_new_ids_and_count(self):
-        self.assertEqual(len(hc.CHECK_IDS), 87)
+        self.assertEqual(len(hc.CHECK_IDS), 88)
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
         for cid in ("openssl-121481", "gpustack-102895", "vmware-tools-123894", "asus-acce-114202"):
             self.assertIn(cid, hc.CHECK_IDS)

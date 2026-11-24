@@ -143,6 +143,7 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 | `gpgme-129975` | Homebrew `gpgme`; Gpg4win registry | dpkg/apk/pacman/rpm `gpgme` / `libgpgme*`; Debian series floors | Gpg4win uninstall registry. Never starts gpgme-tool / gpg |
 | `ghostscript-125396` | Homebrew `ghostscript` | dpkg/apk/pacman/rpm `ghostscript` / `libgs*`; Debian series floors | uninstall registry. Never starts gs |
 | `idunno-anticsrf-131914` | walked `Idunno.AntiCsrf.dll` (published SHA-256 / name) and `Web.config` module registration. No vendor patch | same | same |
+| `whmcs-82981` | `configuration.php` + `includes/version.php` (WHMCS marker); floors 9.0.10 / 9.1.2. Never opens `configuration.php`. Never starts PHP/ionCube | same | same |
 
 ## Known limits
 
@@ -201,5 +202,6 @@ The walk (default: home) indexes project files under `--root`: lockfiles, manife
 - **GPGME CVE-2026-129975 (`gpgme-129975`).** Upstream floor **2.3.1**; Debian bookworm/trixie series floors via Policy 5.6.12; Gpg4win **5.1.2**. Vendor-suffix below upstream is review. Never starts gpgme-tool or gpg.
 - **Ghostscript CVE-2026-125396 (`ghostscript-125396`).** Upstream floor **10.08.0**; Debian bookworm/trixie series floors. Never starts `gs`.
 - **Idunno.AntiCsrf CVE-2026-131914 (`idunno-anticsrf-131914`).** Mandiant MNDT-2026-0048 published DLL SHA-256s are affected; name-only and Web.config registration are review. No vendor patch. Indicator check. Never starts IIS or loads the DLL.
+- **WHMCS CVE-2026-82981 (`whmcs-82981`).** Floors **9.0.10** / **9.1.2**. Below 9.0 is `info` (out of CVE range). Fingerprint is `configuration.php` presence plus `includes/version.php` with a WHMCS marker; `configuration.php` is never opened. Sibling CVEs 82979 / 93700 share the 9.x floors. Never starts PHP or ionCube; never HTTP-probes the cart.
 - **PHP GHSA-gr4f-wgx5-jpfv** uses the same 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36 floors as `php-129289` (not a second check).
-- **Not covered here:** anything needing network scanning or admin consoles. See the skipped list in the dated profiles. Google Workspace Super Admin takeover (Cold Relic) is in [saas-identity.md](saas-identity.md).
+- **Not covered here:** anything needing network scanning or admin consoles. See the skipped list in the dated profiles. Google Workspace Super Admin takeover (Cold Relic) is in [saas-identity.md](saas-identity.md). VMSA-2026-0011 vCenter CVE-2026-123903..123907 is an appliance skip (distinct from CVE-2026-123890).

@@ -161,6 +161,10 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.ossprey.com",  # Bitwarden CLI supply-chain write-up
     "lists.gnupg.org",  # GPGME 2.3.1 announce (CVE-2026-129975)
     "www.gpg4win.org", "gpg4win.org",  # Gpg4win 5.1.2 ships GPGME 2.3.1
+    "help.whmcs.com", "blog.whmcs.com", "docs.whmcs.com",  # CVE-2026-82981 / Security Update 2026-11-23
+    "status.spot.rackspace.com",  # Rackspace Spot wind-down notice
+    "www.heise.de", "heise.de",  # Hugendubel / Tolino / eBook de outage
+    "0xbaas.com",  # PlayStation Network ATO write-up (service skip)
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
