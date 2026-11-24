@@ -140,6 +140,26 @@ class BinaryParser(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_hidden_package_lock_nested_below_floor(self):
+        # Top-level install is fixed; nested copy in .package-lock.json is not.
+        self.s.write("~/code/app/node_modules/binary-parser/package.json",
+                     json.dumps({"name": "binary-parser", "version": "2.3.1"}))
+        self.s.write("~/code/app/node_modules/.package-lock.json", json.dumps({
+            "packages": {
+                "node_modules/binary-parser": {
+                    "name": "binary-parser",
+                    "version": "2.3.1",
+                },
+                "node_modules/dep/node_modules/binary-parser": {
+                    "name": "binary-parser",
+                    "version": "2.2.0",
+                },
+            }
+        }))
+        c = self.s.check(self.CID)
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
+
 
 class Leadstack(SimCase):
     CID = "leadstack-crm-connect"
@@ -194,6 +214,25 @@ class Leadstack(SimCase):
     def test_ingest_worker_unit(self):
         self.s.write("/etc/systemd/system/leadstack-ingest-worker.service", "[Unit]\n")
         self.assertEqual(results(self.s.check(self.CID)), ["affected"])
+
+    def test_hidden_package_lock_nested_malicious(self):
+        self.s.write("~/code/app/node_modules/@leadstack/crm-connect/package.json",
+                     json.dumps({"name": "@leadstack/crm-connect", "version": "1.0.14"}))
+        self.s.write("~/code/app/node_modules/.package-lock.json", json.dumps({
+            "packages": {
+                "node_modules/@leadstack/crm-connect": {
+                    "name": "@leadstack/crm-connect",
+                    "version": "1.0.14",
+                },
+                "node_modules/dep/node_modules/@leadstack/crm-connect": {
+                    "name": "@leadstack/crm-connect",
+                    "version": "1.0.15",
+                },
+            }
+        }))
+        c = self.s.check(self.CID)
+        self.assertStatus(c, "FAIL")
+        self.assertIn("affected", results(c))
 
 
 class Monailabel(SimCase):
@@ -264,6 +303,21 @@ class Gpgme(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
 
+    def test_debian_bookworm_trixie_stream_unpatched_is_affected(self):
+        # 1.24.2 matches the trixie floor stream; do not treat it as bookworm-patched info.
+        self.s.write("/etc/os-release", 'ID=debian\nVERSION_ID="12"\n')
+        self.s.dpkg({"libgpgme11": "1.24.2-3"})
+        self.assertEqual(results(self.s.check(self.CID)), ["affected"])
+
+    def test_debian_unknown_stream_is_review(self):
+        self.s.write("/etc/os-release", 'ID=debian\nVERSION_ID="12"\n')
+        self.s.dpkg({"libgpgme11": "1.20.0-1"})
+        self.assertEqual(results(self.s.check(self.CID)), ["review"])
+
+    def test_gpgmepp_binding_is_ignored(self):
+        self.s.dpkg({"gpgmepp": "2.0.0-1", "libgpgmeqt6": "2.0.0-1"})
+        self.assertStatus(self.s.check(self.CID), "NOT_APPLICABLE")
+
 
 class Ghostscript(SimCase):
     CID = "ghostscript-125396"
@@ -290,6 +344,25 @@ class Ghostscript(SimCase):
         self.s.write("/etc/os-release", 'ID=debian\nVERSION_ID="12"\n')
         self.s.dpkg({"ghostscript": "10.0.0~dfsg-11+deb12u8"})
         self.assertEqual(results(self.s.check(self.CID)), ["affected"])
+
+    def test_debian_bookworm_trixie_stream_unpatched_is_affected(self):
+        self.s.write("/etc/os-release", 'ID=debian\nVERSION_ID="12"\n')
+        self.s.dpkg({"ghostscript": "10.05.1~dfsg-1"})
+        self.assertEqual(results(self.s.check(self.CID)), ["affected"])
+
+    def test_debian_unknown_stream_is_review(self):
+        self.s.write("/etc/os-release", 'ID=debian\nVERSION_ID="12"\n')
+        self.s.dpkg({"ghostscript": "9.56.1~dfsg-1"})
+        self.assertEqual(results(self.s.check(self.CID)), ["review"])
+
+    def test_libgs10_is_matched(self):
+        self.s.dpkg({"libgs10": "10.07.0"})
+        self.assertEqual(results(self.s.check(self.CID)), ["affected"])
+
+    def test_libgssapi_krb5_is_not_ghostscript(self):
+        self.s.write("/etc/os-release", 'ID=debian\nVERSION_ID="12"\n')
+        self.s.dpkg({"libgssapi-krb5-2": "1.20.1-2+deb12u1"})
+        self.assertStatus(self.s.check(self.CID), "NOT_APPLICABLE")
 
 
 class Idunno(SimCase):
@@ -332,6 +405,19 @@ class Idunno(SimCase):
         c = self.s.check(self.CID)
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["review"])
+
+    def test_webconfig_cap_blocks_clean_pass(self):
+        original = hc._IDUNNO_WEBCONFIG_CAP
+        try:
+            hc._IDUNNO_WEBCONFIG_CAP = 1
+            self.s.write("~/sites/a/Web.config", "<configuration/>\n")
+            self.s.write("~/sites/b/Web.config", "<configuration/>\n")
+            c = self.s.check(self.CID)
+            self.assertStatus(c, "BLOCKED")
+            self.assertIn("Web.config", c["reason"])
+            self.assertIn("incomplete", c["reason"].lower())
+        finally:
+            hc._IDUNNO_WEBCONFIG_CAP = original
 
 
 if __name__ == "__main__":

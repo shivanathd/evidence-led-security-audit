@@ -13,6 +13,7 @@
 - Briefing window through 24 Nov 2026.
 - Reviewed public hosts: `lists.gnupg.org`, `www.gpg4win.org`, `safedep.io` (already present).
 - `MAX_FILES_TARGET` 75 → 80 so the new dated profile stays under the compact-package warning.
+- Review follow-up: `binary-parser-134814` / `leadstack-crm-connect` read nested installs from `node_modules/.package-lock.json`; `gpgme-129975` skips GPGMEPP/GPGMEQT bindings and applies Debian series floors only when upstream streams match; `ghostscript-125396` matches `libgsN*` (not `libgssapi-*`) with the same stream-aware Debian floors; `idunno-anticsrf-131914` marks Web.config collection truncation so a capped walk cannot PASS as complete.
 
 ## 0.4.14 - 2026-11-23
 

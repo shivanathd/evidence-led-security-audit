@@ -1016,6 +1016,8 @@ NPM_LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock
 PY_FILES = {"poetry.lock", "uv.lock", "pdm.lock", "pylock.toml", "pipfile.lock", "pipfile", "pyproject.toml",
             "setup.cfg", "environment.yml", "environment.yaml"}
 DEPLOY_DIRS = {"k8s", "kubernetes", "helm", "charts", "deploy", "deployment", "manifests", "infra", "ops"}
+# Cap Web.config paths collected for Idunno.AntiCsrf module scanning; overflow is tracked.
+_IDUNNO_WEBCONFIG_CAP = 5000
 
 
 class Index:
@@ -1057,6 +1059,7 @@ class Index:
         self.bw_cli_iocs = []
         self.idunno_dlls = []
         self.idunno_webconfig = []
+        self.idunno_webconfig_truncated = False
         self.complete = True
         self.stopped = None
 
@@ -1213,8 +1216,11 @@ def build_index(host):
             idx.bw_cli_iocs.append(path)
         if low == "idunno.anticsrf.dll":
             idx.idunno_dlls.append(path)
-        if low in ("web.config", "web.config.xml") and len(idx.idunno_webconfig) < 5000:
-            idx.idunno_webconfig.append(path)
+        if low in ("web.config", "web.config.xml"):
+            if len(idx.idunno_webconfig) < _IDUNNO_WEBCONFIG_CAP:
+                idx.idunno_webconfig.append(path)
+            else:
+                idx.idunno_webconfig_truncated = True
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
 
@@ -8231,21 +8237,33 @@ def check_binary_parser_134814(host, r):
               path=host.display(path), version=str(ver).replace("spec:", "range "))
     for nm in index(host).node_modules[:20000] + global_node_modules(host):
         pj = os.path.join(nm, BINARY_PARSER_PKG, "package.json")
-        if not hs.is_regular(pj):
-            continue
-        doc = hs.read_json(pj, MIB, host.gaps)
-        if not isinstance(doc, dict):
-            r.add("unknown", BINARY_PARSER_PKG, "package.json could not be parsed",
-                  path=host.display(pj))
-            continue
-        ver = doc.get("version") if isinstance(doc.get("version"), str) else None
-        if not ver:
-            r.add("unknown", BINARY_PARSER_PKG, "installed; version not in package.json",
-                  path=host.display(pj))
-            continue
-        kind, note = _bp_exact_kind(ver)
-        r.add(kind, BINARY_PARSER_PKG, note + "; installed in node_modules",
-              path=host.display(pj), version=ver)
+        if hs.is_regular(pj):
+            doc = hs.read_json(pj, MIB, host.gaps)
+            if not isinstance(doc, dict):
+                r.add("unknown", BINARY_PARSER_PKG, "package.json could not be parsed",
+                      path=host.display(pj))
+            else:
+                ver = doc.get("version") if isinstance(doc.get("version"), str) else None
+                if not ver:
+                    r.add("unknown", BINARY_PARSER_PKG, "installed; version not in package.json",
+                          path=host.display(pj))
+                else:
+                    kind, note = _bp_exact_kind(ver)
+                    r.add(kind, BINARY_PARSER_PKG, note + "; installed in node_modules",
+                          path=host.display(pj), version=ver)
+        hidden = os.path.join(nm, ".package-lock.json")
+        if hs.is_regular(hidden):
+            text = text_of(host, hidden)
+            if text is None:
+                r.add("unknown", BINARY_PARSER_PKG,
+                      "node_modules/.package-lock.json could not be read",
+                      path=host.display(hidden))
+            else:
+                for n, vers in hs.npm_lock_versions(text, ".package-lock.json", wanted).items():
+                    for v in sorted(vers):
+                        kind, note = _bp_token_kind(v)
+                        r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
+                              path=host.display(hidden), version=v)
 
 
 def _lead_token_kind(raw):
@@ -8274,21 +8292,33 @@ def check_leadstack_crm_connect(host, r):
               path=host.display(path), version=str(ver).replace("spec:", "range "))
     for nm in index(host).node_modules[:20000] + global_node_modules(host):
         pj = _npm_pkg_dirs(nm, ("@leadstack", "crm-connect", "package.json"))
-        if not hs.is_regular(pj):
-            continue
-        doc = hs.read_json(pj, MIB, host.gaps)
-        if not isinstance(doc, dict):
-            r.add("unknown", LEADSTACK_PKG, "package.json could not be parsed",
-                  path=host.display(pj))
-            continue
-        ver = doc.get("version") if isinstance(doc.get("version"), str) else None
-        if not ver:
-            r.add("unknown", LEADSTACK_PKG, "installed; version not in package.json",
-                  path=host.display(pj))
-            continue
-        kind, note = _lead_token_kind(ver)
-        r.add(kind, LEADSTACK_PKG, note + "; installed in node_modules",
-              path=host.display(pj), version=ver)
+        if hs.is_regular(pj):
+            doc = hs.read_json(pj, MIB, host.gaps)
+            if not isinstance(doc, dict):
+                r.add("unknown", LEADSTACK_PKG, "package.json could not be parsed",
+                      path=host.display(pj))
+            else:
+                ver = doc.get("version") if isinstance(doc.get("version"), str) else None
+                if not ver:
+                    r.add("unknown", LEADSTACK_PKG, "installed; version not in package.json",
+                          path=host.display(pj))
+                else:
+                    kind, note = _lead_token_kind(ver)
+                    r.add(kind, LEADSTACK_PKG, note + "; installed in node_modules",
+                          path=host.display(pj), version=ver)
+        hidden = os.path.join(nm, ".package-lock.json")
+        if hs.is_regular(hidden):
+            text = text_of(host, hidden)
+            if text is None:
+                r.add("unknown", LEADSTACK_PKG,
+                      "node_modules/.package-lock.json could not be read",
+                      path=host.display(hidden))
+            else:
+                for n, vers in hs.npm_lock_versions(text, ".package-lock.json", wanted).items():
+                    for v in sorted(vers):
+                        kind, note = _lead_token_kind(v)
+                        r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
+                              path=host.display(hidden), version=v)
     for rel in ((".leadstack",), (".config", "leadstack"),
                 (".local", "share", "leadstack")):
         p = host.h(*rel)
@@ -8371,9 +8401,41 @@ def _gpgme_pkg_name(name):
     if n in ("gpgme", "libgpgme11", "libgpgme-dev", "libgpgme0t64", "libgpgme11t64",
              "gpgme1.0", "libgpgme-pthread11"):
         return True
+    # GPGMEPP / GPGMEQT bindings are not this CVE's core-library floor.
+    if n.startswith(("libgpgmepp", "libgpgmeqt", "gpgmepp", "gpgmeqt")):
+        return False
     if n.startswith("libgpgme") or n.startswith("gpgme"):
         return True
     return False
+
+
+def _debian_stream_floor(raw, version_id, floors):
+    """Return a series floor when the package upstream matches that floor's stream.
+
+    Prefers the running VERSION_ID floor when upstreams match; otherwise any
+    catalog floor with the same upstream. Returns (floor, reason) where reason is
+    ``match``, ``no_series_floor``, ``stream_mismatch``, or ``unparsable``.
+    """
+    parsed = hs.parse_debian_version(raw)
+    if parsed is None:
+        return None, "unparsable"
+    pkg_up = parsed[1]
+    major = (version_id or "").split(".")[0]
+    ordered = []
+    if major and major in floors:
+        ordered.append(floors[major])
+    for m, f in floors.items():
+        if m != major:
+            ordered.append(f)
+    for floor in ordered:
+        fp = hs.parse_debian_version(floor)
+        if fp is not None and fp[1] == pkg_up:
+            return floor, "match"
+    if major and major not in floors:
+        return None, "no_series_floor"
+    if major and major in floors:
+        return None, "stream_mismatch"
+    return None, "stream_mismatch"
 
 
 def _gpgme_classify(r, component, raw, path, source, os_id=None, version_id=None):
@@ -8382,11 +8444,10 @@ def _gpgme_classify(r, component, raw, path, source, os_id=None, version_id=None
         r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
               version=textscan.redact(str(raw))[:64])
         return
-    # Debian series floors via Policy 5.6.12 when VERSION_ID is known.
+    # Debian series floors via Policy 5.6.12 when VERSION_ID is known and upstream matches.
     if os_id == "debian" and source == "dpkg":
-        major = (version_id or "").split(".")[0]
-        floor = GPGME_DEBIAN_FLOORS.get(major)
-        if floor:
+        floor, how = _debian_stream_floor(raw, version_id, GPGME_DEBIAN_FLOORS)
+        if how == "match":
             cmpv = hs.debian_version_cmp(raw, floor)
             if cmpv is None:
                 r.add("review", component,
@@ -8400,11 +8461,17 @@ def _gpgme_classify(r, component, raw, path, source, os_id=None, version_id=None
                       "below Debian floor %s (CVE-2026-129975) (%s)" % (floor, source),
                       path=path, version=raw)
             return
-        if major:
+        if how == "no_series_floor":
             r.add("review", component,
                   "Debian %s has no series floor in this check; confirm a backport" % version_id,
                   path=path, version=raw)
             return
+        if how == "unparsable":
+            r.add("review", component,
+                  "Debian version string could not be compared (%s)" % source,
+                  path=path, version=raw)
+            return
+        # stream_mismatch: fall through to upstream floor (do not treat foreign stream as patched).
     if v.vendor_suffix and not hs.at_least(v, GPGME_FLOOR):
         r.add("review", component,
               "vendor/distro suffix below upstream 2.3.1; confirm a backport (CVE-2026-129975); from %s"
@@ -8457,7 +8524,8 @@ def _ghostscript_pkg_name(name):
     n = name.lower()
     if n in ("ghostscript", "ghostscript-x", "ghostscript-doc"):
         return True
-    if n.startswith("libgs") or n.startswith("ghostscript"):
+    # libgsN / libgsN-* only — not Kerberos libgssapi-*.
+    if re.match(r"^libgs\d", n) or n.startswith("ghostscript"):
         return True
     return False
 
@@ -8469,9 +8537,8 @@ def _ghostscript_classify(r, component, raw, path, source, os_id=None, version_i
               version=textscan.redact(str(raw))[:64])
         return
     if os_id == "debian" and source == "dpkg":
-        major = (version_id or "").split(".")[0]
-        floor = GHOSTSCRIPT_DEBIAN_FLOORS.get(major)
-        if floor:
+        floor, how = _debian_stream_floor(raw, version_id, GHOSTSCRIPT_DEBIAN_FLOORS)
+        if how == "match":
             cmpv = hs.debian_version_cmp(raw, floor)
             if cmpv is None:
                 r.add("review", component,
@@ -8485,11 +8552,17 @@ def _ghostscript_classify(r, component, raw, path, source, os_id=None, version_i
                       "below Debian floor %s (CVE-2026-125396) (%s)" % (floor, source),
                       path=path, version=raw)
             return
-        if major:
+        if how == "no_series_floor":
             r.add("review", component,
                   "Debian %s has no series floor in this check; confirm a backport" % version_id,
                   path=path, version=raw)
             return
+        if how == "unparsable":
+            r.add("review", component,
+                  "Debian version string could not be compared (%s)" % source,
+                  path=path, version=raw)
+            return
+        # stream_mismatch: fall through to upstream floor.
     if v.vendor_suffix and not hs.at_least(v, GHOSTSCRIPT_FLOOR):
         r.add("review", component,
               "vendor/distro suffix below upstream 10.08.0; confirm a backport (CVE-2026-125396); from %s"
@@ -8533,8 +8606,13 @@ def check_ghostscript_125396(host, r):
 
 def check_idunno_anticsrf_131914(host, r):
     """Idunno.AntiCsrf.dll presence / published SHA-256 (CVE-2026-131914). No patch exists."""
+    idx = index(host)
+    if idx.idunno_webconfig_truncated:
+        r.blocked.append(
+            "Web.config collection capped at %d; Idunno.AntiCsrf module coverage incomplete"
+            % _IDUNNO_WEBCONFIG_CAP)
     seen = set()
-    for path in index(host).idunno_dlls:
+    for path in idx.idunno_dlls:
         key = os.path.normcase(os.path.abspath(path))
         if key in seen:
             continue
@@ -8551,7 +8629,7 @@ def check_idunno_anticsrf_131914(host, r):
             r.add("review", "Idunno.AntiCsrf.dll",
                   "name match; hash is not a published MNDT-2026-0048 build (CVE-2026-131914); no vendor patch",
                   path=host.display(path), sha256=digest)
-    for path in index(host).idunno_webconfig:
+    for path in idx.idunno_webconfig:
         key = os.path.normcase(os.path.abspath(path))
         if key in seen:
             continue
