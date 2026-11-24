@@ -8,9 +8,11 @@ configuration.php contents (that file holds secrets on real installs).
 import json
 import os
 import unittest
+from unittest import mock
 
 import hostfix
 import host_checks as hc
+import hostscan as hs
 
 results = hostfix.results
 
@@ -160,12 +162,27 @@ class Whmcs82981(SimCase):
 
     def test_never_reads_configuration_php(self):
         # Poison configuration.php with a parseable fake version; the check must
-        # ignore it and use includes/version.php only.
+        # ignore it and use includes/version.php only. Also spy reads so opening
+        # configuration.php (even and discarding) fails the test.
         root = "~/www/billing"
         self.s.write(root + "/configuration.php",
                      "<?php\n$whmcsversion = '9.0.10';\n# Version: 9.0.10\n")
         self.s.write(root + "/includes/version.php", whmcs_version_php("9.0.9"))
-        c = self.s.check(self.CID)
+        orig_text, orig_bytes = hs.read_text, hs.read_bytes
+
+        def guard_text(path, *a, **k):
+            self.assertNotIn("configuration.php", str(path).replace("\\", "/"),
+                             "must not open configuration.php")
+            return orig_text(path, *a, **k)
+
+        def guard_bytes(path, *a, **k):
+            self.assertNotIn("configuration.php", str(path).replace("\\", "/"),
+                             "must not open configuration.php")
+            return orig_bytes(path, *a, **k)
+
+        with mock.patch.object(hs, "read_text", side_effect=guard_text), \
+                mock.patch.object(hs, "read_bytes", side_effect=guard_bytes):
+            c = self.s.check(self.CID)
         self.assertStatus(c, "FAIL")
         self.assertEqual(results(c), ["affected"])
         for f in c.get("findings", []):
