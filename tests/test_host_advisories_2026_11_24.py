@@ -160,6 +160,18 @@ class BinaryParser(SimCase):
         self.assertStatus(c, "FAIL")
         self.assertIn("affected", results(c))
 
+    def test_malformed_hidden_lock_is_unknown(self):
+        self.s.mkdir("~/code/app/node_modules")
+        self.s.write("~/code/app/node_modules/.package-lock.json", "{not-json")
+        c = self.s.check(self.CID)
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
+
+    def test_empty_hidden_lock_is_not_applicable(self):
+        self.s.mkdir("~/code/app/node_modules")
+        self.s.write("~/code/app/node_modules/.package-lock.json", "{}")
+        self.assertStatus(self.s.check(self.CID), "NOT_APPLICABLE")
+
 
 class Leadstack(SimCase):
     CID = "leadstack-crm-connect"
@@ -233,6 +245,13 @@ class Leadstack(SimCase):
         c = self.s.check(self.CID)
         self.assertStatus(c, "FAIL")
         self.assertIn("affected", results(c))
+
+    def test_malformed_hidden_lock_is_unknown(self):
+        self.s.mkdir("~/code/app/node_modules")
+        self.s.write("~/code/app/node_modules/.package-lock.json", "{not-json")
+        c = self.s.check(self.CID)
+        self.assertStatus(c, "BLOCKED")
+        self.assertEqual(results(c), ["unknown"])
 
 
 class Monailabel(SimCase):

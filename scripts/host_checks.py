@@ -8228,6 +8228,21 @@ def _npm_pkg_dirs(nm, scoped_parts):
     return os.path.join(nm, *scoped_parts)
 
 
+def _hidden_npm_lock_versions(text, wanted):
+    """Parse node_modules/.package-lock.json for wanted names.
+
+    Returns (found, ok). ``ok`` is False when the text is truncated or not a
+    JSON object; a valid empty lockfile returns ({}, True).
+    """
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return {}, False
+    if not isinstance(doc, dict):
+        return {}, False
+    return hs.npm_lock_versions(text, ".package-lock.json", wanted), True
+
+
 def check_binary_parser_134814(host, r):
     """npm binary-parser vs 2.3.1 (CVE-2026-134814). Never start node."""
     wanted = {BINARY_PARSER_PKG}
@@ -8259,11 +8274,17 @@ def check_binary_parser_134814(host, r):
                       "node_modules/.package-lock.json could not be read",
                       path=host.display(hidden))
             else:
-                for n, vers in hs.npm_lock_versions(text, ".package-lock.json", wanted).items():
-                    for v in sorted(vers):
-                        kind, note = _bp_token_kind(v)
-                        r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
-                              path=host.display(hidden), version=v)
+                found, ok = _hidden_npm_lock_versions(text, wanted)
+                if not ok:
+                    r.add("unknown", BINARY_PARSER_PKG,
+                          "node_modules/.package-lock.json could not be read",
+                          path=host.display(hidden))
+                else:
+                    for n, vers in found.items():
+                        for v in sorted(vers):
+                            kind, note = _bp_token_kind(v)
+                            r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
+                                  path=host.display(hidden), version=v)
 
 
 def _lead_token_kind(raw):
@@ -8314,11 +8335,17 @@ def check_leadstack_crm_connect(host, r):
                       "node_modules/.package-lock.json could not be read",
                       path=host.display(hidden))
             else:
-                for n, vers in hs.npm_lock_versions(text, ".package-lock.json", wanted).items():
-                    for v in sorted(vers):
-                        kind, note = _lead_token_kind(v)
-                        r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
-                              path=host.display(hidden), version=v)
+                found, ok = _hidden_npm_lock_versions(text, wanted)
+                if not ok:
+                    r.add("unknown", LEADSTACK_PKG,
+                          "node_modules/.package-lock.json could not be read",
+                          path=host.display(hidden))
+                else:
+                    for n, vers in found.items():
+                        for v in sorted(vers):
+                            kind, note = _lead_token_kind(v)
+                            r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
+                                  path=host.display(hidden), version=v)
     for rel in ((".leadstack",), (".config", "leadstack"),
                 (".local", "share", "leadstack")):
         p = host.h(*rel)
