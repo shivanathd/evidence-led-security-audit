@@ -159,6 +159,8 @@ REVIEWED_PUBLIC_HOSTS = frozenset({
     "www.ox.security",  # Shai-Hulud Bitwarden CLI write-up
     "socket.dev",  # Bitwarden CLI compromised write-up
     "www.ossprey.com",  # Bitwarden CLI supply-chain write-up
+    "lists.gnupg.org",  # GPGME 2.3.1 announce (CVE-2026-129975)
+    "www.gpg4win.org", "gpg4win.org",  # Gpg4win 5.1.2 ships GPGME 2.3.1
 })
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^\s/@'\"]*@)?([A-Za-z0-9][A-Za-z0-9.-]*)")
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")

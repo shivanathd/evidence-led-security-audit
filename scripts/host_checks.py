@@ -57,11 +57,11 @@ try:
 except ImportError:
     winreg = None
 
-VERSION = "0.4.14"
-BRIEFING = ("Security briefings, 16 Oct-22 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
+VERSION = "0.4.15"
+BRIEFING = ("Security briefings, 16 Oct-24 Nov 2026 (public reports; dated 2026-10-27, 2026-10-28, "
             "2026-10-30, 2026-11-04, 2026-11-05, 2026-11-13, 2026-11-16, 2026-11-18, 2026-11-19, "
-            "2026-11-20 and 2026-11-22)")
-BRIEFING_DATE = "2026-11-22"
+            "2026-11-20, 2026-11-22 and 2026-11-24)")
+BRIEFING_DATE = "2026-11-24"
 APP = ".app"
 MIB = 1024 * 1024
 # Joined at runtime so the public-leak host pattern does not read the runtime folder names as domains.
@@ -577,6 +577,38 @@ SRC = {
                       "https://socket.dev/blog/bitwarden-cli-compromised"),
     "ossprey-bw-cli": ("Ossprey: Bitwarden CLI supply-chain attack",
                        "https://www.ossprey.com/blog/bitwarden-cli-supply-chain-attack"),
+
+    "ghsa-binary-parser-134814": ("GitHub advisory GHSA-xmxc-6c22-m377 (binary-parser / CVE-2026-134814)",
+                                 "https://github.com/keichi/binary-parser/security/advisories/GHSA-xmxc-6c22-m377"),
+    "nvd-134814": ("NVD: CVE-2026-134814", "https://nvd.nist.gov/vuln/detail/CVE-2026-134814"),
+    "safedep-leadstack": ("SafeDep: malicious @leadstack/crm-connect (Hermes agent backdoor)",
+                         "https://safedep.io/blog/malicious-npm-leadstack-crm-connect-hermes-agent-backdoor"),
+    "ghsa-leadstack": ("GitHub advisory GHSA-hqfp-fhqg-4xc5 (@leadstack/crm-connect malware)",
+                       "https://github.com/advisories/GHSA-hqfp-fhqg-4xc5"),
+    "ghsa-monailabel-133968": ("GitHub advisory GHSA-qc22-rmgc-vg94 (MONAI Label / CVE-2026-133968)",
+                               "https://github.com/Project-MONAI/MONAILabel/security/advisories/GHSA-qc22-rmgc-vg94"),
+    "nvd-133968": ("NVD: CVE-2026-133968", "https://nvd.nist.gov/vuln/detail/CVE-2026-133968"),
+    "monailabel-086": ("MONAI Label 0.8.6 release (CVE-2026-133968 floor)",
+                       "https://github.com/Project-MONAI/MONAILabel/releases/tag/0.8.6"),
+    "gnupg-gpgme-129975": ("GnuPG announce: GPGME 2.3.1 (CVE-2026-129975)",
+                           "https://lists.gnupg.org/pipermail/gnupg-announce/2026q4/000517.html"),
+    "nvd-129975": ("NVD: CVE-2026-129975", "https://nvd.nist.gov/vuln/detail/CVE-2026-129975"),
+    "debian-gpgme-129975": ("Debian security-tracker: libgpgme CVE-2026-129975",
+                            "https://security-tracker.debian.org/tracker/CVE-2026-129975"),
+    "gpg4win-512": ("Gpg4win 5.1.2 (includes GPGME 2.3.1)",
+                    "https://www.gpg4win.org/change-history.html"),
+    "oss-security-ghostscript-125396": ("oss-security: Ghostscript CVE-2026-125396 (Upload2Shell)",
+                                        "https://www.openwall.com/lists/oss-security/2026/11/21/2"),
+    "nvd-125396": ("NVD: CVE-2026-125396", "https://nvd.nist.gov/vuln/detail/CVE-2026-125396"),
+    "debian-ghostscript-125396": ("Debian security-tracker: ghostscript CVE-2026-125396",
+                                  "https://security-tracker.debian.org/tracker/CVE-2026-125396"),
+    "mandiant-mndt-2026-0048": ("Mandiant MNDT-2026-0048 (Idunno.AntiCsrf / CVE-2026-131914)",
+                               "https://github.com/mandiant/Vulnerability-Disclosures/blob/master/2026/MNDT-2026-0048.md"),
+    "nvd-131914": ("NVD: CVE-2026-131914", "https://nvd.nist.gov/vuln/detail/CVE-2026-131914"),
+    "bc-azure-apim-creds": ("BleepingComputer: Azure APIM Classic credential theft (MZK9-GH0)",
+                            "https://www.bleepingcomputer.com/news/security/microsoft-azure-flaw-exploited-to-steal-customers-api-credentials/"),
+    "nvd-134624": ("NVD: CVE-2026-134624 (N-able Mail Assure SSRF)",
+                   "https://nvd.nist.gov/vuln/detail/CVE-2026-134624"),
 }
 
 SKIPPED = [
@@ -737,6 +769,28 @@ SKIPPED = [
      "This helper never reads process memory."),
     ("GHSA-g98r-qjhg-4fmr patched versions None as 'no fix'",
      "Malware-advisory style. Bitwarden tells users to install 2026.4.1 (later 2026.x exist)."),
+    ("Azure API Management Classic credential theft (MZK9-GH0 / Microsoft)",
+     "Cloud service; Named Values and IdP secrets are rotated in the Azure portal. "
+     "bc-azure-apim-creds is context only."),
+    ("CVE-2026-134624 N-able Mail Assure / SpamExperts SSRF (CISA KEV)",
+     "Already skipped as hosted Mail Assure / SpamExperts; KEV restates cloud SSRF. nvd-134624."),
+    ("24 Nov 2026 breach-only incidents (European Commission EU Academy, KEPCO, GoFundMe Pro, "
+     "LaLiga, GlobeTopper, 1984 Hosting, FBI NCIC/USDA, Algonquin Dam / Fox River, Rackspace Spot, "
+     "Cleverbridge, Bell Canada / Virgin Plus, Nissan repair platform, Pentagon CAC PIN malware, "
+     "gov breaches Bulgaria/Portugal IMT/Austria MFA/Japan Digital, DonorPerfect/Unibet/Tigerfish)",
+     "Org/SaaS/government incidents; no host-level package, version floor or local IOC for this helper."),
+    ("SonicWall Gen6 / SonicOS 6 end-of-life (20 Nov 2026)",
+     "Appliance firmware EOL; needs the SonicWall console, not a laptop scan."),
+    ("React2STEAL GitHub Actions / Node.js campaign (23 Nov 2026)",
+     "Remote GitHub Actions / request and WAF campaign IOCs; no local package floor for this helper."),
+    ("MoldyRoost iOS exploit kits / malvertising (23 Nov 2026)",
+     "Mobile / iOS; needs MDM inventory, not a laptop scan."),
+    ("CVE-2025-42884 SAP NetWeaver (CISA KEV 20 Nov 2026)",
+     "Enterprise application server; needs the SAP admin console, not a laptop scan."),
+    ("Cisco Expressway RCE (CISA exploited 23 Nov 2026)",
+     "Appliance (Expressway); needs the Cisco console, not a laptop scan."),
+    ("CERT-In AI-assisted attacks advisory (India bank payments, 23 Nov 2026)",
+     "Campaign / advisory; no host-level package or version floor named for this helper."),
 ]
 
 
@@ -962,6 +1016,8 @@ NPM_LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock
 PY_FILES = {"poetry.lock", "uv.lock", "pdm.lock", "pylock.toml", "pipfile.lock", "pipfile", "pyproject.toml",
             "setup.cfg", "environment.yml", "environment.yaml"}
 DEPLOY_DIRS = {"k8s", "kubernetes", "helm", "charts", "deploy", "deployment", "manifests", "infra", "ops"}
+# Cap Web.config paths collected for Idunno.AntiCsrf module scanning; overflow is tracked.
+_IDUNNO_WEBCONFIG_CAP = 5000
 
 
 class Index:
@@ -1001,6 +1057,9 @@ class Index:
         self.axis_jars = []
         self.roller_props = []
         self.bw_cli_iocs = []
+        self.idunno_dlls = []
+        self.idunno_webconfig = []
+        self.idunno_webconfig_truncated = False
         self.complete = True
         self.stopped = None
 
@@ -1155,6 +1214,13 @@ def build_index(host):
             idx.roller_props.append(path)
         if low in ("bw_setup.js", "bw1.js", "package-updated.tgz", "tmp.987654321.lock"):
             idx.bw_cli_iocs.append(path)
+        if low == "idunno.anticsrf.dll":
+            idx.idunno_dlls.append(path)
+        if low in ("web.config", "web.config.xml"):
+            if len(idx.idunno_webconfig) < _IDUNNO_WEBCONFIG_CAP:
+                idx.idunno_webconfig.append(path)
+            else:
+                idx.idunno_webconfig_truncated = True
         if ctx.get("repo") and st.st_size >= host.blob_info[0]:
             idx.large.append((path, st.st_size, ctx["repo"]))
 
@@ -1513,7 +1579,7 @@ def site_dirs(host):
 WANTED_PY = {"litellm", "brotli", "brotlicffi", "certifi", "pillow", "wasmtime", "lightning_sdk",
              "agent_framework", "agent_framework_openai", "agent_framework_purview",
              "agent_framework_redis", "agent_framework_tools", "agent_framework_postgres",
-             "gpustack"}
+             "gpustack", "monailabel"}
 
 
 def py_installs(host):
@@ -8082,6 +8148,529 @@ def check_asus_acce_114202(host, r):
                       path=host.display(d))
 
 
+
+BINARY_PARSER_FLOOR = "2.3.1"
+BINARY_PARSER_PKG = "binary-parser"
+LEADSTACK_PKG = "@leadstack/crm-connect"
+LEADSTACK_MALICIOUS = frozenset({
+    "1.0.15", "1.0.18", "1.0.19", "1.0.20", "1.0.21", "1.0.29", "1.0.30", "1.1.0", "1.1.1",
+})
+LEADSTACK_UNITS = ("leadstack-routing.service", "leadstack-ingest-worker.service")
+MONAILABEL_FLOOR = "0.8.6"
+GPGME_FLOOR = "2.3.1"
+GPGME_DEBIAN_FLOORS = {
+    "12": "1.18.0-3+deb12u1",
+    "13": "1.24.2-3+deb13u1",
+}
+GPG4WIN_FLOOR = "5.1.2"
+GHOSTSCRIPT_FLOOR = "10.08.0"
+GHOSTSCRIPT_DEBIAN_FLOORS = {
+    "12": "10.0.0~dfsg-11+deb12u9",
+    "13": "10.05.1~dfsg-1+deb13u3",
+}
+# Mandiant MNDT-2026-0048 published SHA-256 for Idunno.AntiCsrf.dll builds (split for scanners).
+IDUNNO_DLL_SHAS = frozenset({
+    "da1efcfed182597ee946a9ef2895dfdfeab2bdff" + "16855aeef01656d8158ead06",
+    "c5c99489" + "1783453ae85f3ef8efb48592b7c560aeb56f531ee9ea5736518246eb",
+    "aa7bbad4a7ebc385" + "19955ac65517716569508ee4f61fc2f1276086940501e9bf",
+})
+_IDUNNO_DLL = "idunno.anticsrf.dll"
+_IDUNNO_CFG_NEEDLE = re.compile(r"(?i)Idunno\.AntiCsrf")
+_BP_PLAIN = re.compile(r"^v?(\d+(?:\.\d+){1,3})$")
+
+
+def _bp_exact_kind(raw):
+    v = hs.parse_version(raw)
+    if v is None:
+        return "unknown", "version could not be parsed"
+    if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(BINARY_PARSER_FLOOR).nums) == 0:
+        return "affected", "prerelease of 2.3.1 is not treated as fixed (CVE-2026-134814)"
+    if hs.below(v, BINARY_PARSER_FLOOR):
+        return "affected", "binary-parser below 2.3.1 (CVE-2026-134814 / GHSA-xmxc-6c22-m377)"
+    return "info", "at or above binary-parser 2.3.1"
+
+
+def _bp_spec_kind(spec):
+    spec = str(spec).strip().strip("'\"")
+    if not spec or spec.lower() in ("*", "x", "latest"):
+        return "review", "unpinned or wildcard range could resolve below 2.3.1"
+    if "||" in spec or " - " in spec:
+        return "review", "compound range; confirm it cannot include below 2.3.1"
+    m = _BP_PLAIN.match(spec)
+    if m:
+        return _bp_exact_kind(m.group(1))
+    if spec.startswith(("^", "~", ">=", ">", "=")):
+        body = spec.lstrip("^~>=<").lstrip("=")
+        v = hs.parse_version(body)
+        if v is None:
+            return "review", "range %s; lockfile decides" % spec
+        if spec.startswith("^") and hs.at_least(v, BINARY_PARSER_FLOOR):
+            return "info", "caret from %s cannot resolve below 2.3.1" % body
+        if spec.startswith(">=") and hs.at_least(v, BINARY_PARSER_FLOOR):
+            return "info", "lower bound %s is at or above 2.3.1" % body
+        if spec.startswith(">") and not hs.below(v, BINARY_PARSER_FLOOR):
+            # A bare ">" lower bound at the floor still needs nums >= floor.
+            if hs.cmp_nums(v.nums, hs.parse_version(BINARY_PARSER_FLOOR).nums) >= 0:
+                return "info", "lower bound excludes below 2.3.1"
+        return "review", "range %s could resolve below 2.3.1" % spec
+    return "review", "range %s; lockfile decides" % spec
+
+
+def _bp_token_kind(raw):
+    s = str(raw).strip()
+    if s.startswith("spec:"):
+        return _bp_spec_kind(s[5:])
+    return _bp_exact_kind(s)
+
+
+def _npm_pkg_dirs(nm, scoped_parts):
+    """Join node_modules root with scoped package segments."""
+    return os.path.join(nm, *scoped_parts)
+
+
+def _hidden_npm_lock_versions(text, wanted):
+    """Parse node_modules/.package-lock.json for wanted names.
+
+    Returns (found, ok). ``ok`` is False when the text is truncated or not a
+    JSON object; a valid empty lockfile returns ({}, True).
+    """
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return {}, False
+    if not isinstance(doc, dict):
+        return {}, False
+    return hs.npm_lock_versions(text, ".package-lock.json", wanted), True
+
+
+def check_binary_parser_134814(host, r):
+    """npm binary-parser vs 2.3.1 (CVE-2026-134814). Never start node."""
+    wanted = {BINARY_PARSER_PKG}
+    for path, name, ver in lock_hits(host, wanted):
+        kind, note = _bp_token_kind(ver)
+        r.add(kind, name, note + "; listed in %s" % os.path.basename(path),
+              path=host.display(path), version=str(ver).replace("spec:", "range "))
+    for nm in index(host).node_modules[:20000] + global_node_modules(host):
+        pj = os.path.join(nm, BINARY_PARSER_PKG, "package.json")
+        if hs.is_regular(pj):
+            doc = hs.read_json(pj, MIB, host.gaps)
+            if not isinstance(doc, dict):
+                r.add("unknown", BINARY_PARSER_PKG, "package.json could not be parsed",
+                      path=host.display(pj))
+            else:
+                ver = doc.get("version") if isinstance(doc.get("version"), str) else None
+                if not ver:
+                    r.add("unknown", BINARY_PARSER_PKG, "installed; version not in package.json",
+                          path=host.display(pj))
+                else:
+                    kind, note = _bp_exact_kind(ver)
+                    r.add(kind, BINARY_PARSER_PKG, note + "; installed in node_modules",
+                          path=host.display(pj), version=ver)
+        hidden = os.path.join(nm, ".package-lock.json")
+        if hs.is_regular(hidden):
+            text = text_of(host, hidden)
+            if text is None:
+                r.add("unknown", BINARY_PARSER_PKG,
+                      "node_modules/.package-lock.json could not be read",
+                      path=host.display(hidden))
+            else:
+                found, ok = _hidden_npm_lock_versions(text, wanted)
+                if not ok:
+                    r.add("unknown", BINARY_PARSER_PKG,
+                          "node_modules/.package-lock.json could not be read",
+                          path=host.display(hidden))
+                else:
+                    for n, vers in found.items():
+                        for v in sorted(vers):
+                            kind, note = _bp_token_kind(v)
+                            r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
+                                  path=host.display(hidden), version=v)
+
+
+def _lead_token_kind(raw):
+    s = str(raw).strip()
+    if s.startswith("spec:"):
+        return "review", "package.json range; lockfile decides when present"
+    plain = s[1:] if s.startswith("v") else s
+    v = hs.parse_version(plain)
+    canon = plain
+    if v is not None and not v.prerelease and not v.vendor_suffix:
+        nums = list(v.nums) + [0, 0, 0]
+        canon = "%d.%d.%d" % (nums[0], nums[1], nums[2])
+    if canon in LEADSTACK_MALICIOUS or plain in LEADSTACK_MALICIOUS:
+        return "affected", "malicious @leadstack/crm-connect publish (Hermes agent backdoor)"
+    if v is None:
+        return "unknown", "version could not be parsed; not a named malicious publish"
+    return "info", "installed or locked; not a named malicious publish"
+
+
+def check_leadstack_crm_connect(host, r):
+    """Malicious @leadstack/crm-connect versions and leftover paths. No C2 hosts/IPs."""
+    wanted = {LEADSTACK_PKG}
+    for path, name, ver in lock_hits(host, wanted):
+        kind, note = _lead_token_kind(ver)
+        r.add(kind, name, note + "; listed in %s" % os.path.basename(path),
+              path=host.display(path), version=str(ver).replace("spec:", "range "))
+    for nm in index(host).node_modules[:20000] + global_node_modules(host):
+        pj = _npm_pkg_dirs(nm, ("@leadstack", "crm-connect", "package.json"))
+        if hs.is_regular(pj):
+            doc = hs.read_json(pj, MIB, host.gaps)
+            if not isinstance(doc, dict):
+                r.add("unknown", LEADSTACK_PKG, "package.json could not be parsed",
+                      path=host.display(pj))
+            else:
+                ver = doc.get("version") if isinstance(doc.get("version"), str) else None
+                if not ver:
+                    r.add("unknown", LEADSTACK_PKG, "installed; version not in package.json",
+                          path=host.display(pj))
+                else:
+                    kind, note = _lead_token_kind(ver)
+                    r.add(kind, LEADSTACK_PKG, note + "; installed in node_modules",
+                          path=host.display(pj), version=ver)
+        hidden = os.path.join(nm, ".package-lock.json")
+        if hs.is_regular(hidden):
+            text = text_of(host, hidden)
+            if text is None:
+                r.add("unknown", LEADSTACK_PKG,
+                      "node_modules/.package-lock.json could not be read",
+                      path=host.display(hidden))
+            else:
+                found, ok = _hidden_npm_lock_versions(text, wanted)
+                if not ok:
+                    r.add("unknown", LEADSTACK_PKG,
+                          "node_modules/.package-lock.json could not be read",
+                          path=host.display(hidden))
+                else:
+                    for n, vers in found.items():
+                        for v in sorted(vers):
+                            kind, note = _lead_token_kind(v)
+                            r.add(kind, n, note + "; recorded in node_modules/.package-lock.json (may be nested)",
+                                  path=host.display(hidden), version=v)
+    for rel in ((".leadstack",), (".config", "leadstack"),
+                (".local", "share", "leadstack")):
+        p = host.h(*rel)
+        if hs.is_plain_dir(p) or hs.is_regular(p):
+            r.add("review", "LeadStack leftover path",
+                  "published leftover directory name from the crm-connect incident",
+                  path=host.display(p))
+    if host.platform == "linux":
+        unit_dirs = (
+            "/etc/systemd/system",
+            "/usr/lib/systemd/system",
+            "/lib/systemd/system",
+            "/etc/systemd/user",
+            "/usr/lib/systemd/user",
+        )
+        for base in unit_dirs:
+            for name in LEADSTACK_UNITS:
+                p = host.sys(os.path.join(base, name))
+                if hs.is_regular(p) or hs.exists_nofollow(p):
+                    r.add("affected", "LeadStack systemd unit",
+                          "published unit name from the crm-connect incident",
+                          path=host.display(p))
+
+
+def _monailabel_classify(r, component, raw, path, source):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if hs.at_least(v, MONAILABEL_FLOOR):
+        r.add("info", component, "at or above MONAI Label 0.8.6; from %s" % source,
+              path=path, version=raw)
+        return
+    extra = ""
+    if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(MONAILABEL_FLOOR).nums) == 0:
+        extra = "; prerelease of 0.8.6 is not treated as fixed"
+    r.add("affected", component,
+          "MONAI Label below 0.8.6 (CVE-2026-133968)%s; from %s" % (extra, source),
+          path=path, version=raw)
+
+
+def _monailabel_pin_hit(r, host, path, v):
+    exact = _py_pin_exact(v)
+    if exact is None:
+        r.add("review", "monailabel pin",
+              "unpinned or wildcard spec; resolution could land below 0.8.6",
+              path=host.display(path), version=str(v).replace("spec:", ""))
+        return
+    _monailabel_classify(r, "monailabel pin", exact, host.display(path), "pin")
+
+
+def check_monailabel_133968(host, r):
+    """MONAI Label vs 0.8.6 (CVE-2026-133968). Never start monailabel, never HTTP."""
+    for ver, path, label in py_installs(host).get("monailabel", []):
+        _monailabel_classify(r, "monailabel (%s)" % label, ver, host.display(path), "dist-info")
+    for path, _n, v in py_pin_hits(host, {"monailabel"}, include_docker=False):
+        _monailabel_pin_hit(r, host, path, v)
+    for path, _n, v in _dockerfile_requirement_hits(host, {"monailabel"}):
+        _monailabel_pin_hit(r, host, path, v)
+    for path, image, tag in docker_decl_refs(host, r"monailabel"):
+        last = image.replace("\\", "/").rstrip("/").split("/")[-1].lower()
+        if last != "monailabel":
+            continue
+        if tag == DIGEST_PINNED_TAG:
+            r.add("unknown", "monailabel image",
+                  "digest-pinned reference; tag is not evidence of the pinned artifact",
+                  path=host.display(path), version=tag)
+        elif _semver_tag_unresolved(tag):
+            r.add("unknown", "monailabel image",
+                  "moving or unpinned tag %s; version is not a fixed build" % tag,
+                  path=host.display(path), version=tag)
+        else:
+            t = re.sub(r"^v", "", tag)
+            _monailabel_classify(r, "monailabel image", t, host.display(path), "image tag")
+
+
+def _gpgme_pkg_name(name):
+    n = name.lower()
+    if n in ("gpgme", "libgpgme11", "libgpgme-dev", "libgpgme0t64", "libgpgme11t64",
+             "gpgme1.0", "libgpgme-pthread11"):
+        return True
+    # GPGMEPP / GPGMEQT bindings are not this CVE's core-library floor.
+    if n.startswith(("libgpgmepp", "libgpgmeqt", "gpgmepp", "gpgmeqt")):
+        return False
+    if n.startswith("libgpgme") or n.startswith("gpgme"):
+        return True
+    return False
+
+
+def _debian_stream_floor(raw, version_id, floors):
+    """Return a series floor when the package upstream matches that floor's stream.
+
+    Prefers the running VERSION_ID floor when upstreams match; otherwise any
+    catalog floor with the same upstream. Returns (floor, reason) where reason is
+    ``match``, ``no_series_floor``, ``stream_mismatch``, or ``unparsable``.
+    """
+    parsed = hs.parse_debian_version(raw)
+    if parsed is None:
+        return None, "unparsable"
+    pkg_up = parsed[1]
+    major = (version_id or "").split(".")[0]
+    ordered = []
+    if major and major in floors:
+        ordered.append(floors[major])
+    for m, f in floors.items():
+        if m != major:
+            ordered.append(f)
+    for floor in ordered:
+        fp = hs.parse_debian_version(floor)
+        if fp is not None and fp[1] == pkg_up:
+            return floor, "match"
+    if major and major not in floors:
+        return None, "no_series_floor"
+    if major and major in floors:
+        return None, "stream_mismatch"
+    return None, "stream_mismatch"
+
+
+def _gpgme_classify(r, component, raw, path, source, os_id=None, version_id=None):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    # Debian series floors via Policy 5.6.12 when VERSION_ID is known and upstream matches.
+    if os_id == "debian" and source == "dpkg":
+        floor, how = _debian_stream_floor(raw, version_id, GPGME_DEBIAN_FLOORS)
+        if how == "match":
+            cmpv = hs.debian_version_cmp(raw, floor)
+            if cmpv is None:
+                r.add("review", component,
+                      "Debian version string could not be compared to %s (%s)" % (floor, source),
+                      path=path, version=raw)
+            elif cmpv >= 0:
+                r.add("info", component, "at or above Debian floor %s (%s)" % (floor, source),
+                      path=path, version=raw)
+            else:
+                r.add("affected", component,
+                      "below Debian floor %s (CVE-2026-129975) (%s)" % (floor, source),
+                      path=path, version=raw)
+            return
+        if how == "no_series_floor":
+            r.add("review", component,
+                  "Debian %s has no series floor in this check; confirm a backport" % version_id,
+                  path=path, version=raw)
+            return
+        if how == "unparsable":
+            r.add("review", component,
+                  "Debian version string could not be compared (%s)" % source,
+                  path=path, version=raw)
+            return
+        # stream_mismatch: fall through to upstream floor (do not treat foreign stream as patched).
+    if v.vendor_suffix and not hs.at_least(v, GPGME_FLOOR):
+        r.add("review", component,
+              "vendor/distro suffix below upstream 2.3.1; confirm a backport (CVE-2026-129975); from %s"
+              % source, path=path, version=raw)
+        return
+    if hs.at_least(v, GPGME_FLOOR):
+        r.add("info", component, "at or above GPGME 2.3.1; from %s" % source, path=path, version=raw)
+        return
+    extra = ""
+    if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(GPGME_FLOOR).nums) == 0:
+        extra = "; prerelease of 2.3.1 is not treated as fixed"
+    r.add("affected", component,
+          "GPGME below 2.3.1 (CVE-2026-129975)%s; from %s" % (extra, source),
+          path=path, version=raw)
+
+
+def check_gpgme_129975(host, r):
+    """GPGME vs 2.3.1 (CVE-2026-129975). Never start gpgme-tool / gpg."""
+    fields = os_release_fields(host) if host.platform == "linux" else {}
+    os_id = (fields.get("ID") or "").lower()
+    version_id = fields.get("VERSION_ID") or ""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if not _gpgme_pkg_name(name):
+                continue
+            for ver, src in rows:
+                _gpgme_classify(r, "GPGME (%s)" % name, ver, None, src,
+                               os_id=os_id, version_id=version_id)
+    for formula in ("gpgme", "libgpgme"):
+        for ver, p in cellar(host).get(formula, []):
+            _gpgme_classify(r, "GPGME (Homebrew)", ver, host.display(p), "Cellar")
+    if host.platform == "windows":
+        for e in registry_matches(host, r"gpg4win"):
+            raw = e.get("version") or ""
+            if raw:
+                v = hs.parse_version(raw)
+                if v is None:
+                    r.add("unknown", "Gpg4win", "DisplayVersion not readable", version=raw)
+                elif hs.at_least(v, GPG4WIN_FLOOR):
+                    r.add("info", "Gpg4win", "at or above Gpg4win 5.1.2 (ships GPGME 2.3.1)",
+                          version=raw)
+                else:
+                    r.add("affected", "Gpg4win",
+                          "below Gpg4win 5.1.2 (CVE-2026-129975 / GPGME)", version=raw)
+            else:
+                r.add("unknown", "Gpg4win", "present; DisplayVersion empty")
+
+
+def _ghostscript_pkg_name(name):
+    n = name.lower()
+    if n in ("ghostscript", "ghostscript-x", "ghostscript-doc"):
+        return True
+    # libgsN / libgsN-* only — not Kerberos libgssapi-*.
+    if re.match(r"^libgs\d", n) or n.startswith("ghostscript"):
+        return True
+    return False
+
+
+def _ghostscript_classify(r, component, raw, path, source, os_id=None, version_id=None):
+    v = hs.parse_version(raw)
+    if v is None:
+        r.add("unknown", component, "version string could not be parsed (%s)" % source, path=path,
+              version=textscan.redact(str(raw))[:64])
+        return
+    if os_id == "debian" and source == "dpkg":
+        floor, how = _debian_stream_floor(raw, version_id, GHOSTSCRIPT_DEBIAN_FLOORS)
+        if how == "match":
+            cmpv = hs.debian_version_cmp(raw, floor)
+            if cmpv is None:
+                r.add("review", component,
+                      "Debian version string could not be compared to %s (%s)" % (floor, source),
+                      path=path, version=raw)
+            elif cmpv >= 0:
+                r.add("info", component, "at or above Debian floor %s (%s)" % (floor, source),
+                      path=path, version=raw)
+            else:
+                r.add("affected", component,
+                      "below Debian floor %s (CVE-2026-125396) (%s)" % (floor, source),
+                      path=path, version=raw)
+            return
+        if how == "no_series_floor":
+            r.add("review", component,
+                  "Debian %s has no series floor in this check; confirm a backport" % version_id,
+                  path=path, version=raw)
+            return
+        if how == "unparsable":
+            r.add("review", component,
+                  "Debian version string could not be compared (%s)" % source,
+                  path=path, version=raw)
+            return
+        # stream_mismatch: fall through to upstream floor.
+    if v.vendor_suffix and not hs.at_least(v, GHOSTSCRIPT_FLOOR):
+        r.add("review", component,
+              "vendor/distro suffix below upstream 10.08.0; confirm a backport (CVE-2026-125396); from %s"
+              % source, path=path, version=raw)
+        return
+    if hs.at_least(v, GHOSTSCRIPT_FLOOR):
+        r.add("info", component, "at or above Ghostscript 10.08.0; from %s" % source,
+              path=path, version=raw)
+        return
+    extra = ""
+    if v.prerelease and hs.cmp_nums(v.nums, hs.parse_version(GHOSTSCRIPT_FLOOR).nums) == 0:
+        extra = "; prerelease of 10.08.0 is not treated as fixed"
+    r.add("affected", component,
+          "Ghostscript below 10.08.0 (CVE-2026-125396)%s; from %s" % (extra, source),
+          path=path, version=raw)
+
+
+def check_ghostscript_125396(host, r):
+    """Ghostscript vs 10.08.0 (CVE-2026-125396). Never start gs."""
+    fields = os_release_fields(host) if host.platform == "linux" else {}
+    os_id = (fields.get("ID") or "").lower()
+    version_id = fields.get("VERSION_ID") or ""
+    if host.platform == "linux":
+        for name, rows in linux_packages(host).items():
+            if not _ghostscript_pkg_name(name):
+                continue
+            for ver, src in rows:
+                _ghostscript_classify(r, "Ghostscript (%s)" % name, ver, None, src,
+                                      os_id=os_id, version_id=version_id)
+    for formula in ("ghostscript",):
+        for ver, p in cellar(host).get(formula, []):
+            _ghostscript_classify(r, "Ghostscript (Homebrew)", ver, host.display(p), "Cellar")
+    if host.platform == "windows":
+        for e in registry_matches(host, r"ghostscript"):
+            raw = e.get("version") or ""
+            if raw:
+                _ghostscript_classify(r, "Ghostscript (uninstall registry)", raw, None, "registry")
+            else:
+                r.add("unknown", "Ghostscript (uninstall registry)", "present; DisplayVersion empty")
+
+
+def check_idunno_anticsrf_131914(host, r):
+    """Idunno.AntiCsrf.dll presence / published SHA-256 (CVE-2026-131914). No patch exists."""
+    idx = index(host)
+    if idx.idunno_webconfig_truncated:
+        r.blocked.append(
+            "Web.config collection capped at %d; Idunno.AntiCsrf module coverage incomplete"
+            % _IDUNNO_WEBCONFIG_CAP)
+    seen = set()
+    for path in idx.idunno_dlls:
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        digest = sha256_of(path, MIB)
+        if digest is None:
+            r.add("unknown", "Idunno.AntiCsrf.dll",
+                  "present; bytes could not be read for hashing", path=host.display(path))
+        elif digest.lower() in IDUNNO_DLL_SHAS:
+            r.add("affected", "Idunno.AntiCsrf.dll",
+                  "SHA-256 matches a Mandiant MNDT-2026-0048 published build (CVE-2026-131914); no vendor patch",
+                  path=host.display(path), sha256=digest)
+        else:
+            r.add("review", "Idunno.AntiCsrf.dll",
+                  "name match; hash is not a published MNDT-2026-0048 build (CVE-2026-131914); no vendor patch",
+                  path=host.display(path), sha256=digest)
+    for path in idx.idunno_webconfig:
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        text = text_of(host, path, MIB)
+        if text is None:
+            r.add("unknown", "Web.config", "could not be read", path=host.display(path))
+            continue
+        if _IDUNNO_CFG_NEEDLE.search(text):
+            r.add("review", "Web.config Idunno.AntiCsrf module",
+                  "registers Idunno.AntiCsrf (CVE-2026-131914); no vendor patch",
+                  path=host.display(path))
+
+
 # JFrog / StepSecurity published SHA-256 for the 2026.4.0 loader and payload.
 BW_LOADER_SHA = "18f784b3bc9a0bcdcb1a8d7f51bc5f54323fc40cbd874119354ab609bef6e4cb"
 BW_PAYLOAD_SHA = "8605e365edf11160aad517c7d79a3b26b62290e5072ef97b102a01ddbb343f14"
@@ -9035,13 +9624,67 @@ CHECKS = [
                "2026.4.1 or later from a clean device and rotate reachable tokens. This tool never starts "
                "bw, bun or gh.",
                ALL_OS, check_bitwarden_cli_42994),
+    check_meta("binary-parser-134814",
+               "npm binary-parser below 2.3.1 (CVE-2026-134814)",
+               "check_if_used", "confirmed", "dependency",
+               ["ghsa-binary-parser-134814", "nvd-134814"],
+               "CVE-2026-134814 / GHSA-xmxc-6c22-m377: code injection via string-typed parser options. "
+               "Floor 2.3.1. Never start node.",
+               "Upgrade binary-parser to 2.3.1 or later. This tool never starts node.",
+               ALL_OS, check_binary_parser_134814),
+    check_meta("leadstack-crm-connect",
+               "Malicious npm @leadstack/crm-connect (Hermes agent backdoor)",
+               "check_now", "confirmed", "dependency",
+               ["safedep-leadstack", "ghsa-leadstack"],
+               "Nine malicious publishes of @leadstack/crm-connect. Exact versions only. "
+               "Leftover ~/.leadstack and systemd unit names remain findings. C2 hosts/IPs are not stored.",
+               "Remove malicious versions and leftover paths/units; rebuild from a clean device and rotate "
+               "reachable tokens. This tool never starts node and stores no network IOC.",
+               ALL_OS, check_leadstack_crm_connect),
+    check_meta("monailabel-133968",
+               "MONAI Label below 0.8.6 (CVE-2026-133968)",
+               "check_if_used", "confirmed", "runtime",
+               ["ghsa-monailabel-133968", "nvd-133968", "monailabel-086"],
+               "CVE-2026-133968 / GHSA-qc22-rmgc-vg94: unauthenticated path traversal (arbitrary file write / "
+               "possible RCE). Floor 0.8.6. Never start monailabel, never HTTP.",
+               "Upgrade MONAI Label to 0.8.6. This tool never starts monailabel and never HTTP-probes it.",
+               ALL_OS, check_monailabel_133968),
+    check_meta("gpgme-129975",
+               "GPGME below 2.3.1 (CVE-2026-129975)",
+               "check_if_used", "confirmed", "runtime",
+               ["gnupg-gpgme-129975", "nvd-129975", "debian-gpgme-129975", "gpg4win-512"],
+               "CVE-2026-129975: GPGME double-free. Upstream floor 2.3.1. Debian bookworm/trixie series "
+               "floors via Policy 5.6.12. Gpg4win 5.1.2 ships the fix. Never start gpgme-tool or gpg.",
+               "Upgrade GPGME to 2.3.1 (or the Debian/Gpg4win floor for your series). This tool never "
+               "starts gpgme-tool or gpg.",
+               ALL_OS, check_gpgme_129975, uses_walk=False),
+    check_meta("ghostscript-125396",
+               "Ghostscript below 10.08.0 (CVE-2026-125396)",
+               "check_if_used", "confirmed", "runtime",
+               ["oss-security-ghostscript-125396", "nvd-125396", "debian-ghostscript-125396"],
+               "CVE-2026-125396 (Upload2Shell): -dSAFER bypass. Upstream floor 10.08.0. Debian "
+               "bookworm/trixie series floors via Policy 5.6.12. Never start gs.",
+               "Upgrade Ghostscript to 10.08.0 (or the Debian floor for your series). This tool never "
+               "starts gs.",
+               ALL_OS, check_ghostscript_125396, uses_walk=False),
+    check_meta("idunno-anticsrf-131914",
+               "Idunno.AntiCsrf AspNet module (CVE-2026-131914)",
+               "check_now", "confirmed", "runtime",
+               ["mandiant-mndt-2026-0048", "nvd-131914"],
+               "CVE-2026-131914 / Mandiant MNDT-2026-0048: insecure ObjectStateFormatter deserialization. "
+               "No vendor patch. Published DLL SHA-256s are affected; name-only and Web.config module "
+               "registration are review.",
+               "Remove or replace Idunno.AntiCsrf; there is no patched build. This tool never starts IIS "
+               "or loads the DLL.",
+               ALL_OS, check_idunno_anticsrf_131914),
+
 ]
 CHECK_IDS = [c["id"] for c in CHECKS]
 INDICATOR_CHECKS = {"testmetest-ai-hooks", "testmetest-large-blobs", "testmetest-npm-package",
                     "planted-agent-instructions", "function-color-npm-package", "litellm-1-107-0",
                     "claude-code-vsx-21313", "yoba-fake-ai-apps",
                     "artex-gateway-keys", "blank-canvas-vsx", "agent-framework-1-26",
-                    "bitwarden-cli-42994"}
+                    "bitwarden-cli-42994", "leadstack-crm-connect", "idunno-anticsrf-131914"}
 
 
 def run_check(host, meta):

@@ -41,7 +41,7 @@ class SimCase(unittest.TestCase):
 
 class Catalog(SimCase):
     def test_new_ids_and_count(self):
-        self.assertEqual(len(hc.CHECK_IDS), 81)
+        self.assertEqual(len(hc.CHECK_IDS), 87)
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
         self.assertIn("litellm-40217", hc.CHECK_IDS)
         self.assertIn("nginx-123007", hc.CHECK_IDS)
