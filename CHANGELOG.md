@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/host_checks.py`: one read-only check (88 checks total). `whmcs-82981` classifies self-hosted WHMCS against CVE-2026-82981 floors **9.0.10** / **9.1.2** from `includes/version.php` (WHMCS marker required; `configuration.php` presence only — never opened). Versions below 9.0 are info (outside this CVE). Never starts PHP or ionCube; never HTTP-probes the shopping cart.
+- Evening extension of dated profile `host-advisories-2026-11-24.md`.
+- Skipped as not host-checkable or already covered: VMSA-2026-0011 vCenter CVE-2026-123903..123907 (appliance; distinct from CVE-2026-123890), ICSA-26-323-02 Elecbrakes (already skipped), PlayStation Network ATO, McDonald's Japan app breach, Hugendubel / Tolino Cloud / eBook de, Rackspace Spot wind-down 8 Dec 2026 (update to the 17 Nov incident).
+
+### Changed
+
+- Briefing window through 24 Nov 2026 evening watch.
+- Reviewed public hosts: `help.whmcs.com`, `blog.whmcs.com`, `docs.whmcs.com`, `status.spot.rackspace.com`, `www.heise.de`, `heise.de`, `0xbaas.com`.
+
 ## 0.4.15 - 2026-11-24
 
 ### Added

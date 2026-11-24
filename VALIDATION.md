@@ -2,7 +2,7 @@
 
 Version 0.4.4, checked on 31 October 2026. This record concerns the skill's helper utilities and synthetic fixtures, not the security of a real system or the comparative detection performance of an agent.
 
-Unreleased 24 Nov 2026 watch adds six ids (87 total: `binary-parser-134814`, `leadstack-crm-connect`, `monailabel-133968`, `gpgme-129975`, `ghostscript-125396`, `idunno-anticsrf-131914`) on dated profile `host-advisories-2026-11-24.md`. Reproduce with the commands below; this file's 0.4.4 counts are historical.
+Unreleased 24 Nov 2026 evening watch adds `whmcs-82981` (88 checks total) on dated profile `host-advisories-2026-11-24.md` (morning watch already added six ids to 87). Reproduce with the commands below; this file's 0.4.4 counts are historical.
 
 ## Executed checks
 

@@ -59,7 +59,7 @@ class SimCase(unittest.TestCase):
 
 class Catalog(SimCase):
     def test_new_id_and_count(self):
-        self.assertEqual(len(hc.CHECK_IDS), 87)
+        self.assertEqual(len(hc.CHECK_IDS), 88)
         self.assertEqual(len(hc.CHECK_IDS), len(set(hc.CHECK_IDS)))
         self.assertIn(CID, hc.CHECK_IDS)
         self.assertIn(CID, hc.INDICATOR_CHECKS)
